@@ -96,7 +96,7 @@ class BonsaiEncoder(ModernBertModel):
         return global_attention_mask, sliding_window_mask
 
 
-class BonsaiPretraining(BonsaiEncoder):
+class BonsaiPretrain(BonsaiEncoder):
     """
     Masked Language Model head for EHR pretraining.
 
@@ -131,7 +131,7 @@ class BonsaiPretraining(BonsaiEncoder):
         return logits, labels
 
 
-class BonsaiFineTuning(BonsaiEncoder):
+class BonsaiFinetune(BonsaiEncoder):
     """
     Fine-tuning head for downstream classification on EHR sequences.
 
