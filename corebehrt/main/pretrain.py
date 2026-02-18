@@ -35,10 +35,14 @@ def main_train(config_path):
 
     # Get data
     train_data = PatientDataset(
-        torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS), weights_only=False)
+        torch.load(
+            join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS), weights_only=False
+        )
     )
     val_data = PatientDataset(
-        torch.load(join(cfg.paths.prepared_data, PREPARED_VAL_PATIENTS), weights_only=False)
+        torch.load(
+            join(cfg.paths.prepared_data, PREPARED_VAL_PATIENTS), weights_only=False
+        )
     )
     vocab = load_vocabulary(cfg.paths.prepared_data)
 

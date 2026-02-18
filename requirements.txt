@@ -10,3 +10,4 @@ torch==2.10.0
 tqdm==4.67.3
 transformers>=5.2.0
 xgboost>=3.0.2
+ruff==0.15.1
