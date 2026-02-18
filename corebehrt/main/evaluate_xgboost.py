@@ -30,7 +30,9 @@ def main_evaluate(config_path):
     logger = logging.getLogger("evaluate")
 
     # Load data
-    loaded_data = torch.load(join(cfg.paths.test_data_dir, PREPARED_ALL_PATIENTS), weights_only=False)
+    loaded_data = torch.load(
+        join(cfg.paths.test_data_dir, PREPARED_ALL_PATIENTS), weights_only=False
+    )
     vocab = torch.load(join(cfg.paths.test_data_dir, VOCABULARY_FILE))
     test_data = PatientDataset(loaded_data)
     test_pids = test_data.get_pids()

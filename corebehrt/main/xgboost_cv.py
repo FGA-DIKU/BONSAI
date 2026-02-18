@@ -29,7 +29,9 @@ def main_xgboost(config_path):
 
     logger = logging.getLogger("xgboost")
 
-    loaded_data = torch.load(join(cfg.paths.prepared_data, PREPARED_ALL_PATIENTS), weights_only=False)
+    loaded_data = torch.load(
+        join(cfg.paths.prepared_data, PREPARED_ALL_PATIENTS), weights_only=False
+    )
     data = PatientDataset(loaded_data)
     vocab = load_vocabulary(cfg.paths.prepared_data)
     test_data = PatientDataset([])
