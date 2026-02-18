@@ -158,11 +158,11 @@ def load_data(
     exposures = select_first_event(exposures, PID_COL, TIMESTAMP_COL)
 
     initial_pids = (
-        torch.load(path_cfg.initial_pids) if path_cfg.get("initial_pids", False) else []
+        torch.load(path_cfg.initial_pids, weights_only=False) if path_cfg.get("initial_pids", False) else []
     )
 
     exclude_pids = (
-        torch.load(path_cfg.exclude_pids) if path_cfg.get("exclude_pids", False) else []
+        torch.load(path_cfg.exclude_pids, weights_only=False) if path_cfg.get("exclude_pids", False) else []
     )
 
     return patients_info, outcomes, exposures, initial_pids, exclude_pids

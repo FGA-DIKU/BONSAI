@@ -50,7 +50,7 @@ class ValueCreator:
         if add_prefix:
             columns_to_drop.append("prefix")
 
-        return concatted.drop(columns=columns_to_drop, axis=1)
+        return concatted.drop(columns=columns_to_drop)
 
     @staticmethod
     def bin(normalized_values: pd.Series, num_bins=100) -> pd.Series:
