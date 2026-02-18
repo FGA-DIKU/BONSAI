@@ -54,11 +54,11 @@ def main_prepare_data(config_path):
 
         # Save splits from cohort selection
         folds_path = get_splits_path(cfg.paths)
-        folds = torch.load(folds_path)
+        folds = torch.load(folds_path, weights_only=False)
         torch.save(folds, join(cfg.paths.prepared_data, FOLDS_FILE))
         test_pids_file = join(cfg.paths.cohort, TEST_PIDS_FILE)
         if os.path.exists(test_pids_file):
-            test_pids = torch.load(test_pids_file)
+            test_pids = torch.load(test_pids_file, weights_only=False)
             torch.save(test_pids, join(cfg.paths.prepared_data, TEST_PIDS_FILE))
 
     elif cfg.data.type == "test":

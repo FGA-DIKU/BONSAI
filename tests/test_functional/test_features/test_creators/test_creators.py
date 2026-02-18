@@ -179,7 +179,7 @@ class TestCreators(unittest.TestCase):
         result = create_abspos(concepts_no_nan)
 
         # Expected abspos
-        expected_abspos = concepts_no_nan["time"].astype("int64") // 10**9 / 3600
+        expected_abspos = concepts_no_nan["time"].astype("int64") // 10**6 / 3600
 
         # Assert the abspos values are as expected
         self.assertTrue((result["abspos"] == expected_abspos).all())

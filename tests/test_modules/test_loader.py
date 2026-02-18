@@ -46,7 +46,7 @@ class TestFormattedDataLoader(unittest.TestCase):
             {
                 PID_COL: [1, 2],
                 "time": pd.to_datetime(["2020-01-01", "2010-01-01"]),
-                CONCEPT_COL: pd.Series(["A", "B"], dtype="object"),
+                CONCEPT_COL: pd.Series(["A", "B"]),
                 "numeric_value": ["1", "2"],
             }
         )

@@ -67,7 +67,7 @@ class TestCreateData(TestMainScript):
         # 4: Check vocabulary
         vocab_path = join(self.tokenized_dir, "vocabulary.pt")
         self.assertTrue(exists(vocab_path))
-        vocab = torch.load(vocab_path)
+        vocab = torch.load(vocab_path, weights_only=True)
         bg_tokens = [v for k, v in vocab.items() if k.startswith("BG")]
         self.assertEqual(len(bg_tokens), 9)
         val_tokens = [v for k, v in vocab.items() if k.startswith("VAL")]
