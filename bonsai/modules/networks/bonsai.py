@@ -35,12 +35,12 @@ class BonsaiEncoder(ModernBertModel):
             type_vocab_size=config.type_vocab_size,
             embedding_dropout=config.embedding_dropout,
             pad_token_id=config.pad_token_id,
-            age_scale=config.age_scale,  # TODO: Move this from constants into configs
-            age_shift=config.age_shift,  # TODO: Move this from constants into configs
-            abspos_scale=config.abspos_scale,  # TODO: Move this from constants into configs
-            abspos_shift=config.abspos_shift,  # TODO: Move this from constants into configs
+            age_scale=config.age_scale,
+            age_shift=config.age_shift,
+            abspos_scale=config.abspos_scale,
+            abspos_shift=config.abspos_shift,
         )
-        self.is_causal = getattr(config, "is_causal", False)
+        self.is_causal = config.is_causal
 
     def forward(self, batch: dict, **kwargs):
         """

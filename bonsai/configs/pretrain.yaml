@@ -1,0 +1,57 @@
+defaults: 
+  - core/base@
+  - hardware/1gpu12cpu@hardware
+  - _self_
+  
+data:
+  select_ratio: 1.
+  masking_ratio: .8
+  replace_ratio: .1
+  ignore_special_tokens: true
+  shuffle: true
+
+training:
+  batch_size: 32
+  accumulate_grad_batches: 2 #previously called effective batch size
+  epochs: 1
+  learning_rate: 5e-4
+  optimizer_epsilon: 1e-6
+  # Below is not planned to be implemented
+  #info: true
+  #sampler: null
+  #gradient_clip: 
+  #  clip_value: 1.0
+  # early_stopping: null # num_epochs or null/false
+
+model:
+  hidden_size: 96
+  num_hidden_layers: 3
+  num_attention_heads: 3
+  intermediate_size: 64
+  type_vocab_size: 1024 
+  embedding_dropout: 0.1 
+  max_position_embeddings: 512 
+  age_scale: 1e-2 # 100 -> 1
+  abspos_scale: 1e-5 # 400k -> 4
+  age_shift: -50 # center around 0
+  abspos_shift: -90_000 # 0 will be around 2015
+  is_causal: false  
+  
+
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_epochs: 2
+  num_training_epochs: 3
+
+metrics:
+  top1:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 1
+  top10:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+
+    topk: 10
+  mlm_loss:
+    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
+    loss_name: loss

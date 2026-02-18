@@ -12,7 +12,6 @@ class PretrainModule(L.LightningModule):
         model: nn.Module,
         compile_mode: str = None,
         learning_rate: float = 5e-4,
-        loss_fn: nn.Module = nn.CrossEntropyLoss(),
         optimizer_epsilon: float = 1e-6,
         scheduler_warmup_epochs: int = 0,
     ):
@@ -27,6 +26,21 @@ class PretrainModule(L.LightningModule):
         )
         self.train_loss = nn.CrossEntropyLoss()
         self.val_loss = nn.CrossEntropyLoss()
+
+    """
+    add metrics:
+    top1:
+        _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+        topk: 1
+    top10:
+        _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+
+        topk: 10
+    mlm_loss:
+        _target_: corebehrt.modules.monitoring.metrics.LossAccessor
+        loss_name: loss
+
+    """
 
     @abstractmethod
     def training_step(self, batch, batch_idx):

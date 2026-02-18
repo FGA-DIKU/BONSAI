@@ -8,17 +8,19 @@ from transformers import ModernBertConfig
 
 @hydra.main(
     # config_path=get_config_path(), # TODO: make this more flexible to allow for different config paths
-    config_path="./corebehrt/configs",
+    config_path="bonsai/configs",
     config_name="pretrain",
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
     cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
 
-    # TODO: implement path config for BONSAI
+    # TODO: implement path configuration for BONSAI
     # DirectoryPreparer(cfg).setup_pretrain()
 
     # TODO: implement logging for BONSAI -> Move this to LightningModule
+    # TODO: Implement instantiating transforms here
+    # TODO: Instantiate callbacks and loggers here and pass to trainer
 
     # TODO: Move path to the LightningTrainer so it auto-loads checkpoint from path
     # restart_path = cfg.paths.get("restart_model")
@@ -26,7 +28,18 @@ def main(cfg: DictConfig) -> None:
     #    cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
 
     # TODO: Implement DataModule here and instantiate datasets in there.
-    data_module = ()
+    def dummy_dm(*args, **kwargs):
+        pass
+
+    data_module = dummy_dm(
+        batch_size=cfg.data.batch_size,
+        select_ratio=cfg.data.select_ratio,
+        masking_ratio=cfg.data.masking_ratio,
+        replace_ratio=cfg.data.replace_ratio,
+        ignore_special_tokens=cfg.data.ignore_special_tokens,
+        shuffle=cfg.data.shuffle,
+    )
+
     # train_data = PatientDataset(
     #    torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS))
     # )
@@ -36,9 +49,6 @@ def main(cfg: DictConfig) -> None:
     # vocab = load_vocabulary(cfg.paths.prepared_data)
     #     #train_dataset = MLMDataset(train_data.patients, vocab, **cfg.data.dataset)
     # val_dataset = MLMDataset(val_data.patients, vocab, **cfg.data.dataset)
-
-    # TODO: Load Model here
-    # model = initializer.initialize_pretrain_model(train_dataset)
 
     model = BonsaiPretrain(
         ModernBertConfig(
@@ -59,14 +69,13 @@ def main(cfg: DictConfig) -> None:
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
     )
 
-    # TODO: Implement Lightning Trainer here and pass in model, optimizer, scheduler, datasets, etc.
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
         accumulate_grad_batches=cfg.training.accumulate_grad_batches,
         devices=cfg.hardware.num_devices,
         callbacks=[],
         loggers=[],
-        max_epochs=cfg.training.max_epochs,
+        max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
         precision=cfg.training.precision,
     )

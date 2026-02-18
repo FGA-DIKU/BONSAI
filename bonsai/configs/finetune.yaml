@@ -1,0 +1,53 @@
+defaults: 
+  - core/base@
+  - hardware/1gpu12cpu@hardware
+  - _self_
+  
+data:
+  select_ratio: 1.
+  masking_ratio: .8
+  replace_ratio: .1
+  ignore_special_tokens: true
+  shuffle: true
+
+training:
+  batch_size: 128
+  accumulate_grad_batches: 1 #previously called effective batch size
+  epochs: 2
+  learning_rate: 5e-4
+  optimizer_epsilon: 1e-6
+  
+  #Below is planned for implementation but not yet done
+  #checkpoint_frequency: 1
+  #early_stopping: 20 # rename this to tell what the value represents
+  #stopping_criterion: roc_auc
+  #n_layers_to_freeze: 1
+  #unfreeze_on_plateau: true # unfreeze all layers if the performance is less than plateau_threshold 
+  #unfreeze_at_epoch: 2 # if unfrezze_on_plateau is true, whichever condition is met first
+  #plateau_threshold: 0.01 
+  #reset_patience_after_unfreeze: true # reset early stopping counter after unfreezing
+
+  # Below is not planned to be implemented
+  #info: true
+  #gradient_clip: 
+  #  clip_value: 1.0
+
+model:
+  cls: default
+
+scheduler:
+  _target_: transformers.get_linear_schedule_with_warmup
+  num_warmup_epochs: 2
+  num_training_epochs: 3
+
+metrics:
+  top1:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 1
+  top10:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+
+    topk: 10
+  mlm_loss:
+    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
+    loss_name: loss
