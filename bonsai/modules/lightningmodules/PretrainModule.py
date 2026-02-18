@@ -1,31 +1,36 @@
 """Pretrain BERT model on EHR data. Use config_template pretrain.yaml. Run main_data_pretrain.py first to create the dataset and vocabulary."""
 
 import lightning as L
-import logging
-import torch
-from os.path import join
-from corebehrt.functional.io_operations.load import load_vocabulary
-from corebehrt.functional.setup.args import get_args
-from corebehrt.functional.setup.model import load_model_cfg_from_checkpoint
-from corebehrt.functional.trainer.setup import replace_steps_with_epochs
-from corebehrt.main.helper.pretrain import (
-    load_checkpoint_and_epoch,
-)
-from corebehrt.modules.preparation.dataset import MLMDataset, PatientDataset
-from corebehrt.modules.setup.config import load_config
-from corebehrt.modules.setup.directory import DirectoryPreparer
-from corebehrt.modules.setup.initializer import Initializer
-from corebehrt.modules.trainer.trainer import EHRTrainer
-from corebehrt.constants.paths import PREPARED_TRAIN_PATIENTS, PREPARED_VAL_PATIENTS
+from transformers import get_linear_schedule_with_warmup
+from torch.optim import AdamW
 
-CONFIG_PATH = "./corebehrt/configs/pretrain.yaml"
+# import logging
+# import torch
+# from os.path import join
+# from corebehrt.functional.io_operations.load import load_vocabulary
+# from corebehrt.functional.setup.args import get_args
+# from corebehrt.functional.setup.model import load_model_cfg_from_checkpoint
+# from corebehrt.functional.trainer.setup import replace_steps_with_epochs
+# from corebehrt.main.helper.pretrain import (
+#    load_checkpoint_and_epoch,
+# )
+# from corebehrt.modules.preparation.dataset import MLMDataset, PatientDataset
+# from corebehrt.modules.setup.config import load_config
+# from corebehrt.modules.setup.directory import DirectoryPreparer
+# from corebehrt.modules.setup.initializer import Initializer
+# from corebehrt.modules.trainer.trainer import EHRTrainer
+# from corebehrt.constants.paths import PREPARED_TRAIN_PATIENTS, PREPARED_VAL_PATIENTS
+
+# CONFIG_PATH = "./corebehrt/configs/pretrain.yaml"
 
 
 class PretrainModule(L.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        # learning_rate: float = 1e-3,
+        learning_rate: float = 5e-4,
+        optimizer_epsilon: float = 1e-6,
+        scheduler_warmup_epochs: int = 0,
         # warmup_epochs: int = None,
         # decoder_warmup_epochs: int = 0,
         # cosine_period_ratio: float = 1,
@@ -43,71 +48,36 @@ class PretrainModule(L.LightningModule):
     ):
         super().__init__()
         self.model = model
+        self.learning_rate = learning_rate
+        self.optimizer_epsilon = optimizer_epsilon
 
+    @abstractmethod
+    def training_step(self, batch, batch_idx):
+        raise NotImplementedError
 
-def main_train(config_path):
-    cfg = load_config(config_path)
+    @abstractmethod
+    def validation_step(self, batch, batch_idx):
+        raise NotImplementedError
 
-    # Setup directories
-    DirectoryPreparer(cfg).setup_pretrain()
+    def configure_optimizers(self):
+        """Initialize optimizer from checkpoint or from scratch."""
 
-    logger = logging.getLogger("pretrain")
-
-    # Check if we are training from checkpoint, if so, update model config
-    restart_path = cfg.paths.get("restart_model")
-    if restart_path:
-        cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
-
-    # Get data
-    train_data = PatientDataset(
-        torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS))
-    )
-    val_data = PatientDataset(
-        torch.load(join(cfg.paths.prepared_data, PREPARED_VAL_PATIENTS))
-    )
-    vocab = load_vocabulary(cfg.paths.prepared_data)
-
-    # Initialize datasets
-    train_dataset = MLMDataset(train_data.patients, vocab, **cfg.data.dataset)
-    val_dataset = MLMDataset(val_data.patients, vocab, **cfg.data.dataset)
-
-    if "scheduler" in cfg:
-        logger.info("Replacing steps with epochs in scheduler config")
-        cfg.scheduler = replace_steps_with_epochs(
-            cfg.scheduler, cfg.trainer_args.batch_size, len(train_dataset)
+        optimizer = AdamW(
+            self.model.parameters(),
+            lr=self.learning_rate,
+            eps=self.optimizer_epsilon,
         )
-
-    checkpoint, epoch = None, None
-    if restart_path:
-        checkpoint, epoch = load_checkpoint_and_epoch(
-            restart_path, cfg.paths.get("checkpoint_epoch")
+        steps_per_epoch = (
+            self.trainer.estimated_stepping_batches // self.trainer.max_epochs
         )
-        logger.info(f"Continue training from epoch {epoch}")
-    initializer = Initializer(cfg, checkpoint=checkpoint, model_path=restart_path)
-    model = initializer.initialize_pretrain_model(train_dataset)
-    logger.info("Initializing optimizer")
-    optimizer = initializer.initialize_optimizer(model)
-    scheduler = initializer.initialize_scheduler(optimizer)
-
-    logger.info("Initialize trainer")
-    trainer = EHRTrainer(
-        model=model,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        args=cfg.trainer_args,
-        metrics=cfg.metrics,
-        cfg=cfg,
-        logger=logger,
-        last_epoch=epoch,
-    )
-    logger.info("Start training")
-    trainer.train()
-    logger.info("Done")
-
-
-if __name__ == "__main__":
-    args = get_args(CONFIG_PATH)
-    config_path = args.config_path
-    main_train(config_path)
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer=optimizer,
+            num_warmup_steps=steps_per_epoch * self.scheduler_warmup_epochs,
+            num_training_steps=self.trainer.estimated_stepping_batches,
+        )
+        scheduler_config = {
+            "scheduler": scheduler,
+            "interval": "step",
+            "frequency": 1,
+        }
+        return [optimizer], [scheduler_config]
