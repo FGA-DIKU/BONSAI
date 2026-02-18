@@ -10,8 +10,8 @@ from corebehrt.modules.trainer.utils import get_loss_weight
 
 @hydra.main(
     # config_path=get_config_path(), # TODO: make this more flexible to allow for different config paths
-    config_path="./corebehrt/configs",
-    config_name="pretrain",
+    config_path="bonsai/configs",
+    config_name="finetune",
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:

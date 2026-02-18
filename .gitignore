@@ -14,3 +14,4 @@ corebehrt/main/create_data_profiling.py
 **tmp**
 linux_install/
 .DS_Store
+*.egg-info/
