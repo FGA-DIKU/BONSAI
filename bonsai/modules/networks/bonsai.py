@@ -138,14 +138,6 @@ class BonsaiFinetune(BonsaiEncoder):
 
     def __init__(self, config):
         super().__init__(config)
-
-        # TODO: Move to FinetuningModule
-        # if getattr(config, "pos_weight", None):
-        #    pos_weight = torch.tensor(config.pos_weight)
-        # else:
-        #    pos_weight = None
-        # self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-
         self.cls = FineTuneHead(hidden_size=config.hidden_size)
 
     def forward(self, batch: dict, **kwargs):

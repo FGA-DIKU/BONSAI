@@ -1,9 +1,11 @@
 import hydra
 import lightning as L
 from omegaconf import DictConfig, OmegaConf
-from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai import BonsaiPretrain
+from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
+from bonsai.modules.networks.bonsai import BonsaiFinetune
 from transformers import ModernBertConfig
+from functional import partial
+from corebehrt.modules.trainer.utils import get_loss_weight
 
 
 @hydra.main(
@@ -13,7 +15,9 @@ from transformers import ModernBertConfig
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    finetune_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    pretrain_cfg = ModernBertConfig.from_pretrained(cfg.checkpoint_path)
+    cfg = pretrain_cfg | finetune_cfg
 
     # TODO: implement path config for BONSAI
     # DirectoryPreparer(cfg).setup_pretrain()
@@ -26,7 +30,7 @@ def main(cfg: DictConfig) -> None:
     #    cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
 
     # TODO: Implement DataModule here and instantiate datasets in there.
-    data_module = ()
+    data_module = partial()
     # train_data = PatientDataset(
     #    torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS))
     # )
@@ -40,7 +44,8 @@ def main(cfg: DictConfig) -> None:
     # TODO: Load Model here
     # model = initializer.initialize_pretrain_model(train_dataset)
 
-    model = BonsaiPretrain(
+    model = partial(
+        BonsaiFinetune,
         ModernBertConfig(
             **cfg.model,
             vocab_size=len(data_module.train_dataset.vocabulary),
@@ -48,19 +53,22 @@ def main(cfg: DictConfig) -> None:
             cls_token_id=1,
             sep_token_id=2,
             sparse_prediction=True,
-        )
+        ),
     )
 
-    # TODO: Implement LightningModule here
-    lightning_module = PretrainModule(
-        model=model,
+    pos_weight = get_loss_weight(cfg, outcomes=data_module.get_outcomes())
+
+    lightning_module = partial(
+        FinetuneModule,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        pos_weight=pos_weight,
     )
 
     # TODO: Implement Lightning Trainer here and pass in model, optimizer, scheduler, datasets, etc.
-    trainer = L.Trainer(
+    trainer = partial(
+        L.Trainer,
         accelerator=cfg.hardware.accelerator,
         accumulate_grad_batches=cfg.training.accumulate_grad_batches,
         devices=cfg.hardware.num_devices,
@@ -71,24 +79,20 @@ def main(cfg: DictConfig) -> None:
         precision=cfg.training.precision,
     )
 
-    trainer.fit(
-        model=lightning_module,
-        datamodule=data_module,
-        ckpt_path="last",
-    )
+    for i in range(cfg.num_folds):
+        data_module = data_module(split=i)
+        model = model()
+        lightning_module = lightning_module(model=model)
+        trainer = trainer()
 
-    # trainer = EHRTrainer(
-    #    model=model,
-    #    optimizer=optimizer,
-    #    scheduler=scheduler,
-    #    train_dataset=train_dataset,
-    #    val_dataset=val_dataset,
-    #    args=cfg.trainer_args,
-    #    metrics=cfg.metrics,
-    #    cfg=cfg,
-    #    logger=logger,
-    #    last_epoch=epoch,
-    # )
-    # logger.info("Start training")
-    # trainer.train()
-    # logger.info("Done")
+        trainer.fit(
+            model=lightning_module,
+            datamodule=data_module,
+            ckpt_path="last",
+        )
+
+    # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.
+
+
+if __name__ == "__main__":
+    main()
