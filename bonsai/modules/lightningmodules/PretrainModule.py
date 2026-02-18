@@ -15,20 +15,6 @@ class PretrainModule(L.LightningModule):
         loss_fn: nn.Module = nn.CrossEntropyLoss(),
         optimizer_epsilon: float = 1e-6,
         scheduler_warmup_epochs: int = 0,
-        # warmup_epochs: int = None,
-        # decoder_warmup_epochs: int = 0,
-        # cosine_period_ratio: float = 1,
-        # compile_mode: str = None,
-        # weights: str = None,
-        # load_decoder: bool = True,
-        # repeat_stem_weights: bool = True,
-        # optimizer: str = "SGD",
-        # train_transforms: Optional[transforms.Compose] = None,
-        # test_transforms: Optional[transforms.Compose] = None,
-        # val_transforms: Optional[transforms.Compose] = None,
-        # weight_decay: float = 3e-5,
-        # nesterov: bool = True,
-        # momentum: float = 0.99,
     ):
         super().__init__()
         self.learning_rate = learning_rate

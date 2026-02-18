@@ -29,8 +29,6 @@ class BonsaiEncoder(ModernBertModel):
 
     def __init__(self, config):
         super().__init__(config)
-        # config.is_decoder = True
-        # config.add_cross_attention = False
         self.embeddings = EhrEmbeddings(
             vocab_size=config.vocab_size,
             hidden_size=config.hidden_size,
