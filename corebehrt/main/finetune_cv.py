@@ -32,7 +32,9 @@ def main_finetune(config_path):
     # Logger
     logger = logging.getLogger("finetune_cv")
 
-    loaded_data = torch.load(join(cfg.paths.prepared_data, PREPARED_ALL_PATIENTS))
+    loaded_data = torch.load(
+        join(cfg.paths.prepared_data, PREPARED_ALL_PATIENTS), weights_only=False
+    )
     data = PatientDataset(loaded_data)
 
     test_data = PatientDataset([])
@@ -45,13 +47,15 @@ def main_finetune(config_path):
     #   - If test_pids are present in the prepared data directory, use them
     if cfg.get("evaluate", False):
         if os.path.exists(join(cfg.paths.prepared_data, TEST_PIDS_FILE)):
-            test_pids = torch.load(join(cfg.paths.prepared_data, TEST_PIDS_FILE))
+            test_pids = torch.load(
+                join(cfg.paths.prepared_data, TEST_PIDS_FILE), weights_only=False
+            )
             test_data = data.filter_by_pids(test_pids)
     train_val_data = data.filter_by_pids(train_val_pids)
 
     # Use folds from prepared data
     folds_path = join(cfg.paths.prepared_data, FOLDS_FILE)
-    folds = torch.load(folds_path)
+    folds = torch.load(folds_path, weights_only=False)
     check_for_overlap(folds, test_pids, logger)
     n_folds = len(folds)
     logger.info(f"Using {n_folds} predefined folds")
