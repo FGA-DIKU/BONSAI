@@ -1,34 +1,18 @@
-"""Pretrain BERT model on EHR data. Use config_template pretrain.yaml. Run main_data_pretrain.py first to create the dataset and vocabulary."""
-
 import lightning as L
-from transformers import get_linear_schedule_with_warmup
+import torch
+from abc import abstractmethod
+from torch import nn
 from torch.optim import AdamW
-
-# import logging
-# import torch
-# from os.path import join
-# from corebehrt.functional.io_operations.load import load_vocabulary
-# from corebehrt.functional.setup.args import get_args
-# from corebehrt.functional.setup.model import load_model_cfg_from_checkpoint
-# from corebehrt.functional.trainer.setup import replace_steps_with_epochs
-# from corebehrt.main.helper.pretrain import (
-#    load_checkpoint_and_epoch,
-# )
-# from corebehrt.modules.preparation.dataset import MLMDataset, PatientDataset
-# from corebehrt.modules.setup.config import load_config
-# from corebehrt.modules.setup.directory import DirectoryPreparer
-# from corebehrt.modules.setup.initializer import Initializer
-# from corebehrt.modules.trainer.trainer import EHRTrainer
-# from corebehrt.constants.paths import PREPARED_TRAIN_PATIENTS, PREPARED_VAL_PATIENTS
-
-# CONFIG_PATH = "./corebehrt/configs/pretrain.yaml"
+from transformers import get_linear_schedule_with_warmup
 
 
 class PretrainModule(L.LightningModule):
     def __init__(
         self,
         model: nn.Module,
+        compile_mode: str = None,
         learning_rate: float = 5e-4,
+        loss_fn: nn.Module = nn.CrossEntropyLoss(),
         optimizer_epsilon: float = 1e-6,
         scheduler_warmup_epochs: int = 0,
         # warmup_epochs: int = None,
@@ -47,21 +31,28 @@ class PretrainModule(L.LightningModule):
         # momentum: float = 0.99,
     ):
         super().__init__()
-        self.model = model
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
+        self.save_hyperparameters(ignore=["model"])
+        self.model = (
+            torch.compile(model, mode=compile_mode)
+            if compile_mode is not None
+            else model
+        )
+        self.train_loss = nn.CrossEntropyLoss()
+        self.val_loss = nn.CrossEntropyLoss()
 
     @abstractmethod
     def training_step(self, batch, batch_idx):
-        raise NotImplementedError
+        logits, labels = self.model(batch)
+        loss = self.train_loss(logits.view(-1, self.config.vocab_size), labels.view(-1))
+        return loss
 
     @abstractmethod
     def validation_step(self, batch, batch_idx):
         raise NotImplementedError
 
     def configure_optimizers(self):
-        """Initialize optimizer from checkpoint or from scratch."""
-
         optimizer = AdamW(
             self.model.parameters(),
             lr=self.learning_rate,
