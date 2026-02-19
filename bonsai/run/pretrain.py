@@ -6,6 +6,7 @@ from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.paths import get_config_path
 from transformers import ModernBertConfig
+from lightning.pytorch.loggers import CSVLogger
 
 
 @hydra.main(
@@ -20,7 +21,7 @@ def main(cfg: DictConfig) -> None:
     # TODO: implement path configuration for BONSAI
     # DirectoryPreparer(cfg).setup_pretrain()
 
-    # TODO: implement logging for BONSAI -> Move this to LightningModule
+    logger = CSVLogger("logs", name="test_experiment")
     # TODO: Implement instantiating transforms here
     # TODO: Instantiate callbacks and loggers here and pass to trainer
 
@@ -68,6 +69,7 @@ def main(cfg: DictConfig) -> None:
 
     lightning_module = PretrainModule(
         model=model,
+        compile_mode=cfg.hardware.compile_mode,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
@@ -77,10 +79,10 @@ def main(cfg: DictConfig) -> None:
         accelerator=cfg.hardware.accelerator,
         accumulate_grad_batches=cfg.training.accumulate_grad_batches,
         devices=cfg.hardware.num_devices,
-        limit_val_batches=0,
-        num_sanity_val_steps=0,
+        limit_val_batches=cfg.training.limit_val_batches,
+        limit_train_batches=cfg.training.limit_train_batches,
         callbacks=[],
-        logger=[],
+        logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
         precision=cfg.hardware.precision,

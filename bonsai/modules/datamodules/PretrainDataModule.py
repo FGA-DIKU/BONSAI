@@ -36,9 +36,13 @@ class PretrainDataModule(L.LightningDataModule):
 
     def setup_fit(self):
         self.train_dataset = PretrainDataset(
-            self.train_split, vocabulary=self.vocabulary
+            self.train_split,
+            vocabulary=self.vocabulary,
         )
-        self.val_dataset = PretrainDataset(self.val_split, vocabulary=self.vocabulary)
+        self.val_dataset = PretrainDataset(
+            self.val_split,
+            vocabulary=self.vocabulary,
+        )
 
     def train_dataloader(self):
         return DataLoader(

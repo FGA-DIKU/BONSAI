@@ -4,6 +4,7 @@ from abc import abstractmethod
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
+from torchmetrics import MetricCollection, Precision
 
 
 class PretrainModule(L.LightningModule):
@@ -28,33 +29,45 @@ class PretrainModule(L.LightningModule):
         )
         self.train_loss = nn.CrossEntropyLoss()
         self.val_loss = nn.CrossEntropyLoss()
+        self.train_metrics = self.configure_metrics("train")
+        self.val_metrics = self.configure_metrics("val")
 
-    """
-    add metrics:
-    top1:
-        _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-        topk: 1
-    top10:
-        _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    def configure_metrics(self, prefix: str):
+        return MetricCollection(
+            {
+                f"{prefix}/Prec-K1": Precision(
+                    task="multiclass",
+                    num_classes=self.model.config.vocab_size,
+                    top_k=1,
+                ),
+                f"{prefix}/Prec-K10": Precision(
+                    task="multiclass",
+                    num_classes=self.model.config.vocab_size,
+                    top_k=10,
+                ),
+            },
+        )
 
-        topk: 10
-    mlm_loss:
-        _target_: corebehrt.modules.monitoring.metrics.LossAccessor
-        loss_name: loss
-
-    """
-
-    @abstractmethod
     def training_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
         loss = self.train_loss(
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
+        self.train_metrics(logits, labels)
+        self.log("train/loss", loss, prog_bar=True)
+        self.log_dict(self.train_metrics)
         return loss
 
-    @abstractmethod
     def validation_step(self, batch, batch_idx):
-        raise NotImplementedError
+        logits, labels = self.model(batch)
+        if logits.numel() > 0:
+            loss = self.val_loss(
+                logits.view(-1, self.model.config.vocab_size), labels.view(-1)
+            )
+            self.log("val/loss", loss, prog_bar=True)
+            self.val_metrics(logits, labels)
+            self.log_dict(self.val_metrics)
+            return loss
 
     def configure_optimizers(self):
         optimizer = AdamW(
@@ -76,3 +89,14 @@ class PretrainModule(L.LightningModule):
             "frequency": 1,
         }
         return [optimizer], [scheduler_config]
+
+
+# TODO: Implement early stopping and unfreezing logic
+"""
+if self._should_unfreeze_on_plateau(current_metric_value):
+    self._unfreeze_model("Performance plateau detected!")
+
+if self._should_stop_early(
+    epoch, current_metric_value, val_loss, epoch_loss, val_metrics, test_metrics
+):
+"""

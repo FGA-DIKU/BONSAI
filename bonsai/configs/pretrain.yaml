@@ -17,6 +17,8 @@ training:
   learning_rate: 5e-4
   optimizer_epsilon: 1e-6
   scheduler_warmup_epochs: 2
+  limit_val_batches: 1.0
+  limit_train_batches: 1.0
   # Below is not planned to be implemented
   #info: true
   #sampler: null

@@ -16,3 +16,4 @@ linux_install/
 .DS_Store
 *.egg-info/
 *checkpoints/
+*logs/
