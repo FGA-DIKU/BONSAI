@@ -43,7 +43,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["bonsai", "bonsai.*"]
+include = ["bonsai", "bonsai.*", "corebehrt", "corebehrt.*"]
 
 [project.optional-dependencies]
 dev = [
