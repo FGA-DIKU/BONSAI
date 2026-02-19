@@ -75,6 +75,7 @@ class BaseDataModule(L.LightningDataModule):
                 self.path_tokenized,
                 split,
             )
+        torch.save(tokenizer.vocabulary, self.path_tokenized / "vocabulary.pt")  # save vocabulary
 
     def _init_folders(self):
         self.path_tokenized.mkdir(parents=True, exist_ok=True)
