@@ -1,59 +1,3 @@
-# prepared_data: ./outputs/pretraining/processed_data/
-# PREPARED_TRAIN_PATIENTS = "patients_train.pt"
-# PREPARED_VAL_PATIENTS = "patients_val.pt"
-# PREPARED_ALL_PATIENTS = "patients.pt"
-
-# from typing import List, Literal
-# import torch
-#
-# patients = torch.load(
-#    "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/processed_data/patients_train.pt",
-#    weights_only=False,
-# )
-# patientlist = []
-# for patient in patients:
-#    sample = {
-#        "pid": torch.tensor(patient.pid, dtype=torch.short),
-#        "concepts": torch.tensor(patient.concepts, dtype=torch.short),
-#        "ABSPOS_FEAT": torch.tensor(patient.abspos, dtype=torch.half),
-#        "SEGMENT_FEAT": torch.tensor(patient.segments, dtype=torch.short),
-#        "AGE_FEAT": torch.tensor(patient.ages, dtype=torch.half),
-#    }
-#    patientlist.append(sample)
-#
-#
-# torch.save(
-#    patientlist,
-#    "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/processed_data/DICTpatients_train.pt",
-# )
-
-
-"""
-this should happen in getitem: (requires moving attention_mask = torch.ones_like(masked_concepts) INTO the mask_patient_concepts)
-from corebehrt.modules.preparation.mask import ConceptMasker
-
-vocab = torch.load("/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/processed_data/vocabulary.pt")
-select_ratio=1.0
-masking_ratio= 0.8
-replace_ratio = 0.1
-ignore_special_tokens= True
-
-tf = ConceptMasker(
-            vocab,
-            select_ratio,
-            masking_ratio,
-            replace_ratio,
-            ignore_special_tokens,
-        )
-
-
-masked_concepts, target, attention_mask = self.masker.mask_patient_concepts(patient["concepts"])
-patient["concepts"] = masked_concepts #OVERWRITEING THE OLD CONCEPTS AS THEY ARE NO LONGER NEEDED
-patient["TARGET"] = target
-patient["ATTENTION_MASK"]= attention_mask
-"""
-
-# %%
 import lightning as L
 from typing import List, Dict, Literal
 from torch.utils.data import Dataset, DataLoader
@@ -209,5 +153,3 @@ if __name__ == "__main__":
     train_iter = iter(train_dl)
     for i in range(5):
         print(next(train_iter))
-
-# %%
