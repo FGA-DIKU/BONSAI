@@ -23,9 +23,12 @@ At least I am completely lost as to how to keep track of all these.
 
 But i think the data preprocessing pipeline needs to cut at least a few of these intermediate steps out.
 
+
+----
+
 Things to add:
 
-Save data as the torch tensors it will need to become:
+Save data as the torch tensors and dicts it will need to become:
 
 Right now we do this in getitem:
 
