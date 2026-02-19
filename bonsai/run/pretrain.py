@@ -2,19 +2,21 @@ import hydra
 import lightning as L
 from omegaconf import DictConfig, OmegaConf
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai import BonsaiPretrain
+from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
+from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
+from bonsai.paths import get_config_path
 from transformers import ModernBertConfig
 
 
 @hydra.main(
-    # config_path=get_config_path(), # TODO: make this more flexible to allow for different config paths
-    config_path="bonsai/configs",
+    config_path=get_config_path(),  # TODO: make this more flexible to allow for different config paths
+    # config_path="bonsai/configs",
     config_name="pretrain",
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-
+    logging_safe_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    print(cfg)
     # TODO: implement path configuration for BONSAI
     # DirectoryPreparer(cfg).setup_pretrain()
 
@@ -28,32 +30,35 @@ def main(cfg: DictConfig) -> None:
     #    cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
 
     # TODO: Implement DataModule here and instantiate datasets in there.
-    def dummy_dm(*args, **kwargs):
-        pass
+    ######  TEMP SOLUTION
+    import torch
+    import bonsai
+    import os
 
-    data_module = dummy_dm(
-        batch_size=cfg.data.batch_size,
-        select_ratio=cfg.data.select_ratio,
-        masking_ratio=cfg.data.masking_ratio,
-        replace_ratio=cfg.data.replace_ratio,
-        ignore_special_tokens=cfg.data.ignore_special_tokens,
-        shuffle=cfg.data.shuffle,
+    base_path = os.path.split(bonsai.__path__[0])[0]
+
+    vocab = torch.load(
+        os.path.join(base_path, "outputs/pretraining/processed_data/vocabulary.pt")
     )
+    train_data = torch.load(
+        os.path.join(
+            base_path, "outputs/pretraining/processed_data/DICTpatients_train.pt"
+        )
+    )
+    ###### TEMP SOLUTION
 
-    # train_data = PatientDataset(
-    #    torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS))
-    # )
-    # val_data = PatientDataset(
-    #    torch.load(join(cfg.paths.prepared_data, PREPARED_VAL_PATIENTS))
-    # )
-    # vocab = load_vocabulary(cfg.paths.prepared_data)
-    #     #train_dataset = MLMDataset(train_data.patients, vocab, **cfg.data.dataset)
-    # val_dataset = MLMDataset(val_data.patients, vocab, **cfg.data.dataset)
+    data_module = PretrainDataModule(
+        batch_size=cfg.training.batch_size,
+        num_workers=cfg.hardware.num_workers,
+        train_split=train_data,
+        val_split=train_data,
+        vocabulary=vocab,
+    )
 
     model = BonsaiPretrain(
         ModernBertConfig(
             **cfg.model,
-            vocab_size=len(data_module.train_dataset.vocabulary),
+            vocab_size=len(data_module.vocabulary),
             pad_token_id=0,
             cls_token_id=1,
             sep_token_id=2,
@@ -61,7 +66,6 @@ def main(cfg: DictConfig) -> None:
         )
     )
 
-    # TODO: Implement LightningModule here
     lightning_module = PretrainModule(
         model=model,
         learning_rate=cfg.training.learning_rate,
@@ -73,11 +77,13 @@ def main(cfg: DictConfig) -> None:
         accelerator=cfg.hardware.accelerator,
         accumulate_grad_batches=cfg.training.accumulate_grad_batches,
         devices=cfg.hardware.num_devices,
+        limit_val_batches=0,
+        num_sanity_val_steps=0,
         callbacks=[],
-        loggers=[],
+        logger=[],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
-        precision=cfg.training.precision,
+        precision=cfg.hardware.precision,
     )
 
     trainer.fit(
@@ -86,18 +92,6 @@ def main(cfg: DictConfig) -> None:
         ckpt_path="last",
     )
 
-    # trainer = EHRTrainer(
-    #    model=model,
-    #    optimizer=optimizer,
-    #    scheduler=scheduler,
-    #    train_dataset=train_dataset,
-    #    val_dataset=val_dataset,
-    #    args=cfg.trainer_args,
-    #    metrics=cfg.metrics,
-    #    cfg=cfg,
-    #    logger=logger,
-    #    last_epoch=epoch,
-    # )
-    # logger.info("Start training")
-    # trainer.train()
-    # logger.info("Done")
+
+if __name__ == "__main__":
+    main()

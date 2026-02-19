@@ -78,10 +78,10 @@ if __name__ == "__main__":
     patientlist = []
     for patient in patients:
         sample = {
-            "pid": torch.tensor(patient.pid, dtype=torch.short),
-            "concept": torch.tensor(patient.concepts, dtype=torch.short),
+            "pid": torch.tensor(patient.pid, dtype=torch.long),
+            "concept": torch.tensor(patient.concepts, dtype=torch.long),
             "abspos": torch.tensor(patient.abspos, dtype=torch.float),
-            "segment": torch.tensor(patient.segments, dtype=torch.short),
+            "segment": torch.tensor(patient.segments, dtype=torch.long),
             "age": torch.tensor(patient.ages, dtype=torch.half),
         }
         patientlist.append(sample)

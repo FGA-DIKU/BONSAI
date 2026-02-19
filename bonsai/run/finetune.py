@@ -2,7 +2,7 @@ import hydra
 import lightning as L
 from omegaconf import DictConfig, OmegaConf
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai import BonsaiFinetune
+from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from transformers import ModernBertConfig
 from functional import partial
 from corebehrt.modules.trainer.utils import get_loss_weight

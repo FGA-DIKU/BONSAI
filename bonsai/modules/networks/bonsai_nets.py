@@ -157,3 +157,23 @@ class BonsaiFinetune(BonsaiEncoder):
         sequence_output = outputs[0]  # Last hidden state
         logits = self.cls(sequence_output, batch["attention_mask"])
         return logits
+
+
+if __name__ == "__main__":
+    from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
+    from transformers import ModernBertConfig
+    import omegaconf
+
+    cfg = omegaconf.OmegaConf.load(
+        "/Users/zcr545/Desktop/Projects/repos/BONSAI/bonsai/configs/pretrain.yaml"
+    )
+    model = BonsaiPretrain(
+        ModernBertConfig(
+            **cfg["model"],
+            vocab_size=64,
+            pad_token_id=0,
+            cls_token_id=1,
+            sep_token_id=2,
+            sparse_prediction=True,
+        )
+    )

@@ -18,6 +18,8 @@ class PretrainModule(L.LightningModule):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
+        self.scheduler_warmup_epochs = scheduler_warmup_epochs
+
         self.save_hyperparameters(ignore=["model"])
         self.model = (
             torch.compile(model, mode=compile_mode)
@@ -45,7 +47,9 @@ class PretrainModule(L.LightningModule):
     @abstractmethod
     def training_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
-        loss = self.train_loss(logits.view(-1, self.config.vocab_size), labels.view(-1))
+        loss = self.train_loss(
+            logits.view(-1, self.model.config.vocab_size), labels.view(-1)
+        )
         return loss
 
     @abstractmethod

@@ -15,3 +15,4 @@ corebehrt/main/create_data_profiling.py
 linux_install/
 .DS_Store
 *.egg-info/
+*checkpoints/
