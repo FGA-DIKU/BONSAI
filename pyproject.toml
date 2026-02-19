@@ -31,6 +31,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.4.2",
+    "lightning==2.6.1",
     "pandas>=3.0.1",
     "pyarrow>=23.0.1",
     "PyYAML>=6.0.3",
