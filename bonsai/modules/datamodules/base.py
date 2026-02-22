@@ -10,28 +10,31 @@ import torch
 class BaseDataModule(L.LightningDataModule):
     def __init__(
         self,
-        logger: L.Logger,
+        logger,
         splits,
-        path_data: Path,
-        path_tokenized: Path,
-        path_features: Path,
-        path_vocab: Optional[Path] = None,
-        agg_kwargs=None,
+        path_data: str,
+        path_tokenized: str,
+        path_features: str,
+        path_vocab: Optional[str] = None,
         exclude_regex=None,
-        values_kwargs=None,
-        tokenizer_kwargs=None,
+        agg_kwargs: Optional[dict] = None,
+        values_kwargs: Optional[dict] = None,
+        tokenizer_kwargs: Optional[dict] = None,
+        **kwargs,
     ):
         super().__init__()
+        print("UNUSED:", kwargs)
 
         # Paths
-        self.path_data = path_data
-        self.path_tokenized = path_tokenized
-        self.path_features = path_features
+        self.path_data = Path(path_data)
+        self.path_tokenized = Path(path_tokenized)
+        self.path_features = Path(path_features)
+        self.path_vocab = Path(path_vocab) if path_vocab is not None else None
 
         # create_and_save_features kwargs
         self.splits = splits
-        self.agg_kwargs = agg_kwargs        
         self.exclude_regex = exclude_regex
+        self.agg_kwargs = agg_kwargs        
         self.values_kwargs = values_kwargs
 
         # Tokenizer kwargs
@@ -83,16 +86,4 @@ class BaseDataModule(L.LightningDataModule):
 
     def setup(self, stage=None):
         """Use this method to do things that might need to be done on every process, like loading data, applying transforms, etc."""
-        pass
-
-    def train_dataloader(self):
-        """Return the training dataloader."""
-        pass
-
-    def val_dataloader(self):
-        """Return the validation dataloader."""
-        pass
-
-    def test_dataloader(self):
-        """Return the test dataloader."""
         pass

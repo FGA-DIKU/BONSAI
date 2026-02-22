@@ -38,40 +38,45 @@ def create_and_save_features(
         logger.info(f"Found {len(shards)} shards to process in {split_name}")
 
         # Initialize counters for this split
-        total_concepts_loaded = 0
-        total_concepts_after_agg = 0
-        total_concepts_after_exclusion = 0
-        total_concepts_after_incorrect = 0
+        total_concept_counts = {
+            "loaded": 0,
+            "after_agg": 0,
+            "after_exclusion": 0,
+            "after_value_handling": 0,
+            "after_incorrect_age_removal": 0,
+        }
 
         for shard_idx, shard in enumerate(shards, 1):
             logger.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
-            shard_path = path_name / shard
             shard_n = shard.stem
 
-            concepts = load_concept(shard_path)
-            total_concepts_loaded += len(concepts)
+            concepts = load_concept(shard)
+            total_concept_counts["loaded"] += len(concepts)
 
             if agg_kwargs and (agg_kwargs.get("agg_type") is not None):
                 concepts = handle_aggregations(
                     concepts,
                     **agg_kwargs,
                 )
-            total_concepts_after_agg += len(concepts)
+            total_concept_counts["after_agg"] += len(concepts)
 
             if exclude_regex is not None:
                 concepts = exclude_concepts(
                     concepts,
                     exclude_regex,
                 )
-            total_concepts_after_exclusion += len(concepts)
+            total_concept_counts["after_exclusion"] += len(concepts)
 
             if values_kwargs and "numeric_value" in concepts.columns:
                 concepts = handle_numeric_values(concepts, **values_kwargs)
+            total_concept_counts["after_value_handling"] += len(concepts)
+            
             feature_creator = FeatureCreator()
             features, patient_info = feature_creator(concepts)
             combined_patient_info = pd.concat([combined_patient_info, patient_info])
+
             features = exclude_incorrect_event_ages(features)
-            total_concepts_after_incorrect += len(features)
+            total_concept_counts["after_incorrect_age_removal"] += len(features)
 
             features.to_parquet(
                 f"{split_save_path}/{shard_n}.parquet",
@@ -88,11 +93,13 @@ def create_and_save_features(
             )
 
         # Log final statistics for this split
-        logger.info(f"Total concepts loaded: {total_concepts_loaded}")
-        logger.info(f"Total concepts after aggregation: {total_concepts_after_agg}")
-        logger.info(f"Total concepts after exclusion: {total_concepts_after_exclusion}")
+        logger.info(f"Finished processing {split_name}")
+        logger.info(f"Total concepts loaded: {total_concept_counts['loaded']}")
+        logger.info(f"Total concepts after aggregation: {total_concept_counts['after_agg']}")
+        logger.info(f"Total concepts after exclusion: {total_concept_counts['after_exclusion']}")
+        logger.info(f"Total concepts after value handling: {total_concept_counts['after_value_handling']}")
         logger.info(
-            f"Total concepts after incorrect age removal: {total_concepts_after_incorrect}"
+            f"Total concepts after incorrect age removal: {total_concept_counts['after_incorrect_age_removal']}"
         )
 
     patient_info_path = path_features / "patient_info.parquet"
