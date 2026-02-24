@@ -1,7 +1,3 @@
-logging:
-  level: INFO
-  path: ./outputs/logs
-
 splits: 
   - train
   - tuning
@@ -10,27 +6,11 @@ splits:
 path_data: example_data/correlated_MEDS_data
 path_tokenized: outputs/tokenized
 path_features: outputs/features
-  # optional
-  # code_mapping: ./outputs/code_mapping.pt
-  # vocabulary: ./outputs/vocabulary # vocab folder
-
-# exclude_held_out: true # exclude held out patients data creation
+# optional
 
 # features:
 exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
-values_kwargs:
-    num_bins: 100
-    # add_prefix: true # option to add prefix to values based on concept
-    # separator_regex: r"^([^/]+)/" # everything before the seperator is the prefix
-agg_kwargs:
-  regex: ^(?:LAB).* # example regex to aggregate all features that start with 'LAB'
-  agg_func: "first"
-  agg_window: 25 # expand aggreation window to aggreate over x hours
 
 tokenizer_kwargs:
   sep_tokens: true
-  cls_token: true
-
-excluder:
-  min_age: -1
-  max_age: 120
+# path_vocab: outputs/vocabulary # vocab folder

@@ -39,17 +39,8 @@ def filter_rows_by_regex(df, col, regex):
         mask = df[col].astype(str).str.contains(regex, case=False, na=False, regex=True)
     return df.loc[~mask]
 
-
-def check_required_columns(
-    df: pd.DataFrame, required_columns: Set[str], type_: str
-) -> None:
-    if not required_columns.issubset(set(df.columns)):
-        missing_columns = required_columns - set(df.columns)
-        raise ValueError(f"Missing columns in {type_}: {missing_columns}")
-
-
-def check_features_columns(df: pd.DataFrame) -> None:
-    """Check if required columns are present in features."""
-    check_required_columns(
-        df, required_columns={"subject_id", "time", "code"}, type_="features"
-    )
+def exclude_codes(concepts, exclude_regex):
+    if not is_valid_regex(exclude_regex):
+        raise ValueError(f"Invalid regex: {exclude_regex}")
+    concepts = filter_rows_by_regex(concepts, col="code", regex=exclude_regex)
+    return concepts
