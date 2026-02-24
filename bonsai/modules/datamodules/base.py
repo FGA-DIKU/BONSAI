@@ -20,7 +20,7 @@ class BaseDataModule(L.LightningDataModule):
         **kwargs,
     ):
         super().__init__()
-        print("UNUSED:", kwargs)
+        print("UNUSED:", kwargs) # TODO: remove this after confirming that all kwargs are accounted for in the signature
 
         # Paths
         self.path_data = Path(path_data)
@@ -46,7 +46,6 @@ class BaseDataModule(L.LightningDataModule):
     def prepare_data(self):
         """Use this method to do things that might write to disk or that need to be done only from a single process, like downloading data, tokenization, etc."""
         self.logger.info("BaseDataModule: prepare_data")
-        self._init_folders()
 
         assert self.splits[0] == "train", "First split must be 'train' to build vocabulary before tokenizing other splits"
         for split in self.splits:
@@ -61,10 +60,6 @@ class BaseDataModule(L.LightningDataModule):
             )
             self.tokenizer.freeze_vocabulary()  # freeze after first split (train) to prevent data leakage
         torch.save(self.tokenizer.vocabulary, self.path_tokenized / "vocabulary.pt")  # save vocabulary
-
-    def _init_folders(self):
-        self.path_tokenized.mkdir(parents=True, exist_ok=True)
-        self.path_features.mkdir(parents=True, exist_ok=True)
 
     def setup(self, stage=None):
         """Use this method to do things that might need to be done on every process, like loading data, applying transforms, etc."""
