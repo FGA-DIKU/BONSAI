@@ -26,6 +26,7 @@ def create_features(concepts: pd.DataFrame, logger) -> pd.DataFrame:
     return features
 
 def create_background(concepts: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
+    """ Requires DOB (date of birth) token per person. Creates BACKGROUND//{var} tokens with time set to DOB time. """
     dob_rows = concepts[concepts["code"] == "DOB"]
     dob_info = dob_rows.set_index("subject_id")["time"]
     if len(dob_rows) != concepts["subject_id"].nunique():
