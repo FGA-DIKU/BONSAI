@@ -5,12 +5,21 @@ defaults:
   
 
 data:
-  fold: 0
-  #select_ratio: 1.
+  path_tokenized: outputs/tokenized
+  path_vocab: outputs/tokenized/vocabulary.pt
+  batch_size: 32
+  num_workers: 4
+  max_len: 10
+  cutoff_date:
+    day: 1
+    month: 1
+    year: 2015
+  pretrain_mode: AR
+  # masking_kwargs:
+  #   masking_select_ratio: 1.
   #masking_ratio: .8
   #replace_ratio: .1
   #ignore_special_tokens: true
-  #shuffle: true
 
 training:
   batch_size: 32

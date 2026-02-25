@@ -24,8 +24,8 @@ def create_features_and_tokenize(
 
     path_tokenized_split = path_tokenized / split
     path_tokenized_split.mkdir(parents=True, exist_ok=True)
-
-    shards = [shard for shard in (path_data / split).iterdir()]
+    
+    shards = [shard for shard in (path_data / split).glob("*.parquet")]
     logger.info(f"Found {len(shards)} shards to process in {split}")
 
     concept_counts = {

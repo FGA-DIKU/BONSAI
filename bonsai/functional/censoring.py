@@ -106,3 +106,19 @@ def append_predict_token(
     age_in_years = float((censor_date - patient["abspos"][0]) / (365.25 * 24))
     patient["ages"].append(age_in_years)
     return patient
+
+
+def cutoff_subject(subject: Dict, cutoff_date: float) -> Dict:
+    """
+    Cuts off a subject's data at the specified cutoff date by removing all concepts and corresponding attributes that occur after the cutoff date.
+    """
+    # Find the position where cutoff_date fits in the sorted abspos list
+    idx = bisect_right(subject["abspos"], cutoff_date)
+
+    # Slice everything up to idx
+    subject["codes"] = subject["codes"][:idx]
+    subject["abspos"] = subject["abspos"][:idx]
+    subject["segments"] = subject["segments"][:idx]
+    subject["ages"] = subject["ages"][:idx]
+
+    return subject

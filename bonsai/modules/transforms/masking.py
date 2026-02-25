@@ -8,10 +8,10 @@ class ConceptMasker:
         vocabulary: dict,
         select_ratio: float,
         masking_ratio: float = 0.8,
-        replace_ratio: float = 0.1,
+        random_ratio: float = 0.1,
         ignore_special_tokens: bool = True,
     ) -> None:
-        """Mask concepts for MLM.
+        """Mask codes for MLM.
         Args:
             vocabulary: Vocabulary
             select_ratio: Ratio of tokens to consider in the loss
@@ -27,16 +27,16 @@ class ConceptMasker:
         )
         self.select_ratio = select_ratio
         self.masking_ratio = masking_ratio
-        self.replace_ratio = replace_ratio
+        self.random_ratio = random_ratio
 
-    def mask_patient_concepts(
-        self, concepts: torch.Tensor
+    def mask_patient_codes(
+        self, codes: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        target = concepts.clone()
+        target = codes.clone()
         probability_vector = torch.full(target.shape, self.select_ratio)
 
         # Ignore special tokens
-        special_token_mask = concepts < self.n_special_tokens
+        special_token_mask = codes < self.n_special_tokens
         probability_vector.masked_fill_(special_token_mask, value=0.0)
 
         # Get MLM mask
@@ -48,12 +48,12 @@ class ConceptMasker:
             torch.bernoulli(torch.full(target.shape, self.masking_ratio)).bool()
             & selected_indices
         )
-        concepts[indices_mask] = self.vocabulary["[MASK]"]
+        codes[indices_mask] = self.vocabulary["[MASK]"]
 
         # Replace with random word and Account for already masked tokens
-        replace_ratio = self.replace_ratio / (1 - self.masking_ratio)
-        indices_replace = (
-            torch.bernoulli(torch.full(target.shape, replace_ratio)).bool()
+        random_ratio = self.random_ratio / (1 - self.masking_ratio)
+        indicies_random = (
+            torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
             & selected_indices
             & ~indices_mask
         )
@@ -61,8 +61,7 @@ class ConceptMasker:
             self.n_special_tokens,
             len(self.vocabulary),
             target.shape,
-            dtype=concepts.dtype,
+            dtype=codes.dtype,
         )
-        concepts[indices_replace] = random_words[indices_replace]
-        attention_mask = torch.ones_like(concepts)
-        return concepts, target, attention_mask
+        codes[indicies_random] = random_words[indicies_random]
+        return codes, target

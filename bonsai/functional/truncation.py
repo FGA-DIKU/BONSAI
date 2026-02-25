@@ -1,3 +1,5 @@
+import numpy as np
+
 def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_token=2):
     total_length = len(patient["concept"])
     if total_length <= max_len:
@@ -15,3 +17,20 @@ def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_t
             patient[key] = val[:background_tokens_per_patient] + val[-tail_length:]
 
     return patient
+
+def truncate_subject(subject: dict, max_len: int) -> dict:
+    if len(subject["codes"]) <= max_len:
+        return subject
+    else:
+        background_length = (subject["segments"] == 0).sum()
+        tokens_right = max_len - background_length
+        start = len(subject["codes"]) - tokens_right
+
+        idxs = np.r_[0:background_length, start:len(subject["codes"])]
+        return {
+            "subject_id": subject["subject_id"],
+            "codes": subject["codes"][idxs],
+            "abspos": subject["abspos"][idxs],
+            "segments": subject["segments"][idxs],
+            "ages": subject["ages"][idxs],
+        }
