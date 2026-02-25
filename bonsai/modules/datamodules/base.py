@@ -8,11 +8,9 @@ from bonsai.modules.create_data import create_features_and_tokenize
 from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 
 
-
 class BaseDataModule(L.LightningDataModule):
     def __init__(
         self,
-        logger,
         splits: List[str],
         path_data: str,
         path_tokenized: str,
@@ -23,7 +21,9 @@ class BaseDataModule(L.LightningDataModule):
         **kwargs,
     ):
         super().__init__()
-        print("UNUSED:", kwargs) # TODO: remove this after confirming that all kwargs are accounted for in the signature
+        print(
+            "UNUSED:", kwargs
+        )  # TODO: remove this after confirming that all kwargs are accounted for in the signature
 
         # Paths
         self.path_data = Path(path_data)
@@ -37,20 +37,21 @@ class BaseDataModule(L.LightningDataModule):
         # Initializing tokenizer
         vocabulary = None
         if path_vocab is not None:
-            self.logger.info(f"Loading vocabulary from {path_vocab}")
             vocabulary = torch.load(path_vocab, weights_only=True)
         self.tokenizer = EHRTokenizer(
             vocabulary=vocabulary,
             **(tokenizer_kwargs or {}),
         )
 
-        self.logger = logger
+        self.logger = self.set_logger()
 
     def prepare_data(self):
         """Use this method to do things that might write to disk or that need to be done only from a single process, like downloading data, tokenization, etc."""
         self.logger.info("BaseDataModule: prepare_data")
 
-        assert self.splits[0] == "train", "First split must be 'train' to build vocabulary before tokenizing other splits"
+        assert self.splits[0] == "train", (
+            "First split must be 'train' to build vocabulary before tokenizing other splits"
+        )
         for split in self.splits:
             self.logger.info(f"prepare_data: {split}")
             create_features_and_tokenize(
@@ -65,8 +66,16 @@ class BaseDataModule(L.LightningDataModule):
             self.logger.info(f"prepare_subject_data: {split}")
             subject_data = prepare_subject_data(
                 split_path=self.path_tokenized / split,
-                logger=self.logger,
             )
             torch.save(subject_data, self.path_tokenized / f"subject_data_{split}.pt")
             self.tokenizer.freeze_vocabulary()  # freeze after first split (train) to prevent data leakage
-        torch.save(self.tokenizer.vocabulary, self.path_tokenized / "vocabulary.pt")  # save vocabulary
+        torch.save(
+            self.tokenizer.vocabulary, self.path_tokenized / "vocabulary.pt"
+        )  # save vocabulary
+
+    def set_logger(self):
+        if self.trainer:
+            return self.trainer.logger
+        import logging
+
+        return logging.getLogger()

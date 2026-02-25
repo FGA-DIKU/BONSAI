@@ -10,6 +10,7 @@ from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from bonsai.functional.pathing import get_experiment_output_path
 from dotenv import load_dotenv
+from hydra.utils import get_class
 
 load_dotenv()
 
@@ -21,6 +22,12 @@ load_dotenv()
 )
 def main(cfg: DictConfig) -> None:
     model_save_dir = get_experiment_output_path()
+
+    vocab = (
+        "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/vocabulary.pt"
+    )
+    train_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_train.pt"
+    val_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_tuning.pt"
 
     logger = CSVLogger(model_save_dir, name="training_log")
 
@@ -39,38 +46,14 @@ def main(cfg: DictConfig) -> None:
         filename="last",
         enable_version_counter=False,
     )
-    # TODO: Implement instantiating transforms here
-    # TODO: Instantiate callbacks and loggers here and pass to trainer
-
-    # TODO: Move path to the LightningTrainer so it auto-loads checkpoint from path
-    # restart_path = cfg.paths.get("restart_model")
-    # if restart_path:
-    #    cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
-
-    # TODO: Implement DataModule here and instantiate datasets in there.
-    ######  TEMP SOLUTION
-    import torch
-    import bonsai
-    import os
-
-    base_path = os.path.split(bonsai.__path__[0])[0]
-
-    vocab = torch.load(
-        os.path.join(base_path, "outputs/pretraining/processed_data/vocabulary.pt")
-    )
-    train_data = torch.load(
-        os.path.join(
-            base_path, "outputs/pretraining/processed_data/DICTpatients_train.pt"
-        )
-    )
-    ###### TEMP SOLUTION
 
     data_module = PretrainDataModule(
+        path_train_data=train_data,
+        path_val_data=val_data,
+        path_vocab=vocab,
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
-        train_split=train_data,
-        val_split=train_data,
-        vocabulary=vocab,
+        dataset_class=get_class(cfg.data.dataset_class),
     )
 
     model = BonsaiPretrain(

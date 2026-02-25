@@ -23,7 +23,7 @@ class BonsaiEncoder(ModernBertModel):
     Encoder backbone for EHR data using ModernBert.
 
     Attributes:
-        embeddings (EhrEmbeddings): custom embeddings for concepts, segments, age, and absolute position.
+        embeddings (EhrEmbeddings): custom embeddings for codes, segments, age, and absolute position.
         layers (nn.ModuleList): list of causal encoder layers replacing standard BERT layers.
     """
 
@@ -48,9 +48,9 @@ class BonsaiEncoder(ModernBertModel):
 
         Args:
             batch (dict): must contain:
-                - "concept": Tensor of token indices (B, L)
-                - "segment": Tensor of segment IDs (B, L)
-                - "age": Tensor of patient ages (B, L)
+                - "codes": Tensor of token indices (B, L)
+                - "segments": Tensor of segment IDs (B, L)
+                - "ages": Tensor of patient ages (B, L)
                 - "abspos": Tensor of absolute position values (B, L)
             **kwargs: Additional arguments to pass to the ModernBertModel forward method
 
@@ -61,12 +61,11 @@ class BonsaiEncoder(ModernBertModel):
         if "attention_mask" in batch:
             attention_mask = batch["attention_mask"]
         else:
-            attention_mask = (batch["concept"] != 0).float()
-
+            attention_mask = (batch["codes"] != 0).float()
         inputs_embeds = self.embeddings(
-            input_ids=batch["concept"],
-            segments=batch["segment"],
-            age=batch["age"],
+            input_ids=batch["codes"],
+            segments=batch["segments"],
+            age=batch["ages"],
             abspos=batch["abspos"],
         )
 

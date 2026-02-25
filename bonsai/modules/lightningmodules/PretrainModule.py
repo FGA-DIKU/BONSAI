@@ -48,8 +48,7 @@ class PretrainModule(L.LightningModule):
         )
 
     def training_step(self, batch, batch_idx):
-        labels = batch["target"]
-        logits, _ = self.model(batch)
+        logits, labels = self.model(batch)
         loss = self.train_loss(
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
@@ -59,8 +58,7 @@ class PretrainModule(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        labels = batch["target"]
-        logits, _ = self.model(batch)
+        logits, labels = self.model(batch)
         if logits.numel() > 0:
             loss = self.val_loss(
                 logits.view(-1, self.model.config.vocab_size), labels.view(-1)

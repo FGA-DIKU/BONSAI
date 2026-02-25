@@ -5,16 +5,10 @@ defaults:
   
 
 data:
+  fold: 0
   path_tokenized: outputs/tokenized
   path_vocab: outputs/tokenized/vocabulary.pt
-  batch_size: 32
-  num_workers: 4
-  max_len: 10
-  cutoff_date:
-    day: 1
-    month: 1
-    year: 2015
-  pretrain_mode: AR
+  dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset
   # masking_kwargs:
   #   masking_select_ratio: 1.
   #masking_ratio: .8
@@ -22,6 +16,11 @@ data:
   #ignore_special_tokens: true
 
 training:
+  max_len: 10
+  cutoff_date:
+    day: 1
+    month: 1
+    year: 2015
   batch_size: 32
   accumulate_grad_batches: 2 #previously called effective batch size
   epochs: 1

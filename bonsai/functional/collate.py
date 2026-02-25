@@ -5,10 +5,10 @@ def dynamic_padding(batch: list) -> dict:
     """
     Collate function that handles both:
       - Binary classification with a 0D scalar 'target'
-      - MLM with a 1D sequence 'target' that matches 'concept'
+      - MLM with a 1D sequence 'target' that matches 'codes'
 
     Steps:
-      1) Determine max sequence length from the 'concept' field.
+      1) Determine max sequence length from the 'codes' field.
       2) For each sample in the batch:
          - For each key, if the tensor is 1D and matches the sequence length, pad to 'max_len'.
            * If key == 'target' and it's 1D, pad with -100 (MLM style).
@@ -17,12 +17,12 @@ def dynamic_padding(batch: list) -> dict:
       3) Stack along dim=0 to produce a batch dict.
     """
 
-    # 1) Find maximum sequence length from 'concept'
-    max_len = max(sample["concept"].shape[0] for sample in batch)
+    # 1) Find maximum sequence length from 'codes'
+    max_len = max(sample["codes"].shape[0] for sample in batch)
 
     # 2) Pad each field if needed
     for sample in batch:
-        seq_len = sample["concept"].shape[0]
+        seq_len = sample["codes"].shape[0]
         diff = max_len - seq_len
 
         for key, tensor_field in sample.items():

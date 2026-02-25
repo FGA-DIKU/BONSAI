@@ -11,8 +11,8 @@ from bonsai.functional.sampling import get_sampler
 from lightning.pytorch.callbacks import ModelCheckpoint
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.paths import get_config_path
-from dotenv import load_dotenv
 from lightning.pytorch.loggers import CSVLogger
+from dotenv import load_dotenv
 
 load_dotenv()
 
