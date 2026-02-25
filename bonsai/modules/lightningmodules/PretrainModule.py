@@ -1,6 +1,5 @@
 import lightning as L
 import torch
-from abc import abstractmethod
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
@@ -89,14 +88,3 @@ class PretrainModule(L.LightningModule):
             "frequency": 1,
         }
         return [optimizer], [scheduler_config]
-
-
-# TODO: Implement early stopping and unfreezing logic
-"""
-if self._should_unfreeze_on_plateau(current_metric_value):
-    self._unfreeze_model("Performance plateau detected!")
-
-if self._should_stop_early(
-    epoch, current_metric_value, val_loss, epoch_loss, val_metrics, test_metrics
-):
-"""
