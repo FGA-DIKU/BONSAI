@@ -1,12 +1,17 @@
 import hydra
 import lightning as L
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.paths import get_config_path
 from transformers import ModernBertConfig
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+from bonsai.functional.pathing import get_experiment_output_path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @hydra.main(
@@ -15,12 +20,25 @@ from lightning.pytorch.loggers import CSVLogger
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    logging_safe_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    print(cfg)
-    # TODO: implement path configuration for BONSAI
-    # DirectoryPreparer(cfg).setup_pretrain()
+    model_save_dir = get_experiment_output_path()
 
-    logger = CSVLogger("logs", name="test_experiment")
+    logger = CSVLogger(model_save_dir, name="training_log")
+
+    best_ckpt_callback = ModelCheckpoint(
+        dirpath=model_save_dir,
+        monitor="val/loss",
+        mode="min",
+        save_top_k=1,
+        filename="best",
+        enable_version_counter=False,
+    )
+    last_ckpt_callback = ModelCheckpoint(
+        dirpath=model_save_dir,
+        every_n_epochs=cfg.training.ckpt_every_n_epoch,
+        save_top_k=1,
+        filename="last",
+        enable_version_counter=False,
+    )
     # TODO: Implement instantiating transforms here
     # TODO: Instantiate callbacks and loggers here and pass to trainer
 
@@ -80,7 +98,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[],
+        callbacks=[last_ckpt_callback, best_ckpt_callback],
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,

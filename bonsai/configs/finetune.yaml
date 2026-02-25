@@ -5,11 +5,8 @@ defaults:
   
 checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/config.json
 
-model:
-  ckpt_every_n_epoch: 1
-
 data:
-  split_idx: 1
+  fold: 0
   select_ratio: 1.
   masking_ratio: .8
   replace_ratio: .1
@@ -27,6 +24,7 @@ training:
   loss_weight_function: 
     _target_: bonsai.functional.loss.effective_n_samples
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
+  ckpt_every_n_epoch: 1
 
   #Below is planned for implementation but not yet done
   #checkpoint_frequency: 1

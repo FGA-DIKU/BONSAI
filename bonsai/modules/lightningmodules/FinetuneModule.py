@@ -20,6 +20,7 @@ class FinetuneModule(L.LightningModule):
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
+
         self.save_hyperparameters(ignore=["model"])
         self.model = (
             torch.compile(model, mode=compile_mode)
@@ -30,6 +31,7 @@ class FinetuneModule(L.LightningModule):
         self.val_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
+        self.test_metrics = self.configure_metrics("test")
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
@@ -64,6 +66,12 @@ class FinetuneModule(L.LightningModule):
         self.val_metrics(logits, labels)
         self.log_dict(self.val_metrics)
         return loss
+
+    def test_step(self, batch, batch_idx):
+        labels = batch["target"]
+        logits, _ = self.model(batch)
+        self.test_metrics(logits, labels)
+        self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
 
     def configure_optimizers(self):
         optimizer = AdamW(
