@@ -20,7 +20,7 @@ class PretrainDataModule(L.LightningDataModule):
         batch_size: int,
         num_workers: int,
         dataset_class: torch.utils.data.Dataset,
-        masking_kwargs: Optional[dict] = None,
+        masking_config: dict = None,
         cohorts: Optional[Dict[str, list]] = None,
         cutoff_date: Optional[dict] = None,
         max_len: int = 8192,
@@ -37,7 +37,7 @@ class PretrainDataModule(L.LightningDataModule):
         self.cutoff_date = cutoff_date
 
         self.dataset_class = dataset_class
-        self.masking_kwargs = masking_kwargs
+        self.masking_config = masking_config
         self.logger = self.set_logger()
 
     def setup(self, stage: str):
@@ -61,13 +61,19 @@ class PretrainDataModule(L.LightningDataModule):
             self.train_dataset = self.dataset_class(
                 self.train_data,
                 vocabulary=self.vocabulary,
-                **(self.masking_kwargs or {}),
+                masking_select_ratio=self.masking_config.masking_select_ratio,
+                masking_ratio=self.masking_config.masking_ratio,
+                masking_random_ratio=self.masking_config.masking_random_ratio,
+                masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
                 max_len=self.max_len,
             )
             self.val_dataset = self.dataset_class(
                 self.val_data,
                 vocabulary=self.vocabulary,
-                **(self.masking_kwargs or {}),
+                masking_select_ratio=self.masking_config.masking_select_ratio,
+                masking_ratio=self.masking_config.masking_ratio,
+                masking_random_ratio=self.masking_config.masking_random_ratio,
+                masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
                 max_len=self.max_len,
             )
         elif issubclass(self.dataset_class, ARPretrainDataset):

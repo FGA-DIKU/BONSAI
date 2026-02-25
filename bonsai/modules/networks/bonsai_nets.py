@@ -120,7 +120,6 @@ class BonsaiFinetune(BonsaiEncoder):
 
     def forward(self, batch: dict, **kwargs):
         outputs = super().forward(batch, **kwargs)
-
         sequence_output = outputs[0]  # Last hidden state
         logits = self.cls(sequence_output, batch["attention_mask"])
         return logits

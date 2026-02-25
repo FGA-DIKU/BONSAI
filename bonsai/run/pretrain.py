@@ -21,15 +21,14 @@ load_dotenv()
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    model_save_dir = get_experiment_output_path()
+    logger = CSVLogger(get_experiment_output_path(), name="training_runs")
+    model_save_dir = logger.log_dir
 
     vocab = (
         "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/vocabulary.pt"
     )
     train_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_train.pt"
     val_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_tuning.pt"
-
-    logger = CSVLogger(model_save_dir, name="training_log")
 
     best_ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
@@ -54,6 +53,7 @@ def main(cfg: DictConfig) -> None:
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         dataset_class=get_class(cfg.data.dataset_class),
+        masking_config=cfg.training.masking,
     )
 
     model = BonsaiPretrain(

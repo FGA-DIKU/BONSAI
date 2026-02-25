@@ -20,7 +20,7 @@ class PretrainModule(L.LightningModule):
         self.optimizer_epsilon = optimizer_epsilon
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
 
-        self.save_hyperparameters(ignore=["model"])
+        self.save_hyperparameters(model.config.to_dict(), ignore=["model"])
         self.model = (
             torch.compile(model, mode=compile_mode)
             if compile_mode is not None

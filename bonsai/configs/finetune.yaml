@@ -3,7 +3,7 @@ defaults:
   - hardware/1gpu12cpu@hardware
   - _self_
   
-checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/config.json
+checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/data/models/pretrain_debug/0/training_runs/version_2/hparams.yaml
 
 data:
   fold: 0
