@@ -5,36 +5,62 @@ from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from transformers import ModernBertConfig
-from functional import partial
+from functools import partial
 import pandas as pd
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
+from lightning.pytorch.callbacks import ModelCheckpoint
+from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.paths import get_config_path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @hydra.main(
-    # config_path=get_config_path(), # TODO: make this more flexible to allow for different config paths
-    config_path="bonsai/configs",
+    config_path=get_config_path(),
     config_name="finetune",
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    finetune_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    pretrain_cfg = ModernBertConfig.from_pretrained(cfg.checkpoint_path)
-    cfg = pretrain_cfg | finetune_cfg
+    logging_safe_cfg = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    HFConfig = ModernBertConfig.from_pretrained(cfg.checkpoint_path)
+    HFConfig = HFConfig.update(cfg)
 
-    vocabulary = pd.read_csv("vocabulary")
-    labels = pd.read_csv("outcomes")
+    model_save_dir = get_experiment_output_path()
+    print(model_save_dir)
+    vocabulary = ()
+    labels = [0, 0, 0, 1, 1, 1, 1, 1, 1]
     label_counts = pd.Series(labels).value_counts()
     sampler = get_sampler(
-        weight_fn=cfg.sample_weight_fn, labels=labels, label_counts=label_counts
+        weight_fn=cfg.training.sampling_weight_fn,
+        labels=labels,
+        label_counts=label_counts,
     )
-    pos_weight = get_loss_weight(cfg, label_counts=label_counts)
+    pos_weight = get_loss_weight(
+        cfg.training.loss_weight_function, label_counts=label_counts
+    )
 
     train_split = ()
     val_split = ()
 
-    data_module = partial(
-        FinetuneDataModule,
+    best_ckpt_callback = ModelCheckpoint(
+        dirpath=model_save_dir,
+        monitor="val/loss",
+        mode="min",
+        save_top_k=1,
+        filename="best",
+        enable_version_counter=False,
+    )
+    last_ckpt_callback = ModelCheckpoint(
+        dirpath=model_save_dir,
+        every_n_epochs=cfg.model.ckpt_every_n_epoch,
+        save_top_k=1,
+        filename="last",
+        enable_version_counter=False,
+    )
+
+    data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         train_split=train_split,
@@ -43,11 +69,10 @@ def main(cfg: DictConfig) -> None:
         sampler=sampler,
     )
 
-    model = partial(
-        BonsaiFinetune,
+    model = BonsaiFinetune(
         ModernBertConfig(
             **cfg.model,
-            vocab_size=len(data_module.train_dataset.vocabulary),
+            vocab_size=len(vocabulary),
             pad_token_id=0,
             cls_token_id=1,
             sep_token_id=2,
@@ -55,39 +80,33 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    lightning_module = partial(
-        FinetuneModule,
+    lightning_module = FinetuneModule(
+        model=model,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=pos_weight,
     )
 
-    trainer = partial(
-        L.Trainer,
+    trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
         accumulate_grad_batches=cfg.training.accumulate_grad_batches,
         devices=cfg.hardware.num_devices,
-        callbacks=[],
+        callbacks=[last_ckpt_callback, best_ckpt_callback],
         loggers=[],
-        max_epochs=cfg.training.max_epochs,
+        max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
-        precision=cfg.training.precision,
+        precision=cfg.hardware.precision,
     )
 
-    for i in range(cfg.num_folds):
-        data_module = data_module(split=i)
-        model = model()
-        lightning_module = lightning_module(model=model)
-        trainer = trainer()
+    trainer.fit(
+        model=lightning_module,
+        datamodule=data_module,
+        ckpt_path="last",
+    )
 
-        trainer.fit(
-            model=lightning_module,
-            datamodule=data_module,
-            ckpt_path="last",
-        )
 
-    # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.
+# TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from typing import List
 from torch.utils.data import WeightedRandomSampler
 import pandas as pd
 import numpy as np
-from hydra import instantiate
+from hydra.utils import instantiate
 
 
 def get_sampler(weight_fn, labels, label_counts):

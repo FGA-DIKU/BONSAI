@@ -1,0 +1,8 @@
+hydra:
+  verbose: false
+  output_subdir: hydra
+  run:
+    dir: ${oc.env:BONSAI_MODELS}/${hydra:job.config_name}/${data.split_idx}
+  sweep:
+    dir: ${oc.env:BONSAI_MODELS}
+    subdir: ${hydra:job.config_name}/${data.split_idx}

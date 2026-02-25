@@ -12,8 +12,7 @@ def get_loss_weight(fn, label_counts: List[int]) -> Optional[List[float]]:
     if fn is None:
         return None
 
-    weight_func = instantiate(fn)
-    return weight_func(label_counts)
+    return instantiate(fn, label_counts=label_counts)
 
 
 def sqrt(label_counts: List[int]) -> float:

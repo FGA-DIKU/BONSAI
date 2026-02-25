@@ -14,11 +14,12 @@ class FinetuneModule(L.LightningModule):
         pos_weight: torch.Tensor = None,
         learning_rate: float = 5e-4,
         optimizer_epsilon: float = 1e-6,
-        # scheduler_warmup_epochs: int = 0,
+        scheduler_warmup_epochs: int = 0,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
+        self.scheduler_warmup_epochs = scheduler_warmup_epochs
         self.save_hyperparameters(ignore=["model"])
         self.model = (
             torch.compile(model, mode=compile_mode)
@@ -70,11 +71,13 @@ class FinetuneModule(L.LightningModule):
             lr=self.learning_rate,
             eps=self.optimizer_epsilon,
         )
-
+        steps_per_epoch = (
+            self.trainer.estimated_stepping_batches // self.trainer.max_epochs
+        )
         scheduler = get_linear_schedule_with_warmup(
             optimizer=optimizer,
-            num_warmup_steps=10,
-            num_training_steps=100,
+            num_warmup_steps=steps_per_epoch * self.scheduler_warmup_epochs,
+            num_training_steps=self.trainer.estimated_stepping_batches,
         )
         scheduler_config = {
             "scheduler": scheduler,

@@ -3,7 +3,13 @@ defaults:
   - hardware/1gpu12cpu@hardware
   - _self_
   
+checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/pretraining/config.json
+
+model:
+  ckpt_every_n_epoch: 1
+
 data:
+  split_idx: 1
   select_ratio: 1.
   masking_ratio: .8
   replace_ratio: .1
@@ -16,7 +22,12 @@ training:
   epochs: 2
   learning_rate: 5e-4
   optimizer_epsilon: 1e-6
-  
+  sampling_weight_fn: 
+    _target_: bonsai.functional.sampling.effective_n_samples
+  loss_weight_function: 
+    _target_: bonsai.functional.loss.effective_n_samples
+  scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
+
   #Below is planned for implementation but not yet done
   #checkpoint_frequency: 1
   #early_stopping: 20 # rename this to tell what the value represents
@@ -32,22 +43,6 @@ training:
   #gradient_clip: 
   #  clip_value: 1.0
 
-model:
-  cls: default
+#model:
+#  cls: default
 
-scheduler:
-  _target_: transformers.get_linear_schedule_with_warmup
-  num_warmup_epochs: 2
-  num_training_epochs: 3
-
-metrics:
-  top1:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 1
-  top10:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-
-    topk: 10
-  mlm_loss:
-    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
-    loss_name: loss

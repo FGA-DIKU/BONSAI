@@ -10,8 +10,7 @@ from lightning.pytorch.loggers import CSVLogger
 
 
 @hydra.main(
-    config_path=get_config_path(),  # TODO: make this more flexible to allow for different config paths
-    # config_path="bonsai/configs",
+    config_path=get_config_path(),
     config_name="pretrain",
     version_base="1.2",
 )
