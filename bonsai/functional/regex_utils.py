@@ -1,7 +1,5 @@
 import re
 import warnings
-import pandas as pd
-from typing import Set
 
 
 def is_valid_regex(pattern: str) -> bool:
@@ -38,6 +36,7 @@ def filter_rows_by_regex(df, col, regex):
         warnings.simplefilter("ignore", UserWarning)
         mask = df[col].astype(str).str.contains(regex, case=False, na=False, regex=True)
     return df.loc[~mask]
+
 
 def exclude_codes(concepts, exclude_regex):
     if not is_valid_regex(exclude_regex):

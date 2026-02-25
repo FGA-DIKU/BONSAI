@@ -5,7 +5,7 @@ import pyarrow as pa
 
 from bonsai.functional.features import create_features
 from bonsai.functional.io_ops import load_concept
-from bonsai.functional.regex import exclude_codes
+from bonsai.functional.regex_utils import exclude_codes
 from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 
 
@@ -24,7 +24,7 @@ def create_features_and_tokenize(
 
     path_tokenized_split = path_tokenized / split
     path_tokenized_split.mkdir(parents=True, exist_ok=True)
-    
+
     shards = [shard for shard in (path_data / split).iterdir()]
     logger.info(f"Found {len(shards)} shards to process in {split}")
 
@@ -67,13 +67,20 @@ def create_features_and_tokenize(
         )
     logger.info(f"Finished processing {split}")
     logger.info(f"Total concepts loaded: {concept_counts['loaded']}")
-    logger.info(f"Total concepts after dropping duplicates: {concept_counts['after_duplicates']}")
+    logger.info(
+        f"Total concepts after dropping duplicates: {concept_counts['after_duplicates']}"
+    )
     logger.info(f"Total concepts after exclusion: {concept_counts['after_exclusion']}")
-    logger.info(f"Total concepts after feature creation: {concept_counts['after_features']}")
+    logger.info(
+        f"Total concepts after feature creation: {concept_counts['after_features']}"
+    )
+
 
 def drop_duplicates(concepts: pd.DataFrame, logger) -> pd.DataFrame:
     pre = len(concepts)
     concepts = concepts.drop_duplicates(subset=["subject_id", "code", "time"])
     if pre != len(concepts):
-        logger.info(f"Dropped {pre - len(concepts)} duplicate rows based on subject_id, code, and time")
+        logger.info(
+            f"Dropped {pre - len(concepts)} duplicate rows based on subject_id, code, and time"
+        )
     return concepts

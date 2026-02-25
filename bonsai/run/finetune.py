@@ -1,11 +1,14 @@
 import hydra
 import lightning as L
 from omegaconf import DictConfig, OmegaConf
+from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from transformers import ModernBertConfig
 from functional import partial
-from corebehrt.modules.trainer.utils import get_loss_weight
+import pandas as pd
+from bonsai.functional.loss import get_loss_weight
+from bonsai.functional.sampling import get_sampler
 
 
 @hydra.main(
@@ -19,30 +22,26 @@ def main(cfg: DictConfig) -> None:
     pretrain_cfg = ModernBertConfig.from_pretrained(cfg.checkpoint_path)
     cfg = pretrain_cfg | finetune_cfg
 
-    # TODO: implement path config for BONSAI
-    # DirectoryPreparer(cfg).setup_pretrain()
+    vocabulary = pd.read_csv("vocabulary")
+    labels = pd.read_csv("outcomes")
+    label_counts = pd.Series(labels).value_counts()
+    sampler = get_sampler(
+        weight_fn=cfg.sample_weight_fn, labels=labels, label_counts=label_counts
+    )
+    pos_weight = get_loss_weight(cfg, label_counts=label_counts)
 
-    # TODO: implement logging for BONSAI -> Move this to LightningModule
+    train_split = ()
+    val_split = ()
 
-    # TODO: Move path to the LightningTrainer so it auto-loads checkpoint from path
-    # restart_path = cfg.paths.get("restart_model")
-    # if restart_path:
-    #    cfg.model = load_model_cfg_from_checkpoint(restart_path, "pretrain_config")
-
-    # TODO: Implement DataModule here and instantiate datasets in there.
-    data_module = partial()
-    # train_data = PatientDataset(
-    #    torch.load(join(cfg.paths.prepared_data, PREPARED_TRAIN_PATIENTS))
-    # )
-    # val_data = PatientDataset(
-    #    torch.load(join(cfg.paths.prepared_data, PREPARED_VAL_PATIENTS))
-    # )
-    # vocab = load_vocabulary(cfg.paths.prepared_data)
-    #     #train_dataset = MLMDataset(train_data.patients, vocab, **cfg.data.dataset)
-    # val_dataset = MLMDataset(val_data.patients, vocab, **cfg.data.dataset)
-
-    # TODO: Load Model here
-    # model = initializer.initialize_pretrain_model(train_dataset)
+    data_module = partial(
+        FinetuneDataModule,
+        batch_size=cfg.training.batch_size,
+        num_workers=cfg.hardware.num_workers,
+        train_split=train_split,
+        val_split=val_split,
+        vocabulary=vocabulary,
+        sampler=sampler,
+    )
 
     model = partial(
         BonsaiFinetune,
@@ -56,8 +55,6 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    pos_weight = get_loss_weight(cfg, outcomes=data_module.get_outcomes())
-
     lightning_module = partial(
         FinetuneModule,
         learning_rate=cfg.training.learning_rate,
@@ -66,7 +63,6 @@ def main(cfg: DictConfig) -> None:
         pos_weight=pos_weight,
     )
 
-    # TODO: Implement Lightning Trainer here and pass in model, optimizer, scheduler, datasets, etc.
     trainer = partial(
         L.Trainer,
         accelerator=cfg.hardware.accelerator,

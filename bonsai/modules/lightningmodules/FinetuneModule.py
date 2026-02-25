@@ -1,9 +1,9 @@
 import lightning as L
 import torch
-from abc import abstractmethod
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
+from torchmetrics import MetricCollection, Accuracy, AUROC, AveragePrecision
 
 
 class FinetuneModule(L.LightningModule):
@@ -27,42 +27,42 @@ class FinetuneModule(L.LightningModule):
         )
         self.train_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.val_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        self.train_metrics = self.configure_metrics("train")
+        self.val_metrics = self.configure_metrics("val")
 
-    """ add metrics:
-    metrics:
-        accuracy:
-            _target_: corebehrt.modules.monitoring.metrics.Accuracy
-            threshold: 0.6
-        roc_auc:
-            _target_: corebehrt.modules.monitoring.metrics.ROC_AUC
-        pr_auc:
-            _target_: corebehrt.modules.monitoring.metrics.PR_AUC
-        precentage_positives:
-            _target_: corebehrt.modules.monitoring.metrics.Percentage_Positives
+    def configure_metrics(self, prefix: str):
+        return MetricCollection(
+            {
+                f"{prefix}/Accuracy": Accuracy(
+                    task="binary",
+                    threshold=0.6,
+                ),
+                f"{prefix}/AUROC": AUROC(
+                    task="binary",
+                ),
+                f"{prefix}/AveragePrecision": AveragePrecision(
+                    task="binary",
+                ),
+            },
+        )
 
-        mean_probability:
-            _target_: corebehrt.modules.monitoring.metrics.Mean_Probability
-        true_positives:
-            _target_: corebehrt.modules.monitoring.metrics.True_Positives
-
-        true_negatives:
-            _target_: corebehrt.modules.monitoring.metrics.True_Negatives
-        false_positives:
-            _target_: corebehrt.modules.monitoring.metrics.False_Positives
-
-        false_negatives:
-            _target_: corebehrt.modules.monitoring.metrics.False_Negatives
-    """
-
-    @abstractmethod
     def training_step(self, batch, batch_idx):
-        logits = self.model(batch)
-        loss = self.train_loss(logits, batch["labels"])
+        labels = batch["target"]
+        logits, _ = self.model(batch)
+        loss = self.train_loss(logits, labels)
+        self.train_metrics(logits, labels)
+        self.log("train/loss", loss, prog_bar=True)
+        self.log_dict(self.train_metrics)
         return loss
 
-    @abstractmethod
     def validation_step(self, batch, batch_idx):
-        raise NotImplementedError
+        labels = batch["target"]
+        logits, _ = self.model(batch)
+        loss = self.val_loss(logits, labels)
+        self.log("val/loss", loss, prog_bar=True)
+        self.val_metrics(logits, labels)
+        self.log_dict(self.val_metrics)
+        return loss
 
     def configure_optimizers(self):
         optimizer = AdamW(

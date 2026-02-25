@@ -14,6 +14,7 @@ class FinetuneDataModule(L.LightningDataModule):
         train_split: list,
         val_split: list,
         vocabulary: list,
+        sampler=None,
         # train_transforms: Optional[Compose] = pretrain_CPU_train_transforms,
         # val_transforms: Optional[Compose] = pretrain_CPU_val_transforms,
         # num_samples: Optional[int] = None,
@@ -24,6 +25,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self.train_split = train_split
         self.val_split = val_split
         self.vocabulary = vocabulary
+        self.sampler = sampler
         # self.train_transforms = train_transforms
         # self.val_transforms = val_transforms
 
@@ -61,6 +63,7 @@ class FinetuneDataModule(L.LightningDataModule):
             drop_last=True,
             shuffle=False,  # Why is shuffle false?
             collate_fn=dynamic_padding,
+            sampler=self.sampler,
         )
 
     def val_dataloader(self):
@@ -73,4 +76,5 @@ class FinetuneDataModule(L.LightningDataModule):
             drop_last=True,
             shuffle=False,
             collate_fn=dynamic_padding,
+            sampler=self.sampler,
         )

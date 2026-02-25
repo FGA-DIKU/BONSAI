@@ -77,13 +77,6 @@ class BonsaiEncoder(ModernBertModel):
     def _update_attention_mask(
         self, attention_mask: torch.Tensor, output_attentions: bool
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Calls super()._update_attention_mask and adds causal masking if self.is_causal=True.
-        Returns:
-            Tuple of:
-            - Global attention mask
-            - Sliding window mask for local attention
-        """
         global_attention_mask, sliding_window_mask = super()._update_attention_mask(
             attention_mask, output_attentions
         )
@@ -95,12 +88,6 @@ class BonsaiEncoder(ModernBertModel):
 
 
 class BonsaiPretrain(BonsaiEncoder):
-    """
-    Masked Language Model head for EHR pretraining.
-
-    Adds a prediction head and linear decoder on top of CorebehrtEncoder.
-    """
-
     def __init__(self, config):
         super().__init__(config)
         self.head = ModernBertPredictionHead(config)
@@ -117,11 +104,9 @@ class BonsaiPretrain(BonsaiEncoder):
         last_hidden_state = outputs[0]
 
         if self.sparse_prediction:
-            # flatten labels and output first
             labels = labels.view(-1)
             last_hidden_state = last_hidden_state.view(labels.shape[0], -1)
 
-            # then filter out the non-masked tokens
             mask_tokens = labels != self.sparse_pred_ignore_index
             last_hidden_state = last_hidden_state[mask_tokens]
             labels = labels[mask_tokens]
@@ -130,28 +115,11 @@ class BonsaiPretrain(BonsaiEncoder):
 
 
 class BonsaiFinetune(BonsaiEncoder):
-    """
-    Fine-tuning head for downstream classification on EHR sequences.
-
-    Adds a binary classification head (BCEWithLogits) on top of sequence outputs.
-    """
-
     def __init__(self, config):
         super().__init__(config)
         self.cls = FineTuneHead(hidden_size=config.hidden_size)
 
     def forward(self, batch: dict, **kwargs):
-        """
-        Forward pass for fine-tuning.
-
-        Args:
-            batch (dict): must contain 'concept', 'segment', 'age', 'abspos', 'attention_mask';
-                          optional 'target' as labels.
-            **kwargs: Additional arguments to pass to the encoder forward method
-
-        Returns:
-            BaseModelOutput: with logits and optional loss if target provided.
-        """
         outputs = super().forward(batch, **kwargs)
 
         sequence_output = outputs[0]  # Last hidden state
