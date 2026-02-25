@@ -2,7 +2,8 @@ import lightning as L
 from typing import Literal
 from torch.utils.data import DataLoader
 from bonsai.functional.collate import dynamic_padding
-from bonsai.modules.datasets.PretrainDataset import PretrainDataset
+from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
+from bonsai.functional.features import get_background_length
 
 
 class FinetuneDataModule(L.LightningDataModule):
@@ -35,13 +36,19 @@ class FinetuneDataModule(L.LightningDataModule):
             raise NotImplementedError("Predict stage not supported for PretrainModule.")
 
     def setup_fit(self):
+        background_length = get_background_length(
+            concepts=self.train_split[0]["concepts"],
+            vocabulary=self.vocabulary,
+        )
         self.train_dataset = FinetuneDataset(
             self.train_split,
             vocabulary=self.vocabulary,
+            background_length=background_length,
         )
         self.val_dataset = FinetuneDataset(
             self.val_split,
             vocabulary=self.vocabulary,
+            background_length=background_length,
         )
 
     def train_dataloader(self):
@@ -67,59 +74,3 @@ class FinetuneDataModule(L.LightningDataModule):
             shuffle=False,
             collate_fn=dynamic_padding,
         )
-
-
-if __name__ == "__main__":
-    import torch
-    import bonsai
-    import os
-
-    base_path = os.path.split(bonsai.__path__[0])[0]
-    patients = torch.load(
-        os.path.join(base_path, "outputs/pretraining/processed_data/patients_train.pt"),
-        weights_only=False,
-    )
-    patientlist = []
-    for patient in patients:
-        sample = {
-            "pid": torch.tensor(patient.pid, dtype=torch.long),
-            "concept": torch.tensor(patient.concepts, dtype=torch.long),
-            "abspos": torch.tensor(patient.abspos, dtype=torch.float),
-            "segment": torch.tensor(patient.segments, dtype=torch.long),
-            "age": torch.tensor(patient.ages, dtype=torch.half),
-        }
-        patientlist.append(sample)
-
-    torch.save(
-        patientlist,
-        os.path.join(
-            base_path, "outputs/pretraining/processed_data/DICTpatients_train.pt"
-        ),
-    )
-
-    vocab = torch.load(
-        os.path.join(base_path, "outputs/pretraining/processed_data/vocabulary.pt")
-    )
-    train_data = torch.load(
-        os.path.join(
-            base_path, "outputs/pretraining/processed_data/DICTpatients_train.pt"
-        )
-    )
-    val_data = torch.load(
-        os.path.join(
-            base_path, "outputs/pretraining/processed_data/DICTpatients_train.pt"
-        )
-    )
-    dm = PretrainDataModule(
-        batch_size=2,
-        num_workers=1,
-        train_split=train_data,
-        val_split=val_data,
-        vocabulary=vocab,
-    )
-
-    dm.setup("fit")
-    train_dl = dm.train_dataloader()
-    train_iter = iter(train_dl)
-    for i in range(5):
-        print(next(train_iter))

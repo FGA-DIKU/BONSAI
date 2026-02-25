@@ -11,26 +11,31 @@ def create_features(concepts: pd.DataFrame, logger) -> pd.DataFrame:
     concepts, dob_info = create_background(concepts)
     # patient_info = create_patient_info(concepts)
 
-    concepts = drop_invalids(concepts, logger) # Must be done post create_background
+    concepts = drop_invalids(concepts, logger)  # Must be done post create_background
 
     features = concepts
     features["age"] = compute_age(features, dob_info)
     features = exclude_incorrect_event_ages(features, logger)
     features["abspos"] = compute_abspos(features["time"])
 
-    features = features.sort_values(["subject_id", "time"]).reset_index(drop=True) # TODO: Needed in MEDS?
+    features = features.sort_values(["subject_id", "time"]).reset_index(
+        drop=True
+    )  # TODO: Needed in MEDS?
     features["segment"] = compute_segments(features)
 
     features = features[["subject_id", "code", "age", "abspos", "segment"]]
 
     return features
 
+
 def create_background(concepts: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
-    """ Requires DOB (date of birth) token per person. Creates BACKGROUND//{var} tokens with time set to DOB time. """
+    """Requires DOB (date of birth) token per person. Creates BACKGROUND//{var} tokens with time set to DOB time."""
     dob_rows = concepts[concepts["code"] == "DOB"]
     dob_info = dob_rows.set_index("subject_id")["time"]
     if len(dob_rows) != concepts["subject_id"].nunique():
-        raise ValueError(f"Expected one DOB entry per subject_id, but found {len(dob_rows)} DOB entries for {concepts['subject_id'].nunique()} unique subject_ids.")
+        raise ValueError(
+            f"Expected one DOB entry per subject_id, but found {len(dob_rows)} DOB entries for {concepts['subject_id'].nunique()} unique subject_ids."
+        )
 
     bg_mask = concepts["time"].isna()
 
@@ -38,6 +43,7 @@ def create_background(concepts: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     concepts.loc[bg_mask, "time"] = concepts.loc[bg_mask, "subject_id"].map(dob_info)
 
     return concepts, dob_info
+
 
 # def create_patient_info(concepts: pd.DataFrame, background: pd.DataFrame, logger) -> pd.DataFrame:
 #     patient_info = pd.DataFrame({"subject_id": concepts["subject_id"].unique()})
@@ -61,6 +67,7 @@ def create_background(concepts: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
 
 #     return patient_info
 
+
 def compute_age(features: pd.DataFrame, dob_info: pd.Series) -> pd.Series:
     """
     Compute age in years for each row in concepts
@@ -77,7 +84,9 @@ def compute_age(features: pd.DataFrame, dob_info: pd.Series) -> pd.Series:
     if not pd.api.types.is_datetime64_any_dtype(dob_info):
         dob_info = pd.to_datetime(dob_info, errors="coerce")
 
-    return (features["time"] - features["subject_id"].map(dob_info)).dt.total_seconds() / (365.25 * 24 * 3600)
+    return (
+        features["time"] - features["subject_id"].map(dob_info)
+    ).dt.total_seconds() / (365.25 * 24 * 3600)
 
 
 def compute_abspos(
@@ -90,7 +99,7 @@ def compute_abspos(
         raise TypeError(
             "Invalid type for timestamps, only pd.Series and datetime are supported."
         )
-    
+
     # Convert timestamps to UTC (timezone-aware)
     timestamps = pd.to_datetime(
         timestamps, utc=True
@@ -103,24 +112,36 @@ def compute_abspos(
     hours = (timestamps.astype("int64") // 10**6) / 3600
     return hours
 
+
 def compute_segments(features: pd.DataFrame) -> pd.Series:
     return features.groupby("subject_id", sort=False)["time"].transform(
         lambda x: (x != x.shift()).cumsum()
     )
 
-def drop_invalids(concepts: pd.DataFrame, logger) -> pd.DataFrame:   
+
+def drop_invalids(concepts: pd.DataFrame, logger) -> pd.DataFrame:
     pre = len(concepts)
     concepts = concepts.dropna(subset=["subject_id", "code", "time"])
     if pre != len(concepts):
-        logger.info(f"Dropped {pre - len(concepts)} rows with missing subject_id, code, or time")
-    
+        logger.info(
+            f"Dropped {pre - len(concepts)} rows with missing subject_id, code, or time"
+        )
+
     return concepts
+
 
 def exclude_incorrect_event_ages(features: pd.DataFrame, logger) -> pd.DataFrame:
     """Exclude patients with incorrect ages (outside defined range)"""
     pre = len(features)
     features = features[(features["age"] >= -1) & (features["age"] <= 120)]
     if pre != len(features):
-        logger.info(f"Dropped {pre - len(features)} rows with incorrect ages outside (-1,120) range")
+        logger.info(
+            f"Dropped {pre - len(features)} rows with incorrect ages outside (-1,120) range"
+        )
     return features
 
+
+def get_background_length(concepts, vocabulary):
+    unique_background_tokens = set([i for i in vocabulary if i.startswith("BG_")])
+    background_length = len(set(concepts) & unique_background_tokens)
+    return background_length + 2  # +2 for [CLS] and [SEP] tokens
