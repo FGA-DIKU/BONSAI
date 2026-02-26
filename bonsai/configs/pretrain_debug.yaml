@@ -3,8 +3,13 @@ defaults:
   - hardware/cpu@hardware
   - _self_
   
+ 
+dataset: correlated_MEDS_data
+
 data:
   fold: 0
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  path_vocab: ${data.dir}/vocabulary.pt
   dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset
 
 

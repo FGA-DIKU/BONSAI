@@ -2,8 +2,9 @@ defaults:
   - core/base@
   - hardware/1gpu12cpu@hardware
   - _self_
-
-checkpoint_path:
+  
+dataset: correlated_MEDS_data
+checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/data/models/correlated_MEDS_data/pretrain_debug/0/training_runs/version_0/best.ckpt
 
 data:
   fold: 0
@@ -14,7 +15,7 @@ data:
   shuffle: true
 
 training:
-  batch_size: 128
+  batch_size: 32
   accumulate_grad_batches: 1 #previously called effective batch size
   epochs: 2
   learning_rate: 5e-4
@@ -25,7 +26,9 @@ training:
     _target_: bonsai.functional.loss.effective_n_samples
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
-
+  limit_val_batches: 50
+  limit_train_batches: 50
+  
   #Below is planned for implementation but not yet done
   #checkpoint_frequency: 1
   #early_stopping: 20 # rename this to tell what the value represents

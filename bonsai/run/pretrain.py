@@ -1,5 +1,6 @@
 import hydra
 import lightning as L
+import os
 from omegaconf import DictConfig
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
@@ -24,11 +25,9 @@ def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
 
-    vocab = (
-        "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/vocabulary.pt"
-    )
-    train_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_train.pt"
-    val_data = "/Users/zcr545/Desktop/Projects/repos/BONSAI/outputs/tokenized/subject_data_tuning.pt"
+    vocab = os.path.join(cfg.data.dir, "vocabulary.pt")
+    train_data = os.path.join(cfg.data.dir, "subject_data_train.pt")
+    val_data = os.path.join(cfg.data.dir, "subject_data_tuning.pt")
 
     best_ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,

@@ -2,6 +2,7 @@ import torch
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict
+import logging
 
 
 def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
@@ -25,11 +26,11 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     return all_tokenized
 
 
-def filter_subject_data(subject_data: List[dict], cohort: list, logger) -> List[dict]:
+def filter_subject_data(subject_data: List[dict], cohort: list) -> List[dict]:
     """Filter subject_data to only include subjects in the cohort."""
     pre = len(subject_data)
     cohort = set(cohort)  # Convert to set for faster lookup
     filtered_subjects = [s for s in subject_data if s["subject_id"] in cohort]
     post = len(filtered_subjects)
-    logger.info(f"Cohort filtering: {pre} -> {post} subjects")
+    logging.info(f"Cohort filtering: {pre} -> {post} subjects")
     return filtered_subjects

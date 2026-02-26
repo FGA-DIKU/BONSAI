@@ -3,11 +3,12 @@ defaults:
   - hardware/1gpu12cpu@hardware
   - _self_
   
+dataset: 
 
 data:
   fold: 0
-  path_tokenized: outputs/tokenized
-  path_vocab: outputs/tokenized/vocabulary.pt
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  path_vocab: ${data.dir}/vocabulary.pt
   dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset
 
 training:

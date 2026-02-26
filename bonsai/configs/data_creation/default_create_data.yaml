@@ -1,0 +1,15 @@
+splits: 
+  - train
+  - tuning
+  - held_out
+
+dataset: 
+
+data:  
+  input_dir: example_data/${dataset}
+  output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${hydra:job.config_name}/${dataset}
+
+exclude_regex: 
+
+tokenizer_kwargs:
+  sep_tokens: true

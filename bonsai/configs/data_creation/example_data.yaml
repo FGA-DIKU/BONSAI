@@ -3,8 +3,11 @@ splits:
   - tuning
   - held_out
 
-path_data: example_data/correlated_MEDS_data
-path_tokenized: ${oc.env:BONSAI_PROCESSED_DATA}/${hydra:job.config_name}
+dataset: correlated_MEDS_data
+
+data:  
+  input_dir: example_data/${dataset}
+  output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
 
 exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
 

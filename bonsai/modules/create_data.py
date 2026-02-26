@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional
 import pyarrow as pa
-
+import logging
 from bonsai.functional.features import create_features
 from bonsai.functional.io_ops import load_concept
 from bonsai.functional.regex_utils import exclude_codes
@@ -13,20 +13,19 @@ def create_features_and_tokenize(
     split: str,
     path_data: Path,
     path_tokenized: Path,
-    logger,
     tokenizer: EHRTokenizer,
     exclude_regex: Optional[str] = None,
 ) -> None:
     """
     Creates features and tokenizes them, saving the tokenized results to disk.
     """
-    logger.info(f"create_features_and_tokenize: {split}")
+    logging.info(f"create_features_and_tokenize: {split}")
 
     path_tokenized_split = path_tokenized / split
     path_tokenized_split.mkdir(parents=True, exist_ok=True)
-    
+
     shards = [shard for shard in (path_data / split).glob("*.parquet")]
-    logger.info(f"Found {len(shards)} shards to process in {split}")
+    logging.info(f"Found {len(shards)} shards to process in {split}")
 
     concept_counts = {
         "loaded": 0,
@@ -35,19 +34,19 @@ def create_features_and_tokenize(
         "after_features": 0,
     }
     for shard_idx, shard in enumerate(shards, 1):
-        logger.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
+        logging.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
 
         concepts = load_concept(shard)
         concept_counts["loaded"] += len(concepts)
 
-        concepts = drop_duplicates(concepts, logger)
+        concepts = drop_duplicates(concepts)
         concept_counts["after_duplicates"] += len(concepts)
 
         if exclude_regex is not None:
             concepts = exclude_codes(concepts, exclude_regex)
         concept_counts["after_exclusion"] += len(concepts)
 
-        features = create_features(concepts, logger)
+        features = create_features(concepts)
         concept_counts["after_features"] += len(features)
 
         tokenized = tokenizer(features)
@@ -65,22 +64,22 @@ def create_features_and_tokenize(
                 }
             ),
         )
-    logger.info(f"Finished processing {split}")
-    logger.info(f"Total concepts loaded: {concept_counts['loaded']}")
-    logger.info(
+    logging.info(f"Finished processing {split}")
+    logging.info(f"Total concepts loaded: {concept_counts['loaded']}")
+    logging.info(
         f"Total concepts after dropping duplicates: {concept_counts['after_duplicates']}"
     )
-    logger.info(f"Total concepts after exclusion: {concept_counts['after_exclusion']}")
-    logger.info(
+    logging.info(f"Total concepts after exclusion: {concept_counts['after_exclusion']}")
+    logging.info(
         f"Total concepts after feature creation: {concept_counts['after_features']}"
     )
 
 
-def drop_duplicates(concepts: pd.DataFrame, logger) -> pd.DataFrame:
+def drop_duplicates(concepts: pd.DataFrame) -> pd.DataFrame:
     pre = len(concepts)
     concepts = concepts.drop_duplicates(subset=["subject_id", "code", "time"])
     if pre != len(concepts):
-        logger.info(
+        logging.info(
             f"Dropped {pre - len(concepts)} duplicate rows based on subject_id, code, and time"
         )
     return concepts

@@ -1,4 +1,5 @@
 import lightning as L
+import torch
 from typing import Literal
 from torch.utils.data import DataLoader
 from bonsai.functional.collate import dynamic_padding
@@ -38,6 +39,9 @@ class FinetuneDataModule(L.LightningDataModule):
             raise NotImplementedError("Predict stage not supported for PretrainModule.")
 
     def setup_fit(self):
+        self.train_data = torch.load(self.path_train_data)
+        self.val_data = torch.load(self.path_val_data)
+
         background_length = get_background_length(
             concepts=self.train_split[0]["concepts"],
             vocabulary=self.vocabulary,
