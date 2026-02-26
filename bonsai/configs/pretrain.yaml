@@ -1,5 +1,5 @@
 defaults: 
-  - core/base@
+  - core/base_train@
   - hardware/1gpu12cpu@hardware
   - _self_
   

@@ -1,3 +1,7 @@
+defaults:
+  - core/base_create@
+  - _self_
+  
 splits: 
   - train
   - tuning

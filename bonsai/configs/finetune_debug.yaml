@@ -1,5 +1,5 @@
 defaults: 
-  - core/base@
+  - core/base_train@
   - hardware/1gpu12cpu@hardware
   - _self_
   
@@ -28,7 +28,7 @@ training:
   ckpt_every_n_epoch: 1
   limit_val_batches: 50
   limit_train_batches: 50
-  
+
   #Below is planned for implementation but not yet done
   #checkpoint_frequency: 1
   #early_stopping: 20 # rename this to tell what the value represents
