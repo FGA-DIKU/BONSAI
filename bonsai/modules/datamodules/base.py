@@ -14,7 +14,6 @@ class BaseDataModule(L.LightningDataModule):
         splits: List[str],
         path_data: str,
         path_tokenized: str,
-        path_features: str,
         path_vocab: Optional[str] = None,
         exclude_regex=None,
         tokenizer_kwargs: Optional[dict] = None,
@@ -28,7 +27,6 @@ class BaseDataModule(L.LightningDataModule):
         # Paths
         self.path_data = Path(path_data)
         self.path_tokenized = Path(path_tokenized)
-        self.path_features = Path(path_features)
 
         # prepare_data kwargs
         self.splits = splits

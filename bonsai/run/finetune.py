@@ -1,6 +1,6 @@
 import hydra
 import lightning as L
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
@@ -16,6 +16,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import torch
+
+
+def merge_configs_and_drop_duplicate_keys(pretrain_cfg, finetune_cfg):
+    keys_to_drop = [
+        "vocab_size",
+        "pad_token_id",
+        "cls_token_id",
+        "sep_token_id",
+        "sparse_prediction",
+    ]
+    finetune_cfg_as_regular_dict = OmegaConf.to_container(
+        finetune_cfg, resolve=True, throw_on_missing=True
+    )
+    model_cfg = pretrain_cfg | finetune_cfg_as_regular_dict
+    for key in keys_to_drop:
+        model_cfg.pop(key)
+    return model_cfg
+
 
 @hydra.main(
     config_path=get_config_path(),
@@ -24,9 +43,11 @@ load_dotenv()
 )
 def main(cfg: DictConfig) -> None:
     model_save_dir = get_experiment_output_path()
-    HFConfig = ModernBertConfig.from_pretrained(cfg.checkpoint_path)
-    HFConfig = HFConfig.update(cfg)
-
+    ckpt = torch.load(cfg.checkpoint_path, map_location="cpu", weights_only=False)
+    model_cfg = merge_configs_and_drop_duplicate_keys(
+        pretrain_cfg=ckpt["hyper_parameters"], finetune_cfg=cfg
+    )
+    # print(ckpt["hyper_parameters"])
     vocabulary = ()
     labels = [0, 0, 0, 1, 1, 1, 1, 1, 1]
     label_counts = pd.Series(labels).value_counts()
@@ -67,7 +88,7 @@ def main(cfg: DictConfig) -> None:
 
     model = BonsaiFinetune(
         ModernBertConfig(
-            **cfg.model,
+            **model_cfg,
             vocab_size=len(vocabulary),
             pad_token_id=0,
             cls_token_id=1,

@@ -4,13 +4,9 @@ splits:
   - held_out
 
 path_data: example_data/correlated_MEDS_data
-path_tokenized: outputs/tokenized
-path_features: outputs/features
-# optional
+path_tokenized: ${oc.env:BONSAI_PROCESSED_DATA}/${hydra:job.config_name}
 
-# features:
 exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
 
 tokenizer_kwargs:
   sep_tokens: true
-# path_vocab: outputs/vocabulary # vocab folder
