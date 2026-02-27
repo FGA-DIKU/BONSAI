@@ -43,6 +43,8 @@ def main(cfg: DictConfig) -> None:
                 # Find the outcomes matching match.conditions
                 outcomes = find(df, match.conditions, match.dependence)
                 outcomes = outcomes.drop(columns="code").rename(columns={"time": "outcome_date"})
+                outcomes = df[["subject_id"]].drop_duplicates().merge(outcomes, on="subject_id", how="left")
+                assert len(outcomes) == df["subject_id"].nunique()
 
                 # Set index_date (absolute or relative to outcome_date)
                 if index.type == "absolute":
@@ -60,6 +62,7 @@ def main(cfg: DictConfig) -> None:
                 else:    
                     raise ValueError(f"censor.type only allowed [absolute, relative], not {censor.type}")
                 all_outcomes[outcome] = pd.concat((all_outcomes[outcome], outcomes))
+                print(outcomes)
 
     path_outcomes.mkdir(parents=True, exist_ok=True)
     for outcome, df_out in all_outcomes.items():
