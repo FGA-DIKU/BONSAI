@@ -1,0 +1,33 @@
+paths:
+  data: example_data/correlated_MEDS_data
+  outcomes: outputs/outcomes
+splits:
+  - train
+  - tuning
+  - held_out
+
+outcomes:
+  TEST_OUTCOME:
+    match:
+      dependence: independent #or dependent
+      conditions:
+        - col: code
+          vals: [ DE11 ]
+    exclude:
+      dependence: independent #or dependent
+      conditions:
+        - col: code
+          vals: [ D437 ]
+        - col: code
+          vals: [ D438 ]
+
+    index:
+      type: absolute
+      date:
+        year: 2020
+        month: 1
+        day: 1
+
+    censor: 
+      type: relative
+      hour_shift: -1000
