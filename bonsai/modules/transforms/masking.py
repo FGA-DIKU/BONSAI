@@ -16,7 +16,7 @@ class CodeMasker:
             vocabulary: Vocabulary
             select_ratio: Ratio of tokens to consider in the loss
             masking_ratio: Ratio of tokens to replace with [MASK]
-            replace_ratio: Ratio of tokens to replace with random word
+            random_ratio: Ratio of tokens to replace with random word
         """
 
         self.vocabulary = vocabulary
