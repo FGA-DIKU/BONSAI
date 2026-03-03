@@ -15,5 +15,7 @@ data:
 
 exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
 
-tokenizer_kwargs:
+tokenizer:
+  vocabulary:
+  cutoffs:
   sep_tokens: true

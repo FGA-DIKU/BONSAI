@@ -1,21 +1,23 @@
 import pandas as pd
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 from datetime import datetime
+import logging
 
 
-def create_features(concepts: pd.DataFrame) -> pd.DataFrame:
+def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    A function to create features from patient information and concepts DataFrames.
-    We create background, death, age, absolute position, and segments features.
+    A function to create features from a pandas DataFrame.
+    We create background, , age, absolute position, and segments features.
+    TODO: Death?
     """
-    concepts, dob_info = create_background(concepts)
-    # patient_info = create_patient_info(concepts)
+    df, dob_info = create_background(df)
 
-    concepts = drop_invalids(concepts)  # Must be done post create_background
+    df = drop_invalids(df)  # Must be done post create_background
 
-    features = concepts
+    features = df
     features["age"] = compute_age(features, dob_info)
     features = exclude_incorrect_event_ages(features)
+
     features["abspos"] = compute_abspos(features["time"])
 
     features = features.sort_values(["subject_id", "time"]).reset_index(
@@ -28,21 +30,21 @@ def create_features(concepts: pd.DataFrame) -> pd.DataFrame:
     return features
 
 
-def create_background(concepts: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
+def create_background(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     """Requires DOB (date of birth) token per person. Creates BACKGROUND//{var} tokens with time set to DOB time."""
-    dob_rows = concepts[concepts["code"] == "DOB"]
+    dob_rows = df[df["code"] == "DOB"]
     dob_info = dob_rows.set_index("subject_id")["time"]
-    if len(dob_rows) != concepts["subject_id"].nunique():
+    if len(dob_rows) != df["subject_id"].nunique():
         raise ValueError(
-            f"Expected one DOB entry per subject_id, but found {len(dob_rows)} DOB entries for {concepts['subject_id'].nunique()} unique subject_ids."
+            f"Expected one DOB entry per subject_id, but found {len(dob_rows)} DOB entries for {df['subject_id'].nunique()} unique subject_ids."
         )
 
-    bg_mask = concepts["time"].isna()
+    bg_mask = df["time"].isna()
 
-    concepts.loc[bg_mask, "code"] = "BACKGROUND//" + concepts.loc[bg_mask, "code"]
-    concepts.loc[bg_mask, "time"] = concepts.loc[bg_mask, "subject_id"].map(dob_info)
+    df.loc[bg_mask, "code"] = "BACKGROUND//" + df.loc[bg_mask, "code"]
+    df.loc[bg_mask, "time"] = df.loc[bg_mask, "subject_id"].map(dob_info)
 
-    return concepts, dob_info
+    return df, dob_info
 
 
 def compute_age(features: pd.DataFrame, dob_info: pd.Series) -> pd.Series:
@@ -96,15 +98,15 @@ def compute_segments(features: pd.DataFrame) -> pd.Series:
     )
 
 
-def drop_invalids(concepts: pd.DataFrame) -> pd.DataFrame:
-    pre = len(concepts)
-    concepts = concepts.dropna(subset=["subject_id", "code", "time"])
-    if pre != len(concepts):
+def drop_invalids(df: pd.DataFrame) -> pd.DataFrame:
+    pre = len(df)
+    df = df.dropna(subset=["subject_id", "code", "time"])
+    if pre != len(df):
         logging.info(
-            f"Dropped {pre - len(concepts)} rows with missing subject_id, code, or time"
+            f"drop_invalids: Dropped {pre - len(df)} rows with missing subject_id, code, or time"
         )
 
-    return concepts
+    return df
 
 
 def exclude_incorrect_event_ages(features: pd.DataFrame) -> pd.DataFrame:
@@ -113,12 +115,12 @@ def exclude_incorrect_event_ages(features: pd.DataFrame) -> pd.DataFrame:
     features = features[(features["age"] >= -1) & (features["age"] <= 120)]
     if pre != len(features):
         logging.info(
-            f"Dropped {pre - len(features)} rows with incorrect ages outside (-1,120) range"
+            f"exclude_incorrect_event_ages: Dropped {pre - len(features)} rows with incorrect ages outside (-1,120) range"
         )
     return features
 
 
-def get_background_length(concepts, vocabulary):
+def get_background_length(df: pd.DataFrame, vocabulary: Dict[str, int]):
     unique_background_tokens = set([i for i in vocabulary if i.startswith("BG_")])
-    background_length = len(set(concepts) & unique_background_tokens)
+    background_length = len(set(df) & unique_background_tokens)
     return background_length + 2  # +2 for [CLS] and [SEP] tokens

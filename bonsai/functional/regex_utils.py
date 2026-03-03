@@ -1,5 +1,6 @@
 import re
 import warnings
+import pandas as pd
 
 
 def is_valid_regex(pattern: str) -> bool:
@@ -19,7 +20,7 @@ def is_valid_regex(pattern: str) -> bool:
         return False
 
 
-def filter_rows_by_regex(df, col, regex):
+def filter_rows_by_regex(df: pd.DataFrame, col: str, regex: str):
     """
     Filter rows in a DataFrame based on a regex pattern applied to a specific column.
     All rows containing a match to the regex pattern will be excluded.
@@ -38,7 +39,7 @@ def filter_rows_by_regex(df, col, regex):
     return df.loc[~mask]
 
 
-def exclude_codes(concepts, exclude_regex):
+def exclude_codes(concepts: pd.DataFrame, exclude_regex: str):
     if not is_valid_regex(exclude_regex):
         raise ValueError(f"Invalid regex: {exclude_regex}")
     concepts = filter_rows_by_regex(concepts, col="code", regex=exclude_regex)

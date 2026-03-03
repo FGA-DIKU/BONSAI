@@ -6,7 +6,7 @@ class EHRTokenizer:
     def __init__(
         self,
         vocabulary=None,
-        cutoffs: Optional[Dict[str, int]]=None,
+        cutoffs: Optional[Dict[str, int]] = None,
         sep_tokens: bool = True,
     ):
         self.hot_vocab = vocabulary is None
@@ -17,7 +17,7 @@ class EHRTokenizer:
                 "[SEP]": 2,
                 "[UNK]": 3,
                 "[MASK]": 4,
-        }
+            }
         self.vocabulary = vocabulary
 
         self.cutoffs = cutoffs
@@ -66,11 +66,11 @@ class EHRTokenizer:
         df = pd.concat([df, sep_rows], ignore_index=True)
         df = df.sort_values(["subject_id", "abspos"]).reset_index(drop=True)
         return df
-    
+
     def tokenize(self, codes: pd.Series) -> pd.Series:
         """Tokenizes a series using self.vocabulary, mapping unknown codes to [UNK] token"""
         return codes.map(self.vocabulary).fillna(self.vocabulary["[UNK]"]).astype(int)
-    
+
     def limit_code_length(self, codes: pd.Series) -> pd.Series:
         """Limit concept lengths using a {prefix: length} self.cutoff dict.
         Example:

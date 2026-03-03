@@ -26,11 +26,11 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     return all_tokenized
 
 
-def filter_subject_data(subject_data: List[dict], cohort: list) -> List[dict]:
+def filter_subject_data(subject_data: List[dict], cohort: List[int]) -> List[dict]:
     """Filter subject_data to only include subjects in the cohort."""
     pre = len(subject_data)
-    cohort = set(cohort)  # Convert to set for faster lookup
-    filtered_subjects = [s for s in subject_data if s["subject_id"] in cohort]
+    cohort_set = set(cohort)  # Convert to set for faster lookup
+    filtered_subjects = [s for s in subject_data if s["subject_id"] in cohort_set]
     post = len(filtered_subjects)
-    logging.info(f"Cohort filtering: {pre} -> {post} subjects")
+    logging.info(f"filter_subject_data: {pre} -> {post} subjects")
     return filtered_subjects

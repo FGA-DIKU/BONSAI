@@ -15,5 +15,7 @@ data:
 
 exclude_regex: 
 
-tokenizer_kwargs:
+tokenizer:
+  vocabulary:
+  cutoffs:
   sep_tokens: true
