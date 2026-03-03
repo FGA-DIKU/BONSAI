@@ -9,7 +9,7 @@ splits:
 
 dataset: correlated_MEDS_data
 
-data:  
+paths: 
   input_dir: example_data/${dataset}
   output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
 

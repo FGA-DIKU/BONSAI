@@ -25,15 +25,15 @@ load_dotenv()
 def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
-    data_dir = Path(cfg.data.dir)
+    data_dir = Path(cfg.paths.dir)
 
     data_module = PretrainDataModule(
         path_train_data=data_dir / "subject_data_train.pt",
         path_val_data=data_dir / "subject_data_tuning.pt",
-        path_vocab=Path(cfg.data.path_vocab),
+        path_vocab=Path(cfg.paths.vocab),
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
-        dataset_class=get_class(cfg.data.dataset_class),
+        dataset_class=get_class(cfg.paths.dataset_class),
         masking_config=cfg.training.masking,
         cutoff_date=cfg.training.cutoff_date,
         max_len=cfg.training.max_len,

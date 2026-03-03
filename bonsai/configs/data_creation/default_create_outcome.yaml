@@ -4,7 +4,7 @@ defaults:
 
 dataset: 
 
-data:  
+paths: 
   input_dir: example_data/${dataset}
   save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
 

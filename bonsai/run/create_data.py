@@ -23,8 +23,8 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    path_input_dir = Path(cfg.data.input_dir)
-    path_output_dir = Path(cfg.data.output_dir)
+    path_input_dir = Path(cfg.paths.input_dir)
+    path_output_dir = Path(cfg.paths.output_dir)
 
     # Initialize tokenizer and vocabulary
     if cfg.tokenizer.vocabulary is not None:

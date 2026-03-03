@@ -4,7 +4,7 @@ defaults:
 
 dataset: correlated_MEDS_data
 
-data:  
+paths: 
   input_dir: example_data/${dataset}
   save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
 
@@ -28,12 +28,12 @@ outcome:
         vals: [ DE11 ]
 
   index:
-    type: absolute
+    type: absolute # or relative
     date:
       year: 2020
       month: 1
       day: 1
 
   censor:
-    type: relative
+    type: relative # or absolute
     hour_shift: -1000

@@ -20,8 +20,8 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    input_dir = Path(cfg.data.input_dir)
-    save_path = Path(cfg.data.save_path)
+    input_dir = Path(cfg.paths.input_dir)
+    save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
 
