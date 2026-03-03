@@ -7,14 +7,14 @@ from bonsai.functional.features import create_features
 from bonsai.functional.regex_utils import exclude_codes
 
 
-def drop_duplicates(concepts: pd.DataFrame) -> pd.DataFrame:
-    pre = len(concepts)
-    concepts = concepts.drop_duplicates(subset=["subject_id", "code", "time"])
-    if pre != len(concepts):
+def drop_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    pre = len(df)
+    df = df.drop_duplicates(subset=["subject_id", "code", "time"])
+    if pre != len(df):
         logging.info(
-            f"Dropped {pre - len(concepts)} duplicate rows based on subject_id, code, and time"
+            f"Dropped {pre - len(df)} duplicate rows based on subject_id, code, and time"
         )
-    return concepts
+    return df
 
 
 def process_split(
@@ -74,11 +74,7 @@ def process_split(
         )
 
     logging.info(f"Finished processing {split}")
-    logging.info(f"Total concepts loaded: {data_counts['loaded']}")
-    logging.info(
-        f"Total concepts after dropping duplicates: {data_counts['after_duplicates']}"
-    )
-    logging.info(f"Total concepts after exclusion: {data_counts['after_exclusion']}")
-    logging.info(
-        f"Total concepts after feature creation: {data_counts['after_features']}"
-    )
+    logging.info(f"Total rows loaded: {data_counts['loaded']}")
+    logging.info(f"Total rows after dropping duplicates: {data_counts['after_duplicates']}")
+    logging.info(f"Total rows after exclusion: {data_counts['after_exclusion']}")
+    logging.info(f"Total rows after feature creation: {data_counts['after_features']}")

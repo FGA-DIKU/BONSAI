@@ -3,7 +3,7 @@ import torch
 
 
 def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_token=2):
-    total_length = len(patient["codes"])
+    total_length = len(patient["code"])
     if total_length <= max_len:
         return patient
 
@@ -11,7 +11,7 @@ def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_t
     tail_length = max_len - background_tokens_per_patient
 
     # If the boundary element is the SEP token, shift tail_length by 1
-    if tail_length > 0 and patient["codes"][-tail_length] == sep_token:
+    if tail_length > 0 and patient["code"][-tail_length] == sep_token:
         tail_length = max(tail_length - 1, 0)
 
     for key, val in patient.items():
@@ -23,18 +23,18 @@ def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_t
 
 
 def truncate_subject(subject: dict, max_len: int) -> dict:
-    if len(subject["codes"]) <= max_len:
+    if len(subject["code"]) <= max_len:
         return subject
     else:
-        background_length = (subject["segments"] == 0).sum()
+        background_length = (subject["segment"] == 0).sum()
         tokens_right = max_len - background_length
-        start = len(subject["codes"]) - tokens_right
+        start = len(subject["code"]) - tokens_right
 
-        idxs = np.r_[0:background_length, start : len(subject["codes"])]
+        idxs = np.r_[0:background_length, start : len(subject["code"])]
         return {
             "subject_id": subject["subject_id"],
-            "codes": subject["codes"][idxs],
+            "code": subject["code"][idxs],
             "abspos": subject["abspos"][idxs],
-            "segments": subject["segments"][idxs],
-            "ages": subject["ages"][idxs],
+            "segment": subject["segment"][idxs],
+            "age": subject["age"][idxs],
         }

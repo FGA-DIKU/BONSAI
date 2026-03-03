@@ -16,7 +16,7 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
 
 @hydra.main(
     config_path=get_config_path(),  # TODO: make this more flexible to allow for different config paths
-    config_name="example_outcome",
+    config_name="example_outcome1",
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:

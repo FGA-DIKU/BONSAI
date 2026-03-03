@@ -1,54 +1,21 @@
 import torch
+from typing import List, Dict
 
-
-def dynamic_padding(batch: list) -> dict:
-    """
-    Collate function that handles both:
-      - Binary classification with a 0D scalar 'target'
-      - MLM with a 1D sequence 'target' that matches 'codes'
-
-    Steps:
-      1) Determine max sequence length from the 'codes' field.
-      2) For each sample in the batch:
-         - For each key, if the tensor is 1D and matches the sequence length, pad to 'max_len'.
-           * If key == 'target' and it's 1D, pad with -100 (MLM style).
-           * Else pad with 0.
-         - If the tensor is 0D (a scalar), skip padding.
-      3) Stack along dim=0 to produce a batch dict.
-    """
-
-    # 1) Find maximum sequence length from 'codes'
-    max_len = max(sample["codes"].shape[0] for sample in batch)
-    # 2) Pad each field if needed
+def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    collected = {key: [] for key in batch[0]}
     for sample in batch:
-        seq_len = sample["codes"].shape[0]
-        diff = max_len - seq_len
-        for key, tensor_field in sample.items():
-            if key in ["subject_id", "target"]:
-                continue
+        for key, val in sample.items():
+            collected[key].append(val)
 
-            # If it's 1D and matches seq_len, we pad it to 'max_len'
-            if tensor_field.dim() == 1 and tensor_field.shape[0] == seq_len:
-                # For MLM 'target' we typically fill with -100
-                if key == "mlm_target":
-                    # Only do this if target is indeed a sequence (MLM).
-                    # If it's binary classification, 'target' will be 0D so we won't enter here.
-                    filler = torch.full((diff,), -100, dtype=tensor_field.dtype)
-                else:
-                    # For other sequence fields, pad with 0
-                    filler = torch.zeros(diff, dtype=tensor_field.dtype)
+    output = {}
+    for embed_name in ["code", "abspos", "age", "segment"]:
+        output[embed_name] = torch.nn.utils.rnn.pad_sequence(
+            collected[embed_name], batch_first=True
+        )
+    output["target"] = torch.nn.utils.rnn.pad_sequence(
+        collected["target"], batch_first=True, padding_value=-100
+    )
+    output["subject_id"] = torch.tensor(collected["subject_id"])
 
-                # Concatenate
-                sample[key] = torch.cat([tensor_field, filler], dim=0)
+    return output
 
-    # 3) Stack into a dict of batch tensors
-    collated = {}
-    for key in batch[0].keys():
-        # print(key, [sample[key].size() for sample in batch])
-        assert (
-            all([sample[key].size() == batch[0][key].size() for sample in batch])
-            is True
-        ), f"{key}, {[sample[key].size() for sample in batch]}"
-        collated[key] = torch.stack([sample[key] for sample in batch], dim=0)
-
-    return collated

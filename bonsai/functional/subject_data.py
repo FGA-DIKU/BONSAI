@@ -16,10 +16,10 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
             all_tokenized.append(
                 {
                     "subject_id": torch.tensor(subject_id),
-                    "codes": torch.tensor(group["code"].tolist()),
+                    "code": torch.tensor(group["code"].tolist()),
                     "abspos": torch.tensor(group["abspos"].tolist()),
-                    "segments": torch.tensor(group["segment"].tolist()),
-                    "ages": torch.tensor(group["age"].tolist()),
+                    "segment": torch.tensor(group["segment"].tolist()),
+                    "age": torch.tensor(group["age"].tolist()),
                 }
             )
 

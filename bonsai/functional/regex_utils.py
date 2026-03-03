@@ -39,8 +39,8 @@ def filter_rows_by_regex(df: pd.DataFrame, col: str, regex: str):
     return df.loc[~mask]
 
 
-def exclude_codes(concepts: pd.DataFrame, exclude_regex: str):
+def exclude_codes(df: pd.DataFrame, exclude_regex: str):
     if not is_valid_regex(exclude_regex):
         raise ValueError(f"Invalid regex: {exclude_regex}")
-    concepts = filter_rows_by_regex(concepts, col="code", regex=exclude_regex)
-    return concepts
+    df = filter_rows_by_regex(df, col="code", regex=exclude_regex)
+    return df

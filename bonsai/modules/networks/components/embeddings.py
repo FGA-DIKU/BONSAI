@@ -41,18 +41,18 @@ class EhrEmbeddings(nn.Module):
         self.dropout = nn.Dropout(embedding_dropout)
 
         # Initialize embeddings
-        self.concept_embeddings = nn.Embedding(
+        self.code_embedding = nn.Embedding(
             vocab_size, hidden_size, padding_idx=pad_token_id
         )
-        self.segment_embeddings = nn.Embedding(type_vocab_size, hidden_size)
-        self.age_embeddings = Time2Vec(
+        self.segment_embedding = nn.Embedding(type_vocab_size, hidden_size)
+        self.age_embedding = Time2Vec(
             hidden_size,
             shift=age_shift,
             scale=age_scale,
             clip_min=-100,
             clip_max=100,
         )
-        self.abspos_embeddings = Time2Vec(
+        self.abspos_embedding = Time2Vec(
             hidden_size,
             shift=abspos_shift,
             scale=abspos_scale,
@@ -62,7 +62,7 @@ class EhrEmbeddings(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.LongTensor = None,  # concepts
+        input_ids: torch.LongTensor = None,  # code
         segments: torch.LongTensor = None,
         age: torch.Tensor = None,
         abspos: torch.Tensor = None,
@@ -73,11 +73,11 @@ class EhrEmbeddings(nn.Module):
             raise ValueError("Invalid input arguments")
         if inputs_embeds is not None:
             return inputs_embeds
-        embeddings = self.concept_embeddings(input_ids)
+        embeddings = self.code_embedding(input_ids)
 
-        embeddings += self.segment_embeddings(segments)
-        embeddings += self.age_embeddings(age)
-        embeddings += self.abspos_embeddings(abspos)
+        embeddings += self.segment_embedding(segments)
+        embeddings += self.age_embedding(age)
+        embeddings += self.abspos_embedding(abspos)
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)

@@ -39,20 +39,18 @@ def censor_patient_without_delays(
     Censors a patient's data by truncating all attributes at the censor date,
     then appends a CLS token with the censoring information.
 
-    The function shortens the concept, abspos, segments, and ages lists of a Dict object so that only entries occurring before or at the patient's censor date are retained, then adds a predict token at the end.
+    The function shortens the code, abspos, segments, and ages lists of a Dict object so that only entries occurring before or at the patient's censor date are retained, then adds a predict token at the end.
     """
     # Find the position where censor_date fits in the sorted abspos list
 
     idx = bisect_right(patient["abspos"].numpy(), censor_date_abspos)
 
-    if idx > 0 and patient["codes"][:idx][-1] == sep_token:
+    if idx > 0 and patient["code"][:idx][-1] == sep_token:
         idx -= 1
 
     # Slice everything up to idx
-    patient["codes"] = patient["codes"][:idx]
-    patient["abspos"] = patient["abspos"][:idx]
-    patient["segments"] = patient["segments"][:idx]
-    patient["ages"] = patient["ages"][:idx]
+    for embed_name in ["code", "abspos", "segment", "age"]:
+        patient[embed_name] = patient[embed_name][:idx]
 
     patient = append_predict_token(patient, predict_token_id, censor_date_abspos)
 
@@ -69,7 +67,7 @@ def censor_patient_with_delays(
     Censors a patient's data using concept-specific delays applied to their censor date.
     Adds the predict token with age at censoring at the end of the sequence.
 
-    For each concept in the patient's record, calculates an effective censor date by adding a delay (if specified) to the base censor date for the patient. Retains only those concepts and corresponding attributes whose timestamps are less than or equal to their effective censor dates.
+    For each concept in the patient's record, calculates an effective censor date by adding a delay (if specified) to the base censor date for the patient. Retains only those codes and corresponding attributes whose timestamps are less than or equal to their effective censor dates.
     Then adds predict token with age at censoring as a final token.
     """
     # Initialize keep mask
@@ -90,8 +88,8 @@ def censor_patient_with_delays(
     # Apply the mask to all patient attributes
     patient["concepts"] = [c for i, c in enumerate(patient["concepts"]) if keep_mask[i]]
     patient["abspos"] = [a for i, a in enumerate(patient["abspos"]) if keep_mask[i]]
-    patient["segments"] = [s for i, s in enumerate(patient["segments"]) if keep_mask[i]]
-    patient["ages"] = [a for i, a in enumerate(patient["ages"]) if keep_mask[i]]
+    patient["segment"] = [s for i, s in enumerate(patient["segment"]) if keep_mask[i]]
+    patient["age"] = [a for i, a in enumerate(patient["age"]) if keep_mask[i]]
 
     patient = append_predict_token(patient, predict_token_id, censor_date_abspos)
 
@@ -101,10 +99,10 @@ def censor_patient_with_delays(
 def append_predict_token(
     patient: Dict, predict_token_id: int, censor_date_abspos: float
 ) -> Dict:
-    patient["codes"] = torch.cat(
+    patient["code"] = torch.cat(
         (
-            patient["codes"],
-            torch.tensor([predict_token_id], dtype=patient["codes"].dtype),
+            patient["code"],
+            torch.tensor([predict_token_id], dtype=patient["code"].dtype),
         )
     )
     patient["abspos"] = torch.cat(
@@ -113,23 +111,23 @@ def append_predict_token(
             torch.tensor([censor_date_abspos], dtype=patient["abspos"].dtype),
         )
     )
-    patient["segments"] = torch.cat(
+    patient["segment"] = torch.cat(
         (
-            patient["segments"],
+            patient["segment"],
             torch.tensor(
-                [patient["segments"][-1] + 1 if len(patient["segments"]) > 0 else 0],
-                dtype=patient["segments"].dtype,
+                [patient["segment"][-1] + 1 if len(patient["segment"]) > 0 else 0],
+                dtype=patient["segment"].dtype,
             ),
         )
     )
 
     age_in_years = float((censor_date_abspos - patient["abspos"][0]) / (365.25 * 24))
-    patient["ages"] = torch.cat(
+    patient["age"] = torch.cat(
         (
-            patient["ages"],
+            patient["age"],
             torch.tensor(
                 [age_in_years],
-                dtype=patient["ages"].dtype,
+                dtype=patient["age"].dtype,
             ),
         )
     )
@@ -144,9 +142,7 @@ def cutoff_subject(subject: Dict, cutoff_date: float) -> Dict:
     idx = bisect_right(subject["abspos"], cutoff_date)
 
     # Slice everything up to idx
-    subject["codes"] = subject["codes"][:idx]
-    subject["abspos"] = subject["abspos"][:idx]
-    subject["segments"] = subject["segments"][:idx]
-    subject["ages"] = subject["ages"][:idx]
+    for embed_name in ["code", "abspos", "segment", "age"]:
+        subject[embed_name] = subject[embed_name][:idx]
 
     return subject

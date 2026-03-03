@@ -52,8 +52,8 @@ class FinetuneDataset(Dataset):
             background_tokens_per_patient=self.background_tokens_per_patient,
         )
 
-        patient["segments"] = normalize_segments(patient["segments"])
-        patient["attention_mask"] = torch.ones(len(patient["codes"]), dtype=torch.long)
+        patient["segment"] = normalize_segments(patient["segment"])
+        patient["attention_mask"] = torch.ones(len(patient["code"]), dtype=torch.long)
 
         return patient
 

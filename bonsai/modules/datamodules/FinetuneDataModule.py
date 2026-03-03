@@ -61,7 +61,7 @@ class FinetuneDataModule(L.LightningDataModule):
         ]
 
         background_length = get_background_length(
-            concepts=train_data[0]["codes"],
+            df=train_data[0]["code"],
             vocabulary=self.vocabulary,
         )
 

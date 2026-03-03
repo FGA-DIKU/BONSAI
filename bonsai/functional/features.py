@@ -49,12 +49,12 @@ def create_background(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
 
 def compute_age(features: pd.DataFrame, dob_info: pd.Series) -> pd.Series:
     """
-    Compute age in years for each row in concepts
+    Compute age in years for each row in features
     Parameters:
-        concepts: concepts with 'time' column.
+        features: Dataframe with 'time' column.
         dob_info: Series with subject_id index and date of birth ´time´ values.
     Returns:
-        pd.Series: age in years for each row in concepts
+        pd.Series: age in years for each row in features
     """
     # Try to convert columns to datetime if they aren't already
     if not pd.api.types.is_datetime64_any_dtype(features["time"]):

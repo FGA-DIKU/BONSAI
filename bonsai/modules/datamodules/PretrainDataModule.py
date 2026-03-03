@@ -14,9 +14,9 @@ from bonsai.functional.subject_data import filter_subject_data
 class PretrainDataModule(L.LightningDataModule):
     def __init__(
         self,
-        path_train_data: str,
-        path_val_data: str,
-        path_vocab: str,
+        path_train_data: Path,
+        path_val_data: Path,
+        path_vocab: Path,
         batch_size: int,
         num_workers: int,
         dataset_class: torch.utils.data.Dataset,
@@ -26,8 +26,8 @@ class PretrainDataModule(L.LightningDataModule):
         max_len: int = 8192,
     ):
         super().__init__()
-        self.path_train_data = Path(path_train_data)
-        self.path_val_data = Path(path_val_data)
+        self.path_train_data = path_train_data
+        self.path_val_data = path_val_data
         self.vocabulary = torch.load(path_vocab)
         self.cohorts = cohorts
         self.num_workers = num_workers

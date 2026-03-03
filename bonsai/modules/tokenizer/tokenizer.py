@@ -46,14 +46,14 @@ class EHRTokenizer:
     def update_vocabulary(self, codes: pd.Series) -> None:
         """Update self.vocabulary from unique codes"""
         # Get unique codes
-        unique_concepts = codes.unique()
+        unique_codes = codes.unique()
 
-        # Add new concepts
-        new_concepts = set(unique_concepts) - set(self.vocabulary)
-        if new_concepts:
+        # Add new codes
+        new_codes = set(unique_codes) - set(self.vocabulary)
+        if new_codes:
             start_idx = max(self.vocabulary.values()) + 1
-            new_indices = range(start_idx, start_idx + len(new_concepts))
-            self.vocabulary.update(dict(zip(new_concepts, new_indices)))
+            new_indices = range(start_idx, start_idx + len(new_codes))
+            self.vocabulary.update(dict(zip(new_codes, new_indices)))
 
     def add_sep_tokens(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add [SEP] tokens at segment changes within the same subject_id"""

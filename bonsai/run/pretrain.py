@@ -1,17 +1,18 @@
+from pathlib import Path
 import hydra
 import lightning as L
-import os
+from dotenv import load_dotenv
+from hydra.utils import get_class
 from omegaconf import DictConfig
-from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
-from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from bonsai.paths import get_config_path
 from transformers import ModernBertConfig
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+
+from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
-from dotenv import load_dotenv
-from hydra.utils import get_class
+from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
+from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
+from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 
 load_dotenv()
 
@@ -24,31 +25,12 @@ load_dotenv()
 def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
-
-    vocab = os.path.join(cfg.data.dir, "vocabulary.pt")
-    train_data = os.path.join(cfg.data.dir, "subject_data_train.pt")
-    val_data = os.path.join(cfg.data.dir, "subject_data_tuning.pt")
-
-    best_ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
-        monitor="val/loss",
-        mode="min",
-        save_top_k=1,
-        filename="best",
-        enable_version_counter=False,
-    )
-    last_ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
-        every_n_epochs=cfg.training.ckpt_every_n_epoch,
-        save_top_k=1,
-        filename="last",
-        enable_version_counter=False,
-    )
+    data_dir = Path(cfg.data.dir)
 
     data_module = PretrainDataModule(
-        path_train_data=train_data,
-        path_val_data=val_data,
-        path_vocab=vocab,
+        path_train_data=data_dir / "subject_data_train.pt",
+        path_val_data=data_dir / "subject_data_tuning.pt",
+        path_vocab=Path(cfg.data.path_vocab),
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         dataset_class=get_class(cfg.data.dataset_class),
@@ -68,6 +50,16 @@ def main(cfg: DictConfig) -> None:
         )
     )
 
+    ckpt_callback = ModelCheckpoint(
+        dirpath=model_save_dir,
+        monitor="val/loss",
+        mode="min",
+        save_top_k=1,
+        filename="best",
+        enable_version_counter=False,
+        save_last=True
+    )
+
     lightning_module = PretrainModule(
         model=model,
         compile_mode=cfg.hardware.compile_mode,
@@ -82,7 +74,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[last_ckpt_callback, best_ckpt_callback],
+        callbacks=[ckpt_callback],
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,

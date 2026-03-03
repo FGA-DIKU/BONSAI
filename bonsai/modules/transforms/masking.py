@@ -2,7 +2,7 @@ import torch
 from typing import Tuple
 
 
-class ConceptMasker:
+class CodeMasker:
     def __init__(
         self,
         vocabulary: dict,

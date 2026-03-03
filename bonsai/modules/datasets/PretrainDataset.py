@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.censoring import cutoff_subject
 from bonsai.functional.features import compute_abspos
-from bonsai.modules.transforms.masking import ConceptMasker
+from bonsai.modules.transforms.masking import CodeMasker
 
 
 class PretrainDataset(Dataset):
@@ -42,7 +42,7 @@ class MLMPretrainDataset(PretrainDataset):
     ):
         super().__init__(subjects, max_len, cutoff_date=cutoff_date)
         self.vocabulary = vocabulary
-        self.masker = ConceptMasker(
+        self.masker = CodeMasker(
             vocabulary,
             masking_select_ratio,
             masking_ratio,
@@ -52,7 +52,7 @@ class MLMPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        masked_codes, target = self.masker.mask_patient_codes(subject["codes"])
+        masked_codes, target = self.masker.mask_patient_codes(subject["code"])
         subject["concept"] = masked_codes
         subject["target"] = target
         return subject
@@ -68,7 +68,7 @@ class ARPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        subject["target"] = subject["codes"][1:]
-        for key in ["codes", "abspos", "segments", "ages"]:
+        subject["target"] = subject["code"][1:]
+        for key in ["code", "abspos", "segment", "age"]:
             subject[key] = subject[key][:-1]
         return subject
