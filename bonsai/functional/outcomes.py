@@ -3,22 +3,25 @@ from datetime import datetime
 import pandas as pd
 
 
-def find(df, conditions: List, dependence: Literal["independent", "dependent"]):
+def find(
+    df: pd.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
+) -> pd.DataFrame:
     """Returns the first row (priority based on condition order) for each patient that matches the conditions"""
     # Initialization
     df["_prio"] = pd.Series()
-    masks = False
+    row_masks = False
     subject_sets = []
 
+    # Find matches (dataframe rows AND subject_ids) of conditions
     for i, cond in enumerate(conditions):
         cond_mask = df[cond["col"]].isin(cond["vals"])  # Rows that meet condition
-        masks |= cond_mask  # OR operation
+        row_masks |= cond_mask  # OR operation
         df["_prio"] = df["_prio"].mask(
             cond_mask, i
         )  # Set priority (to take first row later)
         subject_sets.append(
             set(df.loc[cond_mask, "subject_id"])
-        )  # Get subject that match condition
+        )  # Get subjects that match condition
 
     # Toggle betweens any or all conditions met
     if dependence == "independent":
@@ -31,7 +34,7 @@ def find(df, conditions: List, dependence: Literal["independent", "dependent"]):
         )
 
     # Get matched subjects AND rows
-    res = df[df["subject_id"].isin(matched_subjects) & masks]
+    res = df[df["subject_id"].isin(matched_subjects) & row_masks]
 
     # Take first row based on `conditions` ordering
     res = (

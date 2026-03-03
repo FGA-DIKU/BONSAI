@@ -6,7 +6,7 @@ dataset: correlated_MEDS_data
 
 data:  
   input_dir: example_data/${dataset}
-  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/${hydra:job.config_name}.parquet
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
 
 splits:
   - train
@@ -14,18 +14,18 @@ splits:
   - held_out
 
 outcome:
-  match:
-    dependence: independent #or dependent
-    conditions:
-      - col: code
-        vals: [ DE11 ]
-  exclude:
+  exclude: # OPTIONAL
     dependence: independent #or dependent
     conditions:
       - col: code
         vals: [ D437 ]
       - col: code
         vals: [ D438 ]
+  match:
+    dependence: independent #or dependent
+    conditions:
+      - col: code
+        vals: [ DE11 ]
 
   index:
     type: absolute
@@ -34,6 +34,6 @@ outcome:
       month: 1
       day: 1
 
-  censor: 
+  censor:
     type: relative
     hour_shift: -1000
