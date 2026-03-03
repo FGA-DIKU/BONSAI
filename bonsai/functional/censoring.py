@@ -2,10 +2,12 @@ import pandas as pd
 from bisect import bisect_right
 from typing import Dict
 
+import torch
+
 
 def censor_patient(
     patient: Dict,
-    censor_date: pd.Series,
+    censor_date_abspos: pd.Series,
     predict_token_id: int,
     concept_id_to_delay: dict = None,
     sep_token: int = 2,
@@ -13,14 +15,14 @@ def censor_patient(
     if concept_id_to_delay is None:
         patient = censor_patient_without_delays(
             patient=patient,
-            censor_date=censor_date,
+            censor_date_abspos=censor_date_abspos,
             predict_token_id=predict_token_id,
             sep_token=sep_token,
         )
     else:
         patient = censor_patient_with_delays(
             patient=patient,
-            censor_date=censor_date,
+            censor_date_abspos=censor_date_abspos,
             predict_token_id=predict_token_id,
             concept_id_to_delay=concept_id_to_delay,
         )
@@ -29,7 +31,7 @@ def censor_patient(
 
 def censor_patient_without_delays(
     patient: Dict,
-    censor_date: pd.Series,
+    censor_date_abspos: pd.Series,
     predict_token_id: int,
     sep_token: int,
 ) -> Dict:
@@ -40,25 +42,26 @@ def censor_patient_without_delays(
     The function shortens the concept, abspos, segments, and ages lists of a Dict object so that only entries occurring before or at the patient's censor date are retained, then adds a predict token at the end.
     """
     # Find the position where censor_date fits in the sorted abspos list
-    idx = bisect_right(patient["abspos"], censor_date)
 
-    if patient["concept"][:idx][-1] == sep_token:
+    idx = bisect_right(patient["abspos"].numpy(), censor_date_abspos)
+
+    if idx > 0 and patient["codes"][:idx][-1] == sep_token:
         idx -= 1
 
     # Slice everything up to idx
-    patient["concepts"] = patient["concepts"][:idx]
+    patient["codes"] = patient["codes"][:idx]
     patient["abspos"] = patient["abspos"][:idx]
     patient["segments"] = patient["segments"][:idx]
     patient["ages"] = patient["ages"][:idx]
 
-    patient = append_predict_token(patient, predict_token_id, censor_date)
+    patient = append_predict_token(patient, predict_token_id, censor_date_abspos)
 
     return patient
 
 
 def censor_patient_with_delays(
     patient: Dict,
-    censor_date: pd.Series,
+    censor_date_abspos: pd.Series,
     predict_token_id: int,
     concept_id_to_delay: dict = None,
 ) -> Dict:
@@ -78,7 +81,7 @@ def censor_patient_with_delays(
         delay = concept_id_to_delay.get(concept, 0)
 
         # Calculate effective censor date for this concept
-        effective_censor_date = censor_date + delay
+        effective_censor_date = censor_date_abspos + delay
 
         # Keep this concept if it's before or at the effective censor date
         if abspos <= effective_censor_date:
@@ -90,27 +93,52 @@ def censor_patient_with_delays(
     patient["segments"] = [s for i, s in enumerate(patient["segments"]) if keep_mask[i]]
     patient["ages"] = [a for i, a in enumerate(patient["ages"]) if keep_mask[i]]
 
-    patient = append_predict_token(patient, predict_token_id, censor_date)
+    patient = append_predict_token(patient, predict_token_id, censor_date_abspos)
 
     return patient
 
 
 def append_predict_token(
-    patient: Dict, predict_token_id: int, censor_date: float
+    patient: Dict, predict_token_id: int, censor_date_abspos: float
 ) -> Dict:
-    patient["concepts"].append(predict_token_id)
-    patient["abspos"].append(float(censor_date))
-    patient["segments"].append(
-        patient["segments"][-1] + 1 if patient["segments"] else 0
-    )  # Use 0 as default segment if segments list is empty
-    age_in_years = float((censor_date - patient["abspos"][0]) / (365.25 * 24))
-    patient["ages"].append(age_in_years)
+    patient["codes"] = torch.cat(
+        (
+            patient["codes"],
+            torch.tensor([predict_token_id], dtype=patient["codes"].dtype),
+        )
+    )
+    patient["abspos"] = torch.cat(
+        (
+            patient["abspos"],
+            torch.tensor([censor_date_abspos], dtype=patient["abspos"].dtype),
+        )
+    )
+    patient["segments"] = torch.cat(
+        (
+            patient["segments"],
+            torch.tensor(
+                [patient["segments"][-1] + 1 if len(patient["segments"]) > 0 else 0],
+                dtype=patient["segments"].dtype,
+            ),
+        )
+    )
+
+    age_in_years = float((censor_date_abspos - patient["abspos"][0]) / (365.25 * 24))
+    patient["ages"] = torch.cat(
+        (
+            patient["ages"],
+            torch.tensor(
+                [age_in_years],
+                dtype=patient["ages"].dtype,
+            ),
+        )
+    )
     return patient
 
 
 def cutoff_subject(subject: Dict, cutoff_date: float) -> Dict:
     """
-    Cuts off a subject's data at the specified cutoff date by removing all concepts and corresponding attributes that occur after the cutoff date.
+    Cuts off a subject's data at the specified cutoff date by removing all codes and corresponding attributes that occur after the cutoff date.
     """
     # Find the position where cutoff_date fits in the sorted abspos list
     idx = bisect_right(subject["abspos"], cutoff_date)

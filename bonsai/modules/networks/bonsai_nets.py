@@ -62,6 +62,7 @@ class BonsaiEncoder(ModernBertModel):
             attention_mask = batch["attention_mask"]
         else:
             attention_mask = (batch["codes"] != 0).float()
+
         inputs_embeds = self.embeddings(
             input_ids=batch["codes"],
             segments=batch["segments"],

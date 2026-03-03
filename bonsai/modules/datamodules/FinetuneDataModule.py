@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from bonsai.functional.collate import dynamic_padding
 from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 from bonsai.functional.features import get_background_length
+from bonsai.functional.sampling import get_sampler
 
 
 class FinetuneDataModule(L.LightningDataModule):
@@ -12,21 +13,28 @@ class FinetuneDataModule(L.LightningDataModule):
         self,
         batch_size: int,
         num_workers: int,
-        train_split: list,
-        val_split: list,
+        path_train_data: list,
+        path_val_data: list,
         vocabulary: list,
-        sampler=None,
+        train_labels: list,
+        val_labels: list,
+        test_labels: list,
+        train_sampler,
+        val_sampler,
         # train_transforms: Optional[Compose] = pretrain_CPU_train_transforms,
         # val_transforms: Optional[Compose] = pretrain_CPU_val_transforms,
-        # num_samples: Optional[int] = None,
     ):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_split = train_split
-        self.val_split = val_split
+        self.path_train_data = path_train_data
+        self.path_val_data = path_val_data
         self.vocabulary = vocabulary
-        self.sampler = sampler
+        self.train_labels = train_labels
+        self.val_labels = val_labels
+        self.test_labels = test_labels
+        self.val_sampler = val_sampler
+        self.train_sampler = train_sampler
         # self.train_transforms = train_transforms
         # self.val_transforms = val_transforms
 
@@ -39,22 +47,35 @@ class FinetuneDataModule(L.LightningDataModule):
             raise NotImplementedError("Predict stage not supported for PretrainModule.")
 
     def setup_fit(self):
-        self.train_data = torch.load(self.path_train_data)
-        self.val_data = torch.load(self.path_val_data)
+        train_data = torch.load(self.path_train_data)
+        train_data = [
+            sub
+            for sub in train_data
+            if sub["subject_id"].item() in self.train_labels["subject_id"].to_list()
+        ]
+        val_data = torch.load(self.path_val_data)
+        val_data = [
+            sub
+            for sub in val_data
+            if sub["subject_id"].item() in self.val_labels["subject_id"].to_list()
+        ]
 
         background_length = get_background_length(
-            concepts=self.train_split[0]["concepts"],
+            concepts=train_data[0]["codes"],
             vocabulary=self.vocabulary,
         )
+
         self.train_dataset = FinetuneDataset(
-            self.train_split,
+            train_data,
             vocabulary=self.vocabulary,
-            background_length=background_length,
+            background_tokens_per_patient=background_length,
+            labels=self.train_labels,
         )
         self.val_dataset = FinetuneDataset(
-            self.val_split,
+            val_data,
             vocabulary=self.vocabulary,
-            background_length=background_length,
+            background_tokens_per_patient=background_length,
+            labels=self.val_labels,
         )
 
     def train_dataloader(self):
@@ -67,7 +88,7 @@ class FinetuneDataModule(L.LightningDataModule):
             drop_last=True,
             shuffle=False,  # Why is shuffle false?
             collate_fn=dynamic_padding,
-            sampler=self.sampler,
+            sampler=self.train_sampler,
         )
 
     def val_dataloader(self):
@@ -80,5 +101,5 @@ class FinetuneDataModule(L.LightningDataModule):
             drop_last=True,
             shuffle=False,
             collate_fn=dynamic_padding,
-            sampler=self.sampler,
+            sampler=self.val_sampler,
         )

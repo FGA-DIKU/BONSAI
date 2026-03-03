@@ -9,13 +9,12 @@ from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from transformers import ModernBertConfig
 import pandas as pd
 from bonsai.functional.loss import get_loss_weight
-from bonsai.functional.sampling import get_sampler
 from lightning.pytorch.callbacks import ModelCheckpoint
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.paths import get_config_path
 from lightning.pytorch.loggers import CSVLogger
 from dotenv import load_dotenv
-import os
+from bonsai.functional.sampling import get_sampler
 
 load_dotenv()
 
@@ -37,6 +36,38 @@ def merge_configs_and_drop_duplicate_keys(pretrain_cfg, finetune_cfg):
     return model_cfg
 
 
+def binarize_labels(labels, n_hours_start_include, n_hours_end_include=None):
+    time_delta_datetime = labels["outcome_date"] - labels["index_date"]
+    time_delta_hours = time_delta_datetime.dt.days * 24
+    outcomes_in_prediction_window = time_delta_hours > n_hours_start_include
+    if n_hours_end_include is not None:
+        outcomes_in_prediction_window = time_delta_hours < n_hours_end_include
+    labels["label"] = outcomes_in_prediction_window.astype(int)
+    return labels
+
+
+def split_and_binarize_labels(
+    labels,
+    train_key,
+    val_key,
+    test_key,
+    n_hours_start_include,
+    n_hours_end_include=None,
+):
+    train_labels = labels[labels["split"] == train_key]
+    train_labels = binarize_labels(
+        train_labels, n_hours_start_include, n_hours_end_include
+    )
+    val_labels = labels[labels["split"] == val_key]
+    val_labels = binarize_labels(val_labels, n_hours_start_include, n_hours_end_include)
+    test_labels = labels[labels["split"] == test_key]
+    test_labels = binarize_labels(
+        test_labels, n_hours_start_include, n_hours_end_include
+    )
+
+    return train_labels, val_labels, test_labels
+
+
 @hydra.main(
     config_path=get_config_path(),
     config_name="finetune",
@@ -48,17 +79,17 @@ def main(cfg: DictConfig) -> None:
     model_cfg = merge_configs_and_drop_duplicate_keys(
         pretrain_cfg=ckpt["hyper_parameters"], finetune_cfg=cfg
     )
-    vocab = os.path.join(cfg.data.dir, "vocabulary.pt")
-    train_data = os.path.join(cfg.data.dir, "subject_data_train.pt")
-    val_data = os.path.join(cfg.data.dir, "subject_data_tuning.pt")
-
-    labels = [0, 0, 0, 1, 1, 1, 1, 1, 1]
-    label_counts = pd.Series(labels).value_counts()
-
+    vocab = torch.load(cfg.data.path_vocab)
+    outcomes = pd.read_parquet(cfg.data.path_outcome)
+    train_labels, val_labels, test_labels = split_and_binarize_labels(
+        outcomes,
+        train_key="train",
+        val_key="tuning",
+        test_key="held_out",
+        n_hours_start_include=cfg.data.n_hours_start_include,
+        n_hours_end_include=cfg.data.n_hours_end_include,
+    )
     logger = CSVLogger(model_save_dir, name="training_log")
-
-    train_split = ()
-    val_split = ()
 
     best_ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
@@ -79,13 +110,21 @@ def main(cfg: DictConfig) -> None:
     data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
-        train_split=train_split,
-        val_split=val_split,
+        path_train_data=cfg.data.path_train_split,
+        path_val_data=cfg.data.path_val_split,
+        train_labels=train_labels,
+        val_labels=val_labels,
+        test_labels=test_labels,
         vocabulary=vocab,
-        sampler=get_sampler(
+        train_sampler=get_sampler(
             weight_fn=cfg.training.sampling_weight_fn,
-            labels=labels,
-            label_counts=label_counts,
+            labels=train_labels["label"],
+            label_counts=train_labels["label"].value_counts(),
+        ),
+        val_sampler=get_sampler(
+            weight_fn=cfg.training.sampling_weight_fn,
+            labels=val_labels["label"],
+            label_counts=val_labels["label"].value_counts(),
         ),
     )
 
@@ -106,7 +145,8 @@ def main(cfg: DictConfig) -> None:
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=get_loss_weight(
-            cfg.training.loss_weight_function, label_counts=label_counts
+            cfg.training.loss_weight_function,
+            label_counts=train_labels["label"].value_counts(),
         ),
     )
 

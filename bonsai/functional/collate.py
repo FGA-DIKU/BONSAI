@@ -19,21 +19,18 @@ def dynamic_padding(batch: list) -> dict:
 
     # 1) Find maximum sequence length from 'codes'
     max_len = max(sample["codes"].shape[0] for sample in batch)
-
     # 2) Pad each field if needed
     for sample in batch:
         seq_len = sample["codes"].shape[0]
         diff = max_len - seq_len
-
         for key, tensor_field in sample.items():
-            # If it's a 0D scalar (like a single float for binary classification), skip
-            if tensor_field.dim() == 0:
+            if key in ["subject_id", "target"]:
                 continue
 
             # If it's 1D and matches seq_len, we pad it to 'max_len'
             if tensor_field.dim() == 1 and tensor_field.shape[0] == seq_len:
                 # For MLM 'target' we typically fill with -100
-                if key == "target":
+                if key == "mlm_target":
                     # Only do this if target is indeed a sequence (MLM).
                     # If it's binary classification, 'target' will be 0D so we won't enter here.
                     filler = torch.full((diff,), -100, dtype=tensor_field.dtype)
@@ -47,6 +44,11 @@ def dynamic_padding(batch: list) -> dict:
     # 3) Stack into a dict of batch tensors
     collated = {}
     for key in batch[0].keys():
+        # print(key, [sample[key].size() for sample in batch])
+        assert (
+            all([sample[key].size() == batch[0][key].size() for sample in batch])
+            is True
+        ), f"{key}, {[sample[key].size() for sample in batch]}"
         collated[key] = torch.stack([sample[key] for sample in batch], dim=0)
 
     return collated

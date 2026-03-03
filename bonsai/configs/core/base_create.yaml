@@ -2,5 +2,5 @@ hydra:
   verbose: false
   output_subdir: hydra
   run:
-    dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+    dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/logs
 

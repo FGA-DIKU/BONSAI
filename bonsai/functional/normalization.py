@@ -1,4 +1,5 @@
 from typing import List
+import torch
 
 
 def normalize_segments(segments: List[int]) -> List[int]:
@@ -13,6 +14,8 @@ def normalize_segments(segments: List[int]) -> List[int]:
     """
     segment_set = sorted(set(segments))
     correct_segments = list(range(len(segment_set)))
-    converter = {k: v for (k, v) in zip(segment_set, correct_segments)}
+    converter = {k.item(): v for (k, v) in zip(segment_set, correct_segments)}
 
-    return [converter[segment] for segment in segments]
+    return torch.tensor(
+        [converter[segment.item()] for segment in segments], dtype=segments.dtype
+    )

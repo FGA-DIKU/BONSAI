@@ -1,9 +1,10 @@
 defaults: 
   - core/base_train@
-  - hardware/1gpu12cpu@hardware
+  - hardware/cpu@hardware
   - _self_
   
 dataset: correlated_MEDS_data
+outcome: example_outcomes
 checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/data/models/correlated_MEDS_data/pretrain_debug/0/training_runs/version_0/best.ckpt
 
 data:
@@ -13,11 +14,20 @@ data:
   replace_ratio: .1
   ignore_special_tokens: true
   shuffle: true
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  path_vocab: ${data.dir}/vocabulary.pt
+  path_train_split: ${data.dir}/subject_data_train.pt
+  path_val_split: ${data.dir}/subject_data_tuning.pt
+  path_outcome: ${data.dir}/${outcome}.parquet
+  # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
+  n_hours_censoring: -10 # censor time after index date (negative means before)
+  n_hours_start_include: 1 # start follow up (considering outcomes) time after index date (negative means before)
+  n_hours_end_include: null 
 
 training:
   batch_size: 32
   accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 2
+  epochs: 10
   learning_rate: 5e-4
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
