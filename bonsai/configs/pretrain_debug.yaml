@@ -24,14 +24,12 @@ training:
   limit_train_batches: 50
   ckpt_every_n_epoch: 1
   masking:
-  
-  # Below is not planned to be implemented
-  #info: true
-  #sampler: null
-  #gradient_clip: 
-  #  clip_value: 1.0
-  # early_stopping: null # num_epochs or null/false
-
+  max_len: 10
+  cutoff_date:
+    day: 1
+    month: 1
+    year: 2015
+    
 model:
   hidden_size: 64
   num_hidden_layers: 2

@@ -4,7 +4,7 @@ defaults:
   - _self_
   
 dataset: correlated_MEDS_data
-outcome: example_outcomes
+outcome: example_outcomes1
 checkpoint_path: /Users/zcr545/Desktop/Projects/repos/BONSAI/data/models/correlated_MEDS_data/pretrain_debug/0/training_runs/version_0/best.ckpt
 
 data:

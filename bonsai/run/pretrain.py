@@ -53,6 +53,8 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         dataset_class=get_class(cfg.data.dataset_class),
         masking_config=cfg.training.masking,
+        cutoff_date=cfg.training.cutoff_date,
+        max_len=cfg.training.max_len,
     )
 
     model = BonsaiPretrain(
