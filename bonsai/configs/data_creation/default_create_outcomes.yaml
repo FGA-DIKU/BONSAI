@@ -1,0 +1,40 @@
+defaults:
+  - core/base_create@
+  - _self_
+
+dataset: 
+
+data:  
+  input_dir: example_data/${dataset}
+  output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+outcomes:
+  TEST_OUTCOME:
+    match:
+      dependence: independent #or dependent
+      conditions:
+        - col: code
+          vals: [ DE11 ]
+    exclude:
+      dependence: independent #or dependent
+      conditions:
+        - col: code
+          vals: [ D437 ]
+        - col: code
+          vals: [ D438 ]
+
+    index:
+      type: absolute
+      date:
+        year: 2020
+        month: 1
+        day: 1
+
+    censor: 
+      type: relative
+      hour_shift: -1000
