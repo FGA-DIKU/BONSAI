@@ -1,14 +1,14 @@
+from pathlib import Path
 from typing import Dict, List, Optional
 import torch
 from torch.utils.data import DataLoader
-from bonsai.functional.collate import dynamic_padding
 import lightning as L
+from bonsai.functional.collate import dynamic_padding
+from bonsai.functional.subject_data import filter_subject_data
 from bonsai.modules.datasets.PretrainDataset import (
     MLMPretrainDataset,
     ARPretrainDataset,
 )
-from pathlib import Path
-from bonsai.functional.subject_data import filter_subject_data
 
 
 class PretrainDataModule(L.LightningDataModule):
@@ -54,30 +54,36 @@ class PretrainDataModule(L.LightningDataModule):
         self.train_data = self.cohort_filtering("train", self.train_data)
         self.val_data = self.cohort_filtering("tuning", self.val_data)
 
+        # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
+        background_length = (self.train_data[0]["segment"] == 0).sum()
+
         if issubclass(self.dataset_class, MLMPretrainDataset):
+            assert self.masking_config is not None
             self.train_dataset = self.dataset_class(
                 self.train_data,
+                max_len=self.max_len,
                 cutoff_date=self.cutoff_date,
+                background_length=background_length,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
                 masking_ratio=self.masking_config.masking_ratio,
                 masking_random_ratio=self.masking_config.masking_random_ratio,
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
-                max_len=self.max_len,
             )
             self.val_dataset = self.dataset_class(
                 self.val_data,
+                max_len=self.max_len,
                 cutoff_date=self.cutoff_date,
+                background_length=background_length,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
                 masking_ratio=self.masking_config.masking_ratio,
                 masking_random_ratio=self.masking_config.masking_random_ratio,
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
-                max_len=self.max_len,
             )
         elif issubclass(self.dataset_class, ARPretrainDataset):
-            self.train_dataset = self.dataset_class(self.train_data, self.max_len, cutoff_date=self.cutoff_date)
-            self.val_dataset = self.dataset_class(self.val_data, self.max_len, cutoff_date=self.cutoff_date)
+            self.train_dataset = self.dataset_class(self.train_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
+            self.val_dataset = self.dataset_class(self.val_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
 
     def cohort_filtering(self, split: str, data: List[dict]) -> List[dict]:
         if self.cohorts is not None and split in self.cohorts:

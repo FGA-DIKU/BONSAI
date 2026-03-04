@@ -22,19 +22,14 @@ def truncate_patient(patient, max_len: int, background_tokens_per_patient, sep_t
     return patient
 
 
-def truncate_subject(subject: dict, max_len: int) -> dict:
-    if len(subject["code"]) <= max_len:
-        return subject
-    else:
-        background_length = (subject["segment"] == 0).sum()
+def truncate_subject(subject: dict, max_len: int, background_length: int) -> dict:
+    if len(subject["code"]) > max_len:
         tokens_right = max_len - background_length
-        start = len(subject["code"]) - tokens_right
+        tail = len(subject["code"]) - tokens_right
 
-        idxs = np.r_[0:background_length, start : len(subject["code"])]
-        return {
-            "subject_id": subject["subject_id"],
-            "code": subject["code"][idxs],
-            "abspos": subject["abspos"][idxs],
-            "segment": subject["segment"][idxs],
-            "age": subject["age"][idxs],
-        }
+        # equivalent to torch.cat(feat[:background_length], feat[start:])
+        idxs = np.r_[0:background_length, tail : len(subject["code"])]
+
+        for embed_name in ["code", "abspos", "segment", "age"]:
+            subject[embed_name] = subject[embed_name][idxs]
+    return subject

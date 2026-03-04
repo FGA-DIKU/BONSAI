@@ -9,10 +9,11 @@ from bonsai.modules.transforms.masking import CodeMasker
 
 class PretrainDataset(Dataset):
     def __init__(
-        self, subjects: List[Dict], max_len: int, cutoff_date: Optional[dict] = None
+        self, subjects: List[Dict], max_len: int, background_length: int, cutoff_date: Optional[dict] = None
     ):
         self.subjects = subjects
         self.max_len = max_len
+        self.background_length = background_length
         self.cutoff_date = (
             compute_abspos(datetime(**cutoff_date)) if cutoff_date is not None else None
         )
@@ -21,7 +22,7 @@ class PretrainDataset(Dataset):
         subject = self.subjects[index]
         if self.cutoff_date is not None:
             subject = censor_subject(subject, self.cutoff_date)
-        truncated_subject = truncate_subject(subject, self.max_len)
+        truncated_subject = truncate_subject(subject, self.max_len, self.background_length)
         return truncated_subject
 
     def __len__(self):
@@ -33,6 +34,7 @@ class MLMPretrainDataset(PretrainDataset):
         self,
         subjects: List[Dict],
         max_len: int,
+        background_length: int,
         vocabulary: Dict[str, int],
         masking_select_ratio: float,
         masking_ratio: float = 0.8,
@@ -40,7 +42,7 @@ class MLMPretrainDataset(PretrainDataset):
         masking_ignore_special_tokens: bool = True,
         cutoff_date: Optional[dict] = None,
     ):
-        super().__init__(subjects, max_len, cutoff_date=cutoff_date)
+        super().__init__(subjects, max_len, background_length, cutoff_date=cutoff_date)
         self.vocabulary = vocabulary
         self.masker = CodeMasker(
             vocabulary,
@@ -60,11 +62,11 @@ class MLMPretrainDataset(PretrainDataset):
 
 class ARPretrainDataset(PretrainDataset):
     def __init__(
-        self, subjects: List[Dict], max_len: int, cutoff_date: Optional[dict] = None
+        self, subjects: List[Dict], max_len: int, background_length: int, cutoff_date: Optional[dict] = None
     ):
         super().__init__(
-            subjects, max_len + 1, cutoff_date=cutoff_date
-        )  # +1 because we shift by 1 in __getitem__
+            subjects, max_len + 1, background_length, cutoff_date=cutoff_date
+        )  # +1 because we shift by one token in __getitem__
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
