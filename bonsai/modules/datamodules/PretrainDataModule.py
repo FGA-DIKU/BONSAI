@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 import torch
 from torch.utils.data import DataLoader
 from bonsai.functional.collate import dynamic_padding
@@ -20,7 +20,7 @@ class PretrainDataModule(L.LightningDataModule):
         batch_size: int,
         num_workers: int,
         dataset_class: torch.utils.data.Dataset,
-        masking_config: dict = None,
+        masking_config: Optional[dict] = None,
         cohorts: Optional[Dict[str, list]] = None,
         cutoff_date: Optional[dict] = None,
         max_len: int = 8192,
@@ -48,14 +48,11 @@ class PretrainDataModule(L.LightningDataModule):
         elif stage == "predict":
             raise NotImplementedError("Predict stage not supported for PretrainModule.")
 
-    def log(self, message):
-        if self.trainer:
-            self.trainer.logger.info()
-
     def setup_fit(self):
         self.train_data = torch.load(self.path_train_data)
         self.val_data = torch.load(self.path_val_data)
-        self.cohort_filtering(["train", "tuning"])
+        self.train_data = self.cohort_filtering("train", self.train_data)
+        self.val_data = self.cohort_filtering("tuning", self.val_data)
 
         if issubclass(self.dataset_class, MLMPretrainDataset):
             self.train_dataset = self.dataset_class(
@@ -80,21 +77,13 @@ class PretrainDataModule(L.LightningDataModule):
             self.train_dataset = self.dataset_class(self.train_data, self.max_len)
             self.val_dataset = self.dataset_class(self.val_data, self.max_len)
 
-    def cohort_filtering(self, splits: List[str]):
-        # This function is a bit cryptic, and I feel like it could be a bit simpler
-        if self.cohorts is not None:
-            for split in splits:
-                if split in self.cohorts:
-                    self.logger.info(
-                        f"Filtering {split} data to cohort: {self.cohorts[split]}"
-                    )
-                    self.subject_data[split] = filter_subject_data(
-                        self.subject_data[split], self.cohorts[split]
-                    )
-                else:
-                    self.logger.warning(
-                        f"No cohort specified for split {split}, skipping cohort filtering"
-                    )
+    def cohort_filtering(self, split: str, data: List[dict]) -> List[dict]:
+        if self.cohorts is not None and split in self.cohorts:
+            self.logger.info(f"Filtering {split} subject_data to cohort {split}")
+            return filter_subject_data(data, self.cohorts[split])
+        else:
+            self.logger.warning(f"No cohort specified for split {split}, skipping cohort filtering")
+            return data
 
     def train_dataloader(self):
         return DataLoader(
