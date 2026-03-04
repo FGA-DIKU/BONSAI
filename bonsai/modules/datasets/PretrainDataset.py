@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from torch.utils.data import Dataset
 from bonsai.functional.truncation import truncate_subject
-from bonsai.functional.censoring import cutoff_subject
+from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
 from bonsai.modules.transforms.masking import CodeMasker
 
@@ -20,7 +20,7 @@ class PretrainDataset(Dataset):
     def __getitem__(self, index: int) -> dict:
         subject = self.subjects[index]
         if self.cutoff_date is not None:
-            subject = cutoff_subject(subject, self.cutoff_date)
+            subject = censor_subject(subject, self.cutoff_date)
         truncated_subject = truncate_subject(subject, self.max_len)
         return truncated_subject
 

@@ -57,6 +57,7 @@ class PretrainDataModule(L.LightningDataModule):
         if issubclass(self.dataset_class, MLMPretrainDataset):
             self.train_dataset = self.dataset_class(
                 self.train_data,
+                cutoff_date=self.cutoff_date,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
                 masking_ratio=self.masking_config.masking_ratio,
@@ -66,6 +67,7 @@ class PretrainDataModule(L.LightningDataModule):
             )
             self.val_dataset = self.dataset_class(
                 self.val_data,
+                cutoff_date=self.cutoff_date,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
                 masking_ratio=self.masking_config.masking_ratio,
@@ -74,8 +76,8 @@ class PretrainDataModule(L.LightningDataModule):
                 max_len=self.max_len,
             )
         elif issubclass(self.dataset_class, ARPretrainDataset):
-            self.train_dataset = self.dataset_class(self.train_data, self.max_len)
-            self.val_dataset = self.dataset_class(self.val_data, self.max_len)
+            self.train_dataset = self.dataset_class(self.train_data, self.max_len, cutoff_date=self.cutoff_date)
+            self.val_dataset = self.dataset_class(self.val_data, self.max_len, cutoff_date=self.cutoff_date)
 
     def cohort_filtering(self, split: str, data: List[dict]) -> List[dict]:
         if self.cohorts is not None and split in self.cohorts:

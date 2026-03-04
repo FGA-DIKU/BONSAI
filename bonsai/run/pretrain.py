@@ -34,7 +34,7 @@ def main(cfg: DictConfig) -> None:
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         dataset_class=get_class(cfg.paths.dataset_class),
-        masking_config=cfg.training.masking,
+        masking_config=cfg.training.get("masking"),
         cutoff_date=cfg.training.cutoff_date,
         max_len=cfg.training.max_len,
     )
