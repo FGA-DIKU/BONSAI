@@ -17,7 +17,6 @@ from bonsai.functional.labels import split_and_binarize_outcomes
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
-from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
 
 load_dotenv()
 
@@ -31,10 +30,7 @@ def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
 
-    ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
-    model_cfg = merge_configs_and_drop_duplicate_keys(
-        pretrain_cfg=ckpt["hyper_parameters"], finetune_cfg=cfg.model
-    )
+    model_cfg = cfg.model
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pd.read_parquet(cfg.paths.outcome)
@@ -74,9 +70,7 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    lightning_module = FinetuneModule.load_from_checkpoint(
-        cfg.pretrain_path,
-        strict=False,
+    lightning_module = FinetuneModule(
         model=model,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,

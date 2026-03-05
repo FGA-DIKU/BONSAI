@@ -52,8 +52,8 @@ class PretrainDataModule(L.LightningDataModule):
     def setup_fit(self):
         train_data = torch.load(self.path_train_data)
         val_data = torch.load(self.path_val_data)
-        train_data = self.filter_by_population(train_data)
-        val_data = self.filter_by_population(val_data)
+        train_data = filter_subject_data(train_data, self.population["subject_id"])
+        val_data = filter_subject_data(val_data, self.population["subject_id"])
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
         background_length = (train_data[0]["segment"] == 0).sum()
@@ -83,8 +83,18 @@ class PretrainDataModule(L.LightningDataModule):
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
             )
         elif issubclass(self.dataset_class, ARPretrainDataset):
-            self.train_dataset = self.dataset_class(train_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
-            self.val_dataset = self.dataset_class(val_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
+            self.train_dataset = self.dataset_class(
+                train_data,
+                self.max_len,
+                background_length=background_length,
+                cutoff_date=self.cutoff_date,
+            )
+            self.val_dataset = self.dataset_class(
+                val_data,
+                self.max_len,
+                background_length=background_length,
+                cutoff_date=self.cutoff_date,
+            )
 
     def filter_by_population(self, data: List[dict]):
         return filter_subject_data(data, self.population["subject_id"])

@@ -21,11 +21,10 @@ class PretrainModule(L.LightningModule):
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
 
         self.save_hyperparameters(model.config.to_dict(), ignore=["model"])
-        self.model = (
-            torch.compile(model, mode=compile_mode)
-            if compile_mode is not None
-            else model
-        )
+        self.model = model
+        if compile_mode is not None:
+            self.model.compile(mode=compile_mode)
+
         self.train_loss = nn.CrossEntropyLoss()
         self.val_loss = nn.CrossEntropyLoss()
         self.train_metrics = self.configure_metrics("train")
