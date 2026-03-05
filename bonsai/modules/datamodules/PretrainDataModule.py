@@ -15,8 +15,8 @@ from bonsai.modules.datasets.PretrainDataset import (
 class PretrainDataModule(L.LightningDataModule):
     def __init__(
         self,
-        path_train_data: Path,
-        path_val_data: Path,
+        path_train_data: str,
+        path_val_data: str,
         path_vocab: str,
         path_population: str,
         batch_size: int,

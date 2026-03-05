@@ -25,11 +25,10 @@ load_dotenv()
 def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
-    data_dir = Path(cfg.paths.dir)
 
     data_module = PretrainDataModule(
-        path_train_data=data_dir / "subject_data_train.pt",
-        path_val_data=data_dir / "subject_data_tuning.pt",
+        path_train_data=cfg.paths.train_split,
+        path_val_data=cfg.paths.val_split,
         path_vocab=cfg.paths.vocab,
         path_population=cfg.paths.population,
         batch_size=cfg.training.batch_size,
