@@ -1,5 +1,6 @@
+import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 import torch
 from torch.utils.data import DataLoader
 import lightning as L
@@ -16,12 +17,12 @@ class PretrainDataModule(L.LightningDataModule):
         self,
         path_train_data: Path,
         path_val_data: Path,
-        path_vocab: Path,
+        path_vocab: str,
+        path_population: str,
         batch_size: int,
         num_workers: int,
         dataset_class: torch.utils.data.Dataset,
         masking_config: Optional[dict] = None,
-        cohorts: Optional[Dict[str, list]] = None,
         cutoff_date: Optional[dict] = None,
         max_len: int = 8192,
     ):
@@ -29,7 +30,7 @@ class PretrainDataModule(L.LightningDataModule):
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
         self.vocabulary = torch.load(path_vocab)
-        self.cohorts = cohorts
+        self.population = pd.read_csv(path_population)
         self.num_workers = num_workers
         self.batch_size = batch_size
 
@@ -49,18 +50,18 @@ class PretrainDataModule(L.LightningDataModule):
             raise NotImplementedError("Predict stage not supported for PretrainModule.")
 
     def setup_fit(self):
-        self.train_data = torch.load(self.path_train_data)
-        self.val_data = torch.load(self.path_val_data)
-        self.train_data = self.cohort_filtering("train", self.train_data)
-        self.val_data = self.cohort_filtering("tuning", self.val_data)
+        train_data = torch.load(self.path_train_data)
+        val_data = torch.load(self.path_val_data)
+        train_data = self.filter_by_population(train_data)
+        val_data = self.filter_by_population(val_data)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
-        background_length = (self.train_data[0]["segment"] == 0).sum()
+        background_length = (train_data[0]["segment"] == 0).sum()
 
         if issubclass(self.dataset_class, MLMPretrainDataset):
             assert self.masking_config is not None
             self.train_dataset = self.dataset_class(
-                self.train_data,
+                train_data,
                 max_len=self.max_len,
                 cutoff_date=self.cutoff_date,
                 background_length=background_length,
@@ -71,7 +72,7 @@ class PretrainDataModule(L.LightningDataModule):
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
             )
             self.val_dataset = self.dataset_class(
-                self.val_data,
+                val_data,
                 max_len=self.max_len,
                 cutoff_date=self.cutoff_date,
                 background_length=background_length,
@@ -82,16 +83,11 @@ class PretrainDataModule(L.LightningDataModule):
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
             )
         elif issubclass(self.dataset_class, ARPretrainDataset):
-            self.train_dataset = self.dataset_class(self.train_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
-            self.val_dataset = self.dataset_class(self.val_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
+            self.train_dataset = self.dataset_class(train_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
+            self.val_dataset = self.dataset_class(val_data, self.max_len, background_length=background_length, cutoff_date=self.cutoff_date)
 
-    def cohort_filtering(self, split: str, data: List[dict]) -> List[dict]:
-        if self.cohorts is not None and split in self.cohorts:
-            self.logger.info(f"Filtering {split} subject_data to cohort {split}")
-            return filter_subject_data(data, self.cohorts[split])
-        else:
-            self.logger.warning(f"No cohort specified for split {split}, skipping cohort filtering")
-            return data
+    def filter_by_population(self, data: List[dict]):
+        return filter_subject_data(data, self.population["subject_id"])
 
     def train_dataloader(self):
         return DataLoader(
@@ -111,7 +107,7 @@ class PretrainDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=False,
             persistent_workers=True,
-            drop_last=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )

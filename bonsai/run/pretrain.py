@@ -30,7 +30,8 @@ def main(cfg: DictConfig) -> None:
     data_module = PretrainDataModule(
         path_train_data=data_dir / "subject_data_train.pt",
         path_val_data=data_dir / "subject_data_tuning.pt",
-        path_vocab=Path(cfg.paths.vocab),
+        path_vocab=cfg.paths.vocab,
+        path_population=cfg.paths.population,
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         dataset_class=get_class(cfg.paths.dataset_class),

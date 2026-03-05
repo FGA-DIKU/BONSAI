@@ -1,8 +1,8 @@
+import logging
+from pathlib import Path
+from typing import List, Dict, Iterable
 import torch
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict
-import logging
 
 
 def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
@@ -26,7 +26,7 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     return all_tokenized
 
 
-def filter_subject_data(subject_data: List[dict], cohort: List[int]) -> List[dict]:
+def filter_subject_data(subject_data: List[dict], cohort: Iterable[int]) -> List[dict]:
     """Filter subject_data to only include subjects in the cohort."""
     pre = len(subject_data)
     cohort_set = set(cohort)  # Convert to set for faster lookup
