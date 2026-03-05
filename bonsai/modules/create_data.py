@@ -33,7 +33,7 @@ def process_split(
         "after_exclusion": 0,
         "after_features": 0,
     }
-
+    ids = []
     shards = [shard for shard in (path_input_dir / split).glob("*.parquet")]
     logging.info(f"Found {len(shards)} shards to process in {split}")
     for shard_idx, shard in enumerate(shards, 1):
@@ -73,8 +73,12 @@ def process_split(
             ),
         )
 
+        ids.extend(tokenized["subject_id"].unique())
+
     logging.info(f"Finished processing {split}")
     logging.info(f"Total rows loaded: {data_counts['loaded']}")
     logging.info(f"Total rows after dropping duplicates: {data_counts['after_duplicates']}")
     logging.info(f"Total rows after exclusion: {data_counts['after_exclusion']}")
     logging.info(f"Total rows after feature creation: {data_counts['after_features']}")
+
+    return ids

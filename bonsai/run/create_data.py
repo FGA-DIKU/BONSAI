@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 import torch
+import pandas as pd
 
 from bonsai.paths import get_config_path
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
@@ -41,15 +42,17 @@ def main(cfg: DictConfig) -> None:
     )
 
     logging.info("create_data:")
+    ids = []
     for split in cfg.splits:
         logging.info(f"process_split: {split}")
-        process_split(
+        split_ids = process_split(
             split=split,
             path_input_dir=path_input_dir,
             path_output_dir=path_output_dir,
             tokenizer=tokenizer,
             exclude_regex=cfg.exclude_regex,
         )
+        ids.extend(split_ids)
         tokenizer.freeze_vocabulary()  # freeze after first split (train) to prevent data leakage
 
         # TODO: Should be moved to process_split going forward
@@ -60,6 +63,9 @@ def main(cfg: DictConfig) -> None:
         torch.save(subject_data, path_output_dir / f"subject_data_{split}.pt")
 
     torch.save(tokenizer.vocabulary, path_output_dir / "vocabulary.pt")
+
+    population = pd.DataFrame({"subject_id": ids})
+    population.to_csv(path_output_dir / "population.csv", index=False)
 
 
 if __name__ == "__main__":
