@@ -1,5 +1,4 @@
 import pandas as pd
-from pathlib import Path
 from typing import List, Optional
 import torch
 from torch.utils.data import DataLoader
@@ -95,9 +94,6 @@ class PretrainDataModule(L.LightningDataModule):
                 background_length=background_length,
                 cutoff_date=self.cutoff_date,
             )
-
-    def filter_by_population(self, data: List[dict]):
-        return filter_subject_data(data, self.population["subject_id"])
 
     def train_dataloader(self):
         return DataLoader(

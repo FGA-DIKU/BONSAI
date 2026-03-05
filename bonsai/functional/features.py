@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Tuple, Union, Dict
+from typing import Tuple, Union
 from datetime import datetime
 import logging
 

@@ -1,5 +1,4 @@
 import lightning as L
-import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
