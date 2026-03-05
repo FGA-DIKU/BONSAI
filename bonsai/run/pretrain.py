@@ -56,7 +56,7 @@ def main(cfg: DictConfig) -> None:
         save_top_k=1,
         filename="best",
         enable_version_counter=False,
-        save_last=True
+        save_last=True,
     )
 
     lightning_module = PretrainModule(

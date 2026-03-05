@@ -20,7 +20,7 @@ class FinetuneDataModule(L.LightningDataModule):
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
         test_outcomes: Dict[int, dict],
-        train_sampler: Optional[WeightedRandomSampler]=None,
+        train_sampler: Optional[WeightedRandomSampler] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
@@ -46,7 +46,9 @@ class FinetuneDataModule(L.LightningDataModule):
 
     def setup_fit(self):
         train_data = torch.load(self.path_train_data)
-        train_data = [sub for sub in train_data if sub["subject_id"] in self.train_outcomes]
+        train_data = [
+            sub for sub in train_data if sub["subject_id"] in self.train_outcomes
+        ]
         train_data = self.filter_by_population(train_data)
         val_data = torch.load(self.path_val_data)
         val_data = [sub for sub in val_data if sub["subject_id"] in self.val_outcomes]

@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def truncate_subject(subject: dict, max_len: int, background_length: int) -> dict:
     if len(subject["code"]) > max_len:
         tokens_right = max_len - background_length

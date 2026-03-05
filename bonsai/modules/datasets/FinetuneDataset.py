@@ -26,17 +26,17 @@ class FinetuneDataset(Dataset):
         subject = self.subjects[index]
         subject_outcome = self.outcomes[subject["subject_id"]]
 
-        subject["target"] = torch.tensor(
-            [subject_outcome["label"]], dtype=torch.long
-        )
+        subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
 
         if not pd.isnull(subject_outcome["censor_abspos"]):
             subject = censor_subject(
                 subject,
                 censor_date_abspos=subject_outcome["censor_abspos"],
-                predict_token_id=self.predict_token_id
+                predict_token_id=self.predict_token_id,
             )
-        subject = truncate_subject(subject, max_len=self.max_len, background_length=self.background_length)
+        subject = truncate_subject(
+            subject, max_len=self.max_len, background_length=self.background_length
+        )
 
         subject["segment"] = normalize_segments(subject["segment"])
         subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.long)

@@ -66,7 +66,7 @@ def main(cfg: DictConfig) -> None:
                 hour_shift=index.get("hour_shift"),  # Required for relative
                 date=index.get("date"),  # Required for absolute
             )
-            
+
             outcomes["censor_date"] = set_dates(
                 date_type=censor.type,  # Absolute/relative
                 outcome_dates=outcomes["outcome_date"],  # Required for relative

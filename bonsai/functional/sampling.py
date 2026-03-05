@@ -19,7 +19,7 @@ def get_sampler(weight_fn, labels) -> WeightedRandomSampler:
 
 def inverse_sqrt(labels: List[int], label_counts: dict) -> List[float]:
     """Calculate the inverse square root of class frequencies."""
-    weights = {k: 1/np.sqrt(v) for k, v in label_counts.items()}
+    weights = {k: 1 / np.sqrt(v) for k, v in label_counts.items()}
     # Map weights back to samples
     return [weights[label] for label in labels]
 

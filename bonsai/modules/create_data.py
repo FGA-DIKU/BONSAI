@@ -77,7 +77,9 @@ def process_split(
 
     logging.info(f"Finished processing {split}")
     logging.info(f"Total rows loaded: {data_counts['loaded']}")
-    logging.info(f"Total rows after dropping duplicates: {data_counts['after_duplicates']}")
+    logging.info(
+        f"Total rows after dropping duplicates: {data_counts['after_duplicates']}"
+    )
     logging.info(f"Total rows after exclusion: {data_counts['after_exclusion']}")
     logging.info(f"Total rows after feature creation: {data_counts['after_features']}")
 
