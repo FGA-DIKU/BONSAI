@@ -73,6 +73,8 @@ def main(cfg: DictConfig) -> None:
                 hour_shift=censor.get("hour_shift"),  # Required for relative
                 date=censor.get("date"),  # Required for absolute
             )
+
+            outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
 
     logging.info(f"Saving to {save_path}")

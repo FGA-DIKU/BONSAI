@@ -49,13 +49,13 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 1024
-  embedding_dropout: 0.1 
-  max_position_embeddings: 512 
+  embedding_dropout: 0.1
+  max_position_embeddings: 512
   age_scale: 1e-2 # 100 -> 1
   abspos_scale: 1e-5 # 400k -> 4
   age_shift: -50 # center around 0
   abspos_shift: -90_000 # 0 will be around 2015
-  is_causal: false  
+  is_causal: false
   
 
 

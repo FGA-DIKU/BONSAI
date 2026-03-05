@@ -8,7 +8,7 @@ def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Ten
             collected[key].append(val)
 
     output = {}
-    for embed_name in ["code", "abspos", "age", "segment"]:
+    for embed_name in ["code", "abspos", "age", "segment", "attention_mask"]:
         output[embed_name] = torch.nn.utils.rnn.pad_sequence(
             collected[embed_name], batch_first=True
         )

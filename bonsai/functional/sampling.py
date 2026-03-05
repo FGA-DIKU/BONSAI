@@ -1,11 +1,12 @@
 from typing import List
+from collections import Counter
 from torch.utils.data import WeightedRandomSampler
-import pandas as pd
 import numpy as np
 from hydra.utils import instantiate
 
 
-def get_sampler(weight_fn, labels, label_counts):
+def get_sampler(weight_fn, labels) -> WeightedRandomSampler:
+    label_counts = Counter(labels)
     label_weight = instantiate(
         weight_fn,
         labels=labels,
@@ -16,14 +17,14 @@ def get_sampler(weight_fn, labels, label_counts):
     )
 
 
-def inverse_sqrt(labels: list, label_counts: pd.Series) -> List[float]:
+def inverse_sqrt(labels: List[int], label_counts: dict) -> List[float]:
     """Calculate the inverse square root of class frequencies."""
-    weights = 1 / np.sqrt(label_counts)
+    weights = {k: 1/np.sqrt(v) for k, v in label_counts.items()}
     # Map weights back to samples
     return [weights[label] for label in labels]
 
 
-def effective_n_samples(labels: List[int], label_counts: pd.Series) -> List[float]:
+def effective_n_samples(labels: List[int], label_counts: dict) -> List[float]:
     """Calculate weights using the effective number of samples method."""
     # Calculate beta as per the paper
     beta = (len(labels) - 1) / len(labels)

@@ -118,9 +118,3 @@ def exclude_incorrect_event_ages(features: pd.DataFrame) -> pd.DataFrame:
             f"exclude_incorrect_event_ages: Dropped {pre - len(features)} rows with incorrect ages outside (-1,120) range"
         )
     return features
-
-
-def get_background_length(df: pd.DataFrame, vocabulary: Dict[str, int]):
-    unique_background_tokens = set([i for i in vocabulary if i.startswith("BG_")])
-    background_length = len(set(df) & unique_background_tokens)
-    return background_length + 2  # +2 for [CLS] and [SEP] tokens

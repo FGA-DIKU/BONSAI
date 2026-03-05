@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Dict, Optional
+import torch
 from torch.utils.data import Dataset
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.censoring import censor_subject
@@ -23,6 +24,7 @@ class PretrainDataset(Dataset):
         if self.cutoff_date is not None:
             subject = censor_subject(subject, self.cutoff_date)
         truncated_subject = truncate_subject(subject, self.max_len, self.background_length)
+        truncated_subject["attention_mask"] = torch.ones(len(truncated_subject["code"]), dtype=torch.long)
         return truncated_subject
 
     def __len__(self):
@@ -71,6 +73,6 @@ class ARPretrainDataset(PretrainDataset):
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
         subject["target"] = subject["code"][1:]
-        for key in ["code", "abspos", "segment", "age"]:
+        for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
         return subject

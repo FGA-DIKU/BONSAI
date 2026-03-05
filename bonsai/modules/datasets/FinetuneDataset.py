@@ -1,61 +1,47 @@
+from typing import List, Dict
 import torch
 import pandas as pd
 from torch.utils.data import Dataset
-from typing import List, Dict, Optional, Union
-from bonsai.functional.censoring import censor_patient
-from bonsai.functional.truncation import truncate_patient
+from bonsai.functional.censoring import censor_subject
+from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.normalization import normalize_segments
-from bonsai.functional.features import compute_abspos
 
 
 class FinetuneDataset(Dataset):
-    # Outcomes are binary at this point
-    # Censor times already take into account "n_hours_censoring"
     def __init__(
         self,
-        patients: List[Dict],
-        labels: pd.DataFrame,
-        vocabulary: Dict,
-        background_tokens_per_patient: int,
-        max_len: int = 30,
-        concept_id_to_delay: Optional[Union[str, None]] = None,
+        subjects: List[Dict],
+        outcomes: Dict[int, dict],
+        predict_token_id: int,
+        background_length: int,
+        max_len: int = 8192,
     ):
-        self.patients = patients
-        self.labels = labels
-        self.vocabulary = vocabulary
-        self.background_tokens_per_patient = background_tokens_per_patient
+        self.subjects = subjects
+        self.outcomes = outcomes
+        self.predict_token_id = predict_token_id
+        self.background_length = background_length
         self.max_len = max_len
-        self.concept_id_to_delay = concept_id_to_delay
 
     def __getitem__(self, index: int) -> dict:
-        patient = self.patients[index]
+        subject = self.subjects[index]
+        subject_outcome = self.outcomes[subject["subject_id"]]
 
-        patient_outcome = self.labels[
-            self.labels["subject_id"] == patient["subject_id"].item()
-        ]
-        patient["target"] = torch.tensor(
-            [patient_outcome["label"].item()], dtype=torch.long
+        subject["target"] = torch.tensor(
+            [subject_outcome["label"]], dtype=torch.long
         )
-        if not pd.isnull(patient_outcome["censor_date"]).item():
-            patient = censor_patient(
-                patient=patient,
-                censor_date_abspos=compute_abspos(
-                    patient_outcome["censor_date"]
-                ).item(),
-                predict_token_id=self.vocabulary["[CLS]"],
-                concept_id_to_delay=self.concept_id_to_delay,
+
+        if not pd.isnull(subject_outcome["censor_abspos"]):
+            subject = censor_subject(
+                subject,
+                censor_date_abspos=subject_outcome["censor_abspos"],
+                predict_token_id=self.predict_token_id
             )
+        subject = truncate_subject(subject, max_len=self.max_len, background_length=self.background_length)
 
-        patient = truncate_patient(
-            patient=patient,
-            max_len=self.max_len,
-            background_tokens_per_patient=self.background_tokens_per_patient,
-        )
+        subject["segment"] = normalize_segments(subject["segment"])
+        subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.long)
 
-        patient["segment"] = normalize_segments(patient["segment"])
-        patient["attention_mask"] = torch.ones(len(patient["code"]), dtype=torch.long)
-
-        return patient
+        return subject
 
     def __len__(self):
-        return len(self.patients)
+        return len(self.subjects)
