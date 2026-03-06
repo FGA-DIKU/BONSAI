@@ -15,28 +15,22 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
-            - name: Setup dependencies.
+            - name: Install Dependencies
               run: |
-                python -m venv .venv
-                source .venv/bin/activate
                 pip install .[dev]
 
             - name: create_data
               run: |
-                source .venv/bin/activate
                 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
 
             - name: pretrain
               run: |
-                source .venv/bin/activate
                 python bonsai/run/pretrain.py --config-name pretrain dataset=correlated_MEDS_data
 
             - name: create_outcome
               run: |
-                source .venv/bin/activate
                 python bonsai/run/create_outcome.py --config-name example_outcome1 dataset=correlated_MEDS_data
 
             - name: finetune (no pretrain path)
               run: |
-                source .venv/bin/activate
                 python bonsai/run/finetune.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1
