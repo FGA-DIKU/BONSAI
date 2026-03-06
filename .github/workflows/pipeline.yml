@@ -19,167 +19,24 @@ jobs:
               run: |
                 python -m venv .venv
                 source .venv/bin/activate
-                pip install -r requirements.txt
+                pip install .[dev]
 
-            - name: main.create_data
+            - name: create_data
               run: |
                 source .venv/bin/activate
-                python -m corebehrt.main.create_data
+                python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
 
-            - name: main.create_data
+            - name: pretrain
               run: |
                 source .venv/bin/activate
-                python -m corebehrt.main.create_data --config_path ./corebehrt/configs/create_data_wo_held_out.yaml
-            
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/prepare_pretrain.yaml
-              
-            - name: main.pretrain_causal
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.pretrain --config_path ./corebehrt/configs/pretrain_causal.yaml
-            
-            - name: main.create_outcomes
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.create_outcomes
-            
-            - name: main.select_cohort
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.select_cohort
+                python bonsai/run/pretrain.py --config-name pretrain dataset=correlated_MEDS_data
 
-            - name: main.prepare_training_data
+            - name: create_outcome
               run: |
                 source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/prepare_finetune.yaml
+                python bonsai/run/create_outcome.py --config-name example_outcome1 dataset=correlated_MEDS_data
 
-            - name: main.finetune_cv
+            - name: finetune (no pretrain path)
               run: |
                 source .venv/bin/activate
-                python -m corebehrt.main.finetune_cv
-
-            - name: main.select_cohort_absolute
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.select_cohort --config_path ./corebehrt/configs/select_cohort_absolute.yaml
-
-            - name: main.finetune_oot
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.finetune_cv --config_path ./corebehrt/configs/finetune_oot.yaml
-
-            - name: main.select_cohort
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.select_cohort --config_path ./corebehrt/configs/select_cohort_held_out.yaml
-
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/prepare_held_out.yaml
-
-            - name: main.evaluate_finetune
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.evaluate_finetune
-
-
-    pipeline_tests_performance:
-        runs-on: "ubuntu-latest"
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Setup dependencies.
-              run: |
-                python -m venv .venv
-                source .venv/bin/activate
-                pip install -r requirements.txt
-
-            - name: main.create_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.create_data
-            
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/prepare_pretrain.yaml
-
-            - name: main.pretrain
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.pretrain
-            
-            - name: main.create_outcomes
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.create_outcomes
-            
-            - name: main.select_cohort_test
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.select_cohort --config_path ./corebehrt/configs/performance_tests/select_cohort_test.yaml
-
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/performance_tests/prepare_finetune_bad_censoring.yaml
-
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/performance_tests/prepare_finetune_good_censoring.yaml
-
-            - name: main.finetune_cv_bad
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.finetune_cv --config_path ./corebehrt/configs/performance_tests/finetune_bad.yaml
-
-            - name: main.finetune_cv_good
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.finetune_cv --config_path ./corebehrt/configs/performance_tests/finetune_good.yaml
-
-            - name: main.select_cohort
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.select_cohort --config_path ./corebehrt/configs/performance_tests/select_cohort_held_out.yaml
-
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/performance_tests/prepare_held_out_bad.yaml
-
-            - name: main.prepare_training_data
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.prepare_training_data --config_path ./corebehrt/configs/performance_tests/prepare_held_out_good.yaml
-
-            - name: main.evaluate_finetune_bad
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.evaluate_finetune --config_path ./corebehrt/configs/performance_tests/evaluate_finetune_bad.yaml
-
-            - name: main.evaluate_finetune_good
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.evaluate_finetune --config_path ./corebehrt/configs/performance_tests/evaluate_finetune_good.yaml
-
-            - name: main.xgboost
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.xgboost_cv --config_path ./corebehrt/configs/performance_tests/xgboost.yaml
-
-            - name: main.evaluate_xgboost
-              run: |
-                source .venv/bin/activate
-                python -m corebehrt.main.evaluate_xgboost --config_path ./corebehrt/configs/performance_tests/evaluate_xgboost.yaml
-                
-            - name: tests/test_pipeline/test_performance
-              run: |
-                source .venv/bin/activate
-                python -m tests.test_pipeline.test_performance --config_path ./corebehrt/configs/performance_tests/test_performance.yaml
+                python bonsai/run/finetune.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1

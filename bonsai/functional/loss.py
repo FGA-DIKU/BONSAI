@@ -5,7 +5,7 @@ import numpy as np
 from hydra.utils import instantiate
 
 
-def get_loss_weight(fn, labels: List[int]) -> Optional[List[float]]:
+def get_loss_weight(fn, labels: List[int]) -> Optional[torch.Tensor]:
     """Get weights for weighted loss function.
     If loss_weight_function is false or undefined, then no positive weight is used.
     If loss_weight_function is defined then the function is used to calculate the weights.
@@ -16,7 +16,7 @@ def get_loss_weight(fn, labels: List[int]) -> Optional[List[float]]:
     return instantiate(fn, label_counts=label_counts)
 
 
-def sqrt(label_counts: Dict[int, int]) -> float:
+def sqrt(label_counts: Dict[int, int]) -> torch.Tensor:
     """Calculate the square root of the ratio of negative to positive samples."""
     n0 = label_counts.get(0)
     n1 = label_counts.get(1)

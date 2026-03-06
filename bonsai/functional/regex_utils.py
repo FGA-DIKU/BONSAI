@@ -20,7 +20,7 @@ def is_valid_regex(pattern: str) -> bool:
         return False
 
 
-def filter_rows_by_regex(df: pd.DataFrame, col: str, regex: str):
+def filter_rows_by_regex(df: pd.DataFrame, col: str, regex: str) -> pd.DataFrame:
     """
     Filter rows in a DataFrame based on a regex pattern applied to a specific column.
     All rows containing a match to the regex pattern will be excluded.
