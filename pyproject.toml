@@ -4,28 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bonsai"
-version = "1.0.0"
-description = "A framework for processing and analyzing Electronic Health Records (EHR) data using BERT-based models."
+version = "2.0.0"
+description = "A framework for processing and analyzing Electronic Health Records (EHR) data using transformer-based models."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Kiril Klein", email = "kikl@di.ku.dk" },
+    { name = "Sebastian Llambias", email = "snl@di.ku.dk" },
     { name = "Mikkel Odgaard" },
-    { name = "Stephan Sloth Lorenzen" },
     { name = "Maria Elkjær Montgomery" },
+    { name = "Kiril Klein" },
+    { name = "Stephan Sloth Lorenzen" },
 ]
-keywords = ["EHR", "BERT", "healthcare", "machine learning"]
+keywords = ["EHR", "transformers", "healthcare", "machine learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Healthcare Industry",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Medical Science Apps."
 ]
@@ -42,10 +40,11 @@ dependencies = [
     "transformers>=4.48.2",
     "xgboost>=3.0.2",
     "ruff==0.15.1",
+    "dotenv==0.9.9",
 ]
 
 [tool.setuptools.packages.find]
-include = ["bonsai", "bonsai.*", "corebehrt", "corebehrt.*"]
+include = ["bonsai", "bonsai.*"]
 
 [project.optional-dependencies]
 dev = [

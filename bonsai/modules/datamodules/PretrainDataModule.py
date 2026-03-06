@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import List, Optional
+from typing import Optional
 import torch
 from torch.utils.data import DataLoader
 import lightning as L

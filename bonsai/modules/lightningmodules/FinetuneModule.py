@@ -51,7 +51,6 @@ class FinetuneModule(L.LightningModule):
         labels = batch["target"]
         logits = self.model(batch)
         loss = self.train_loss(logits, labels.float())
-        pred_labels = (torch.sigmoid(logits) > 0.5).long()
         self.train_metrics(logits, labels)
         self.log("train/loss", loss, prog_bar=True)
         self.log_dict(self.train_metrics)
@@ -62,7 +61,6 @@ class FinetuneModule(L.LightningModule):
         logits = self.model(batch)
         loss = self.val_loss(logits, labels.float())
         self.log("val/loss", loss, prog_bar=True)
-        pred_labels = (torch.sigmoid(logits) > 0.5).long()
         self.val_metrics(logits, labels)
         self.log_dict(self.val_metrics)
         return loss
