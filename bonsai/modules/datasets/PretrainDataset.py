@@ -1,11 +1,10 @@
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import torch
 from torch.utils.data import Dataset
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
-from bonsai.modules.transforms.masking import CodeMasker
 
 
 class PretrainDataset(Dataset):
@@ -54,20 +53,59 @@ class MLMPretrainDataset(PretrainDataset):
     ):
         super().__init__(subjects, max_len, background_length, cutoff_date=cutoff_date)
         self.vocabulary = vocabulary
-        self.masker = CodeMasker(
-            vocabulary,
-            masking_select_ratio,
-            masking_ratio,
-            masking_random_ratio,
-            masking_ignore_special_tokens,
+
+        self.masking_select_ratio = masking_select_ratio
+        self.masking_ratio = masking_ratio
+        self.masking_random_ratio = masking_random_ratio
+        self.masking_n_special_tokens = (
+            len([token for token in vocabulary if token.startswith("[")])
+            if masking_ignore_special_tokens
+            else 0
         )
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        masked_codes, target = self.masker.mask_patient_codes(subject["code"])
+        masked_codes, target = self.mask_patient_codes(subject["code"])
         subject["concept"] = masked_codes
         subject["target"] = target
         return subject
+
+    def mask_patient_codes(
+        self, codes: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        target = codes.clone()
+        probability_vector = torch.full(target.shape, self.masking_select_ratio)
+
+        # Ignore special tokens
+        special_token_mask = codes < self.masking_n_special_tokens
+        probability_vector.masked_fill_(special_token_mask, value=0.0)
+
+        # Get MLM mask
+        selected_indices = torch.bernoulli(probability_vector).bool()
+        target[~selected_indices] = -100
+
+        # Replace with [MASK]
+        indices_mask = (
+            torch.bernoulli(torch.full(target.shape, self.masking_ratio)).bool()
+            & selected_indices
+        )
+        codes[indices_mask] = self.vocabulary["[MASK]"]
+
+        # Replace with random word and Account for already masked tokens
+        random_ratio = self.masking_random_ratio / (1 - self.masking_ratio)
+        indicies_random = (
+            torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
+            & selected_indices
+            & ~indices_mask
+        )
+        random_words = torch.randint(
+            self.masking_n_special_tokens,
+            len(self.vocabulary),
+            target.shape,
+            dtype=codes.dtype,
+        )
+        codes[indicies_random] = random_words[indicies_random]
+        return codes, target
 
 
 class ARPretrainDataset(PretrainDataset):
