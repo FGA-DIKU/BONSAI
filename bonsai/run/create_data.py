@@ -10,7 +10,7 @@ from bonsai.paths import get_config_path
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 from hydra.core.plugins import Plugins
 
-from bonsai.modules.create_data import process_split
+from bonsai.functional.create_data import process_split
 from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 from bonsai.functional.subject_data import prepare_subject_data
 
@@ -65,7 +65,7 @@ def main(cfg: DictConfig) -> None:
     torch.save(tokenizer.vocabulary, path_output_dir / "vocabulary.pt")
 
     population = pd.DataFrame({"subject_id": ids})
-    population.to_csv(path_output_dir / "population.csv", index=False)
+    population.to_csv(path_output_dir / "population_full.csv", index=False)
 
 
 if __name__ == "__main__":

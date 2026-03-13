@@ -13,7 +13,7 @@ paths:
   val_split: ${paths.dir}/subject_data_tuning.pt
   outcome: ${paths.dir}/outcomes/${outcome}.parquet
   vocabulary: ${paths.dir}/vocabulary.pt
-  population: ${paths.dir}/population.csv
+  population: ${paths.dir}/population_full.csv
 
 
 data:

@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from typing import Optional
 
 
 class EhrEmbeddings(nn.Module):
@@ -68,9 +67,6 @@ class EhrEmbeddings(nn.Module):
         abspos: torch.Tensor = None,
         inputs_embeds: torch.Tensor = None,
     ) -> torch.Tensor:
-        # TODO: THIS LOOKS POTENTIALLY VERY COMPUTATIONALLY HEAVY. IS IT STRICTLY NECESSARY TO DO ON EVERY DATAPASS?
-        if not self._validate_inputs(input_ids, segments, age, abspos, inputs_embeds):
-            raise ValueError("Invalid input arguments")
         if inputs_embeds is not None:
             return inputs_embeds
         embeddings = self.code_embedding(input_ids)
@@ -83,18 +79,6 @@ class EhrEmbeddings(nn.Module):
         embeddings = self.dropout(embeddings)
 
         return embeddings
-
-    @torch.jit.script
-    def _validate_inputs(
-        input_ids: Optional[torch.Tensor],
-        segments: Optional[torch.Tensor],
-        age: Optional[torch.Tensor],
-        abspos: Optional[torch.Tensor],
-        inputs_embeds: Optional[torch.Tensor],
-    ) -> bool:
-        if inputs_embeds is not None:
-            return not any(x is not None for x in [input_ids, segments, age, abspos])
-        return all(x is not None for x in [input_ids, segments, age, abspos])
 
 
 class Time2Vec(torch.nn.Module):

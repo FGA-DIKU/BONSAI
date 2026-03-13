@@ -1,11 +1,9 @@
 """
-Module: corebehrt_module
-
 This module defines customized EHR-focused BERT models built on top of ModernBertModel:
 
-- CorebehrtEncoder: replaces token embeddings with temporal EHR embeddings and causal encoder layers.
-- CorebehrtForPretraining: extends the encoder for masked language model pretraining on EHR sequences.
-- CorebehrtForFineTuning: extends the encoder for downstream classification/regression tasks on EHR data.
+- BonsaiEncoder: replaces token embeddings with temporal EHR embeddings and causal encoder layers.
+- BonsaiForPretraining: extends the encoder for masked language model pretraining on EHR sequences.
+- BonsaiForFineTuning: extends the encoder for downstream classification/regression tasks on EHR data.
 """
 
 from typing import Tuple
@@ -52,17 +50,12 @@ class BonsaiEncoder(ModernBertModel):
                 - "segment": Tensor of segment IDs (B, L)
                 - "age": Tensor of patient ages (B, L)
                 - "abspos": Tensor of absolute position values (B, L)
+                - "attention_mask":
             **kwargs: Additional arguments to pass to the ModernBertModel forward method
 
         Returns:
             BaseModelOutput: output of ModernBertModel with last_hidden_state, etc.
         """
-        # TODO: Abstract this out of the forward method and into the getitem.
-        if "attention_mask" in batch:
-            attention_mask = batch["attention_mask"]
-        else:
-            attention_mask = (batch["code"] != 0).float()
-
         inputs_embeds = self.embeddings(
             input_ids=batch["code"],
             segments=batch["segment"],
@@ -71,9 +64,12 @@ class BonsaiEncoder(ModernBertModel):
         )
 
         return super().forward(
-            inputs_embeds=inputs_embeds, attention_mask=attention_mask, **kwargs
+            inputs_embeds=inputs_embeds,
+            attention_mask=batch["attention_mask"],
+            **kwargs,
         )
 
+    # potentially deprecated
     def _update_attention_mask(
         self, attention_mask: torch.Tensor, output_attentions: bool
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -124,23 +120,3 @@ class BonsaiFinetune(BonsaiEncoder):
         sequence_output = outputs[0]  # Last hidden state
         logits = self.cls(sequence_output, batch["attention_mask"])
         return logits
-
-
-if __name__ == "__main__":
-    from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
-    from transformers import ModernBertConfig
-    import omegaconf
-
-    cfg = omegaconf.OmegaConf.load(
-        "/Users/zcr545/Desktop/Projects/repos/BONSAI/bonsai/configs/pretrain.yaml"
-    )
-    model = BonsaiPretrain(
-        ModernBertConfig(
-            **cfg["model"],
-            vocab_size=64,
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-            sparse_prediction=True,
-        )
-    )

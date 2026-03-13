@@ -23,16 +23,19 @@ def main(cfg: DictConfig) -> None:
     input_dir = Path(cfg.paths.input_dir)
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    logging.info(f"Starting create_outcome for `{save_path.stem}`")
 
     exclude = cfg.outcome.exclude
-    logging.info(f"Excluding with {exclude}")
     match = cfg.outcome.match
-    logging.info(f"Matching with {match}")
     index = cfg.outcome.index
-    logging.info(f"Index date assigned with {index}")
     censor = cfg.outcome.censor
-    logging.info(f"Censor date assigned with {censor}")
+
+    logging.info(
+        f"Starting create_outcome for `{save_path.stem}` \n"
+        f"Excluding with {exclude} \n"
+        f"Matching with {match} \n"
+        f"Index date assigned with {index} \n"
+        f"Censor date assigned with {censor}"
+    )
 
     all_outcomes = pd.DataFrame()
     for split in cfg.splits:

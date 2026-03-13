@@ -75,12 +75,12 @@ def process_split(
 
         ids.extend(tokenized["subject_id"].unique())
 
-    logging.info(f"Finished processing {split}")
-    logging.info(f"Total rows loaded: {data_counts['loaded']}")
     logging.info(
-        f"Total rows after dropping duplicates: {data_counts['after_duplicates']}"
+        f"Finished processing {split} \n"
+        f"Total rows loaded: {data_counts['loaded']} \n"
+        f"Total rows after dropping duplicates: {data_counts['after_duplicates']} \n"
+        f"Total rows after exclusion: {data_counts['after_exclusion']} \n"
+        f"Total rows after feature creation: {data_counts['after_features']}"
     )
-    logging.info(f"Total rows after exclusion: {data_counts['after_exclusion']}")
-    logging.info(f"Total rows after feature creation: {data_counts['after_features']}")
 
     return ids

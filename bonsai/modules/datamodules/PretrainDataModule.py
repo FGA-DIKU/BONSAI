@@ -94,6 +94,8 @@ class PretrainDataModule(L.LightningDataModule):
                 background_length=background_length,
                 cutoff_date=self.cutoff_date,
             )
+        else:
+            raise ValueError(f"Unexpected dataset class. Got: {self.dataset_class}")
 
     def train_dataloader(self):
         return DataLoader(
@@ -117,10 +119,3 @@ class PretrainDataModule(L.LightningDataModule):
             shuffle=False,
             collate_fn=dynamic_padding,
         )
-
-    def set_logger(self):
-        if self.trainer:
-            return self.trainer.logger
-        import logging
-
-        return logging.getLogger()

@@ -1,4 +1,4 @@
-from typing import Literal, Dict, List, Optional
+from typing import Literal, Dict, Optional
 import pandas as pd
 import lightning as L
 import torch
@@ -46,13 +46,15 @@ class FinetuneDataModule(L.LightningDataModule):
 
     def setup_fit(self):
         train_data = torch.load(self.path_train_data)
+        val_data = torch.load(self.path_val_data)
+
         train_data = [
             sub for sub in train_data if sub["subject_id"] in self.train_outcomes
         ]
-        train_data = self.filter_by_population(train_data)
-        val_data = torch.load(self.path_val_data)
         val_data = [sub for sub in val_data if sub["subject_id"] in self.val_outcomes]
-        val_data = self.filter_by_population(val_data)
+
+        train_data = filter_subject_data(train_data, self.population["subject_id"])
+        val_data = filter_subject_data(val_data, self.population["subject_id"])
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
         background_length = (train_data[0]["segment"] == 0).sum()
@@ -69,9 +71,6 @@ class FinetuneDataModule(L.LightningDataModule):
             predict_token_id=self.predict_token_id,
             background_length=background_length,
         )
-
-    def filter_by_population(self, data: List[dict]):
-        return filter_subject_data(data, self.population["subject_id"])
 
     def train_dataloader(self):
         return DataLoader(
