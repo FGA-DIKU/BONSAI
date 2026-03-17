@@ -3,47 +3,48 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "corebehrt"
-version = "0.1.0"
-description = "A framework for processing and analyzing Electronic Health Records (EHR) data using BERT-based models."
+name = "bonsai"
+version = "2.0.0"
+description = "A framework for processing and analyzing Electronic Health Records (EHR) data using transformer-based models."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Kiril Klein", email = "kikl@di.ku.dk" },
+    { name = "Sebastian Llambias", email = "snl@di.ku.dk" },
     { name = "Mikkel Odgaard" },
-    { name = "Stephan Sloth Lorenzen" },
     { name = "Maria Elkjær Montgomery" },
+    { name = "Kiril Klein" },
+    { name = "Stephan Sloth Lorenzen" },
 ]
-keywords = ["EHR", "BERT", "healthcare", "machine learning"]
+keywords = ["EHR", "transformers", "healthcare", "machine learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Healthcare Industry",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Medical Science Apps."
 ]
 dependencies = [
-    "numpy>=2.1.3",
-    "pandas>=2.2.3",
-    "pyarrow>=18.0.0",
-    "python-dateutil==2.9.0.post0",
-    "PyYAML>=6.0.2",
-    "scikit-learn>=1.5.2",
-    "torch==2.5.1",
-    "tqdm==4.67.1",
-    "transformers>=4.48.0",
-    "xgboost>=3.0.2"
+    "numpy>=2.4.2",
+    "lightning==2.6.1",
+    "hydra-core>=1.3.2",
+    "pandas>=3.0.1",
+    "pyarrow>=23.0.1",
+    "PyYAML>=6.0.3",
+    "scikit-learn>=1.8.0",
+    "torch==2.10.0",
+    "tqdm==4.67.3",
+    "transformers>=4.48.2",
+    "xgboost>=3.0.2",
+    "ruff==0.15.1",
+    "dotenv==0.9.9",
 ]
 
 [tool.setuptools.packages.find]
-include = ["corebehrt", "corebehrt.*"]
+include = ["bonsai", "bonsai.*"]
 
 [project.optional-dependencies]
 dev = [

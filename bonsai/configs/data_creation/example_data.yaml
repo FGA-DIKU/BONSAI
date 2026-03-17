@@ -1,0 +1,21 @@
+defaults:
+  - core/base_create@
+  - _self_
+  
+splits: 
+  - train
+  - tuning
+  - held_out
+
+dataset: correlated_MEDS_data
+
+paths: 
+  input_dir: example_data/${dataset}
+  output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+
+exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
+
+tokenizer:
+  vocabulary:
+  cutoffs:
+  sep_tokens: true

@@ -1,221 +1,154 @@
 import unittest
 import pandas as pd
+from bonsai.functional.outcomes import (
+    find,
+    set_dates,
+    binarize_outcomes,
+    split_and_binarize_outcomes,
+)
+from datetime import datetime
 
-from corebehrt.constants.data import PID_COL, ABSPOS_COL
-from corebehrt.functional.cohort_handling.outcomes import get_binary_outcomes
 
-
-class TestGetBinaryOutcomes(unittest.TestCase):
-    def setUp(self):
-        """
-        Prepare test data for get_binary_outcomes:
-        - index_dates: each patient has a known 'abspos' (e.g., index date in hours).
-        - outcomes: multiple rows for some patients, none for others, to test the function thoroughly.
-        """
-        # Example: 5 patients with index positions
-        self.index_dates = pd.DataFrame(
+class TestCreateOutcomesUtils(unittest.TestCase):
+    def test_find_independent(self):
+        df = pd.DataFrame(
             {
-                PID_COL: [1, 2, 3, 4, 5],
-                ABSPOS_COL: [100, 200, 300, 400, 500],  # The 'index' positions in hours
+                "subject_id": [1, 1, 2, 2],
+                "code": ["A", "B", "A", "C"],
             }
         )
+        conditions = [
+            {"col": "code", "vals": ["A"]},
+            {"col": "code", "vals": ["C"]},
+        ]
+        result = find(df, conditions, dependence="independent")
+        self.assertEqual(set(result["subject_id"]), {1, 2})
+        # Should return first row for each subject that matches any condition
+        self.assertIn("A", result["code"].tolist())
 
-        # We'll define outcomes for some patients
-        # p1 has an outcome *before* index and one *after*
-        # p2 has an outcome *exactly at the boundary*, also one far after
-        # p3 => no outcomes
-        # p4 => multiple outcomes, some in-window, some out-of-window
-        # p5 => no outcomes
-        self.outcomes = pd.DataFrame(
+    def test_find_dependent(self):
+        df = pd.DataFrame(
             {
-                PID_COL: [1, 1, 2, 2, 4, 4],
-                ABSPOS_COL: [90, 110, 200, 1000, 390, 405],
+                "subject_id": [1, 1, 2, 2, 3],
+                "code": ["A", "B", "A", "C", "A"],
             }
         )
-        # Explanation:
-        #  p1 => outcomes at abspos=90, 110
-        #  p2 => outcomes at abspos=200 (exactly at index), 1000
-        #  p3 => no outcomes
-        #  p4 => outcomes at 390, 405
-        #  p5 => not in outcomes => means no outcomes
+        conditions = [
+            {"col": "code", "vals": ["A"]},
+            {"col": "code", "vals": ["C"]},
+        ]
+        # Only subject 2 has both A and C
+        result = find(df, conditions, dependence="dependent")
+        self.assertEqual(set(result["subject_id"]), {2})
+        self.assertIn("A", result["code"].tolist())
 
-    # ----------------------------------------------------------------------
-    # 1) Test no end follow-up (n_hours_end_follow_up=None)
-    # ----------------------------------------------------------------------
-    def test_no_end_followup(self):
-        """
-        With n_hours_start_follow_up=0 and no end limit,
-        any outcome at or after the index pos should flag the patient as True.
-        """
-        # p1 => index=100 => outcome=90 (before index, ignore), 110 (after index => True)
-        # p2 => index=200 => outcome=200 (equal to index => included), 1000 => also included
-        # p3 => no outcomes => remain False
-        # p4 => index=400 => outcomes=390 (before index => ignore), 405 (after index => True)
-        # p5 => no outcomes => False
-        result = get_binary_outcomes(
-            index_dates=self.index_dates,
-            outcomes=self.outcomes,
-            n_hours_start_follow_up=0,
-            n_hours_end_follow_up=None,
+    def test_find_dependent2(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 1, 2, 2, 3],
+                "code": ["A", "B", "A", "C", "A"],
+            }
         )
+        conditions = [
+            {"col": "code", "vals": ["C"]},
+            {"col": "code", "vals": ["A"]},
+        ]
+        # Only subject 2 has both A and C
+        result = find(df, conditions, dependence="dependent")
+        self.assertEqual(set(result["subject_id"]), {2})
+        self.assertIn("C", result["code"].tolist())  # NEW PRIORITY!
 
-        # We expect a Series of length 5 (one boolean per patient)
-        self.assertEqual(
-            len(result), 5, "Should have 5 patients in the resulting Series."
-        )
+    def test_find_invalid_dependence(self):
+        df = pd.DataFrame({"subject_id": [1], "code": ["A"]})
+        conditions = [{"col": "code", "vals": ["A"]}]
+        with self.assertRaises(ValueError):
+            find(df, conditions, dependence="invalid")
 
-        # Check individual flags
-        self.assertTrue(result[1], "p1 should be True (has outcome at 110 >= 100).")
-        self.assertTrue(result[2], "p2 should be True (outcome at 200 >= 200).")
-        self.assertFalse(result[3], "p3 has no outcomes => False.")
-        self.assertTrue(result[4], "p4 should be True (outcome at 405 >= 400).")
-        self.assertFalse(result[5], "p5 has no outcomes => False.")
+    def test_set_dates_absolute(self):
+        date_dict = {"year": 2020, "month": 1, "day": 2}
+        result = set_dates("absolute", date=date_dict)
+        self.assertEqual(result, datetime(2020, 1, 2))
 
-    # ----------------------------------------------------------------------
-    # 2) Test with a start and end window
-    # ----------------------------------------------------------------------
-    def test_start_and_end_window(self):
-        """
-        If we define a specific window [start_pos=0, end_pos=50 hours after index],
-        only outcomes within that offset from index are considered.
-        """
-        # For each patient, an outcome must fall in index_abspos + [0..50]
-        # p1 => index=100 => window [100..150] => outcomes=90(no), 110(yes) => True
-        # p2 => index=200 => window [200..250] => outcomes=200(yes), 1000(no) => True
-        # p3 => none => False
-        # p4 => index=400 => window [400..450] => outcomes=390(no), 405(yes) => True
-        # p5 => none => False
-        result = get_binary_outcomes(
-            index_dates=self.index_dates,
-            outcomes=self.outcomes,
-            n_hours_start_follow_up=0,
-            n_hours_end_follow_up=50,
-        )
-
-        # Expect identical booleans to test_no_end_followup except that p2's outcome at 1000 doesn't matter
-        # but p2 is still True from its 200 outcome
-        self.assertTrue(result[1])
-        self.assertTrue(result[2])
-        self.assertFalse(result[3])
-        self.assertTrue(result[4])
-        self.assertFalse(result[5])
-
-    # ----------------------------------------------------------------------
-    # 3) Test a different start_offset
-    # ----------------------------------------------------------------------
-    def test_positive_start_offset(self):
-        """
-        If the follow-up starts AFTER the index date (say 5 hours),
-        an outcome must be at abspos >= index_abspos + 5 to be counted.
-        """
-        # p1 => index=100 => window [105..∞]
-        #       outcomes => 90 < 100 => no, 110 >= 105 => yes => True
-        # p2 => index=200 => outcomes => 200 >=205? no => 1000 >=205 => yes => True
-        # p3 => no outcomes => False
-        # p4 => index=400 => outcomes => 390(no), 405(yes >=405 => yes) => True
-        # p5 => no outcomes => False
-        result = get_binary_outcomes(
-            index_dates=self.index_dates,
-            outcomes=self.outcomes,
-            n_hours_start_follow_up=5,
-            n_hours_end_follow_up=None,
-        )
-
-        # p1 => True, p2 => True, p3 => False, p4 => True, p5 => False
-        self.assertTrue(result[1])
-        self.assertTrue(result[2])
-        self.assertFalse(result[3])
-        self.assertTrue(result[4])
-        self.assertFalse(result[5])
-
-    # ----------------------------------------------------------------------
-    # 4) Test scenario where end_pos excludes borderline outcome
-    # ----------------------------------------------------------------------
-    def test_exclude_borderline_outcome(self):
-        """
-        If end_pos is smaller than the outcome offset, that outcome won't count.
-        Let's choose end_pos=0 => must be exactly at the index (rel_pos=0) to count.
-        """
-        # p1 => index=100 => outcomes=90(rel_pos=-10 => no), 110(rel_pos=10 => no) => no => False
-        # p2 => index=200 => outcomes=200(rel_pos=0 => yes), 1000(rel_pos=800 => no) => True
-        # p3 => no outcomes => False
-        # p4 => index=400 => outcomes=390(rel_pos=-10 => no), 405(rel_pos=5 => no) => False
-        # p5 => no outcomes => False
-        result = get_binary_outcomes(
-            index_dates=self.index_dates,
-            outcomes=self.outcomes,
-            n_hours_start_follow_up=0,
-            n_hours_end_follow_up=0,
-        )
-
-        self.assertFalse(result[1], "p1 has no outcome exactly at index=100.")
-        self.assertTrue(result[2], "p2 has outcome exactly at index=200.")
-        self.assertFalse(result[3])
-        self.assertFalse(result[4])
-        self.assertFalse(result[5])
-
-    # ----------------------------------------------------------------------
-    # 5) Test no outcomes at all
-    # ----------------------------------------------------------------------
-    def test_no_outcomes_data(self):
-        """If outcomes DataFrame is empty, every patient is False."""
-        empty_outcomes = pd.DataFrame(columns=[PID_COL, "abspos"])
-        result = get_binary_outcomes(
-            index_dates=self.index_dates, outcomes=empty_outcomes
-        )
-        self.assertEqual(len(result), 5, "Should still have one entry per patient.")
-        self.assertFalse(result.any(), "All should be False if no outcomes exist.")
-
-    # ----------------------------------------------------------------------
-    # 6) Test with extra patients in outcomes not in index_dates
-    # ----------------------------------------------------------------------
-    def test_extra_patients_in_outcomes(self):
-        """
-        If outcomes contains PIDs not in index_dates,
-        they should be ignored and not appear in the final result.
-        """
-        extra = pd.DataFrame({PID_COL: [6, 7], "abspos": [100, 200]})
-        new_outcomes = pd.concat([self.outcomes, extra], ignore_index=True)
-        # No change expected for p1..p5 results because p6,p7 aren't in index_dates
-        result = get_binary_outcomes(
-            index_dates=self.index_dates, outcomes=new_outcomes
-        )
-        self.assertEqual(len(result), 5, "We only expect p1..p5 in the result.")
-        self.assertIn(1, result.index)
-        self.assertNotIn(6, result.index)
-
-    # ----------------------------------------------------------------------
-    # 7) Test multiple outcomes for same patient
-    # ----------------------------------------------------------------------
-    def test_multiple_outcomes_for_one_patient(self):
-        """
-        If a patient has multiple outcomes, as soon as one falls in range,
-        that patient should be marked True.
-        """
-        # We'll create a scenario for p3 with multiple outcomes, some out-of-window, some in-window
-        # We'll define start=0, end=10
-        new_outcomes = self.outcomes.copy()
-        # Add outcomes for p3 => index=300 => we want to test outcomes at 295, 305, 310
-        # Let's put them in new_outcomes
-        extra_rows = pd.DataFrame({PID_COL: [3, 3, 3], "abspos": [295, 305, 310]})
-        new_outcomes = pd.concat([new_outcomes, extra_rows], ignore_index=True)
-
-        # Now with end=10 => p3 => index=300 => valid window=[300..310]
-        #  295 => rel_pos=-5 => out
-        #  305 => rel_pos=5 => in
-        #  310 => rel_pos=10 => in
-        # => p3 => True
-        result = get_binary_outcomes(
-            index_dates=self.index_dates,
-            outcomes=new_outcomes,
-            n_hours_start_follow_up=0,
-            n_hours_end_follow_up=10,
-        )
+    def test_set_dates_relative(self):
+        base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2)])
+        result = set_dates("relative", outcome_dates=base_dates, hour_shift=24)
         self.assertTrue(
-            result[3],
-            "p3 should be True because it has an outcome at abspos=305 or 310.",
+            (result == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])).all()
         )
 
+    def test_set_dates_invalid(self):
+        with self.assertRaises(ValueError):
+            set_dates("foo")
 
-if __name__ == "__main__":
-    unittest.main()
+
+class TestBinizationOutcomes(unittest.TestCase):
+    def test_binarize_outcomes_basic(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 2],
+                "index_date": pd.to_datetime(["2020-01-01", "2020-01-01"]),
+                "outcome_date": pd.to_datetime(["2020-01-03", "2020-01-01"]),
+                "censor_abspos": [10, 20],
+            }
+        )
+        result = binarize_outcomes(df, n_hours_start_include=24)
+        self.assertEqual(result[1]["label"], 1)
+        self.assertEqual(result[2]["label"], 0)
+
+    def test_binarize_outcomes_with_end(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 2, 3],
+                "index_date": pd.to_datetime(["2020-01-01"] * 3),
+                "outcome_date": pd.to_datetime(
+                    ["2020-01-03", "2020-01-02", "2020-01-05"]
+                ),
+                "censor_abspos": [10, 20, 30],
+            }
+        )
+        # Only subject 2 is between 24 and 72 hours
+        result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
+        self.assertEqual(result[1]["label"], 1)
+        self.assertEqual(result[2]["label"], 1)
+        self.assertEqual(result[3]["label"], 0)
+
+    def test_binarize_outcomes_empty(self):
+        df = pd.DataFrame(
+            columns=["subject_id", "index_date", "outcome_date", "censor_abspos"]
+        )
+        df["index_date"] = pd.to_datetime(df["index_date"])
+        df["outcome_date"] = pd.to_datetime(df["outcome_date"])
+        result = binarize_outcomes(df, n_hours_start_include=24)
+        self.assertEqual(result, {})
+
+    def test_split_and_binarize_outcomes(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 2, 3, 4, 5, 6],
+                "index_date": pd.to_datetime(["2020-01-01"] * 6),
+                "outcome_date": pd.to_datetime(
+                    [
+                        "2020-01-03",
+                        "2020-01-01",
+                        "2020-01-04",
+                        "2020-01-01",
+                        "2020-01-05",
+                        "2020-01-01",
+                    ]
+                ),
+                "censor_abspos": [10, 20, 30, 40, 50, 60],
+                "split": ["train", "train", "val", "val", "test", "test"],
+            }
+        )
+        train, val, test = split_and_binarize_outcomes(
+            df, "train", "val", "test", n_hours_start_include=24
+        )
+        self.assertEqual(set(train.keys()), {1, 2})
+        self.assertEqual(set(val.keys()), {3, 4})
+        self.assertEqual(set(test.keys()), {5, 6})
+        self.assertEqual(train[1]["label"], 1)
+        self.assertEqual(train[2]["label"], 0)
+        self.assertEqual(val[3]["label"], 1)
+        self.assertEqual(val[4]["label"], 0)
+        self.assertEqual(test[5]["label"], 1)
+        self.assertEqual(test[6]["label"], 0)

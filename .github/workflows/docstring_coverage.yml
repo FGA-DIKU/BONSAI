@@ -23,8 +23,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
-          pip install docstr-coverage
+          pip install .[dev]
 
       - name: Run docstring coverage check
         id: extract
