@@ -1,5 +1,5 @@
-import pandas as pd
 from typing import Optional, Dict
+import polars as pl
 
 
 class EHRTokenizer:
@@ -23,13 +23,13 @@ class EHRTokenizer:
         self.cutoffs = cutoffs
         self.sep_tokens = sep_tokens
 
-    def __call__(self, features: pd.DataFrame) -> pd.DataFrame:
+    def __call__(self, features: pl.DataFrame) -> pl.DataFrame:
         """
         !We assume that features are sorted by subject_id and abspos.
         """
         # Apply cutoffs if needed before updating vocabulary
         if self.cutoffs is not None:
-            features["code"] = self.limit_code_length(features["code"])
+            features = features.with_columns(self.limit_code_length(pl.col("code")))
 
         # Update vocabulary if vocabulary is `hot`
         if self.hot_vocab:
@@ -39,11 +39,11 @@ class EHRTokenizer:
             features = self.add_sep_tokens(features)
 
         # Tokenize
-        features["code"] = self.tokenize(features["code"])
+        features = features.with_columns(self.tokenize(pl.col("code")))
 
         return features
 
-    def update_vocabulary(self, codes: pd.Series) -> None:
+    def update_vocabulary(self, codes: pl.Series) -> None:
         """Update self.vocabulary from unique codes"""
         # Get unique codes
         unique_codes = codes.unique()
@@ -55,31 +55,31 @@ class EHRTokenizer:
             new_indices = range(start_idx, start_idx + len(new_codes))
             self.vocabulary.update(dict(zip(new_codes, new_indices)))
 
-    def add_sep_tokens(self, df: pd.DataFrame) -> pd.DataFrame:
+    def add_sep_tokens(self, df: pl.DataFrame) -> pl.DataFrame:
         """Add [SEP] tokens at segment changes within the same subject_id"""
-        pid_series = df["subject_id"]
-        segment_changes = (df["segment"] != df["segment"].shift(-1)) & (
-            pid_series == pid_series.shift(-1)
-        )
-        sep_rows = df[segment_changes].copy()
-        sep_rows["code"] = "[SEP]"
-        df = pd.concat([df, sep_rows], ignore_index=True)
-        df = df.sort_values(["subject_id", "abspos"]).reset_index(drop=True)
+        sep_rows = df.filter(
+            (pl.col("segment") != pl.col("segment").shift(-1))
+            & (pl.col("subject_id") == pl.col("subject_id").shift(-1))
+        ).with_columns(code=pl.lit("[SEP]"))
+        df = pl.concat([df, sep_rows])
+        df = df.sort(["subject_id", "abspos"])
         return df
 
-    def tokenize(self, codes: pd.Series) -> pd.Series:
-        """Tokenizes a series using self.vocabulary, mapping unknown codes to [UNK] token"""
-        return codes.map(self.vocabulary).fillna(self.vocabulary["[UNK]"]).astype(int)
+    def tokenize(self, codes: pl.Expr) -> pl.Expr:
+        """Map self.vocabulary onto codes, mapping unknown codes to [UNK] token"""
+        return codes.replace_strict(self.vocabulary, default=self.vocabulary["[UNK]"])
 
-    def limit_code_length(self, codes: pd.Series) -> pd.Series:
-        """Limit concept lengths using a {prefix: length} self.cutoff dict.
+    def limit_code_length(self, codes: pl.Expr) -> pl.Expr:
+        """Limit code lengths using a {prefix: length} self.cutoff dict.
         Example:
             With cutoffs={'D': 4}, 'D123456' becomes 'D1234'
         """
         for prefix, length in self.cutoffs.items():
-            # Create mask for matching prefix
-            mask = codes.str.startswith(prefix)
-            codes[mask] = codes[mask].str[:length]
+            codes = (
+                pl.when(codes.str.starts_with(prefix))
+                .then(codes.str.slice(0, length))
+                .otherwise(codes)
+            )
 
         return codes
 

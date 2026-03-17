@@ -1,15 +1,13 @@
 import logging
 from pathlib import Path
 from typing import Optional
-import pandas as pd
-import pyarrow as pa
+import polars as pl
 from bonsai.functional.features import create_features
-from bonsai.functional.regex_utils import exclude_codes
 
 
-def drop_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+def drop_duplicates(df: pl.DataFrame) -> pl.DataFrame:
     pre = len(df)
-    df = df.drop_duplicates(subset=["subject_id", "code", "time"])
+    df = df.unique(subset=["subject_id", "code", "time"], maintain_order=True)
     if pre != len(df):
         logging.info(
             f"Dropped {pre - len(df)} duplicate rows based on subject_id, code, and time"
@@ -40,7 +38,10 @@ def process_split(
         logging.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
 
         # Load
-        shard_df = pd.read_parquet(shard)
+        shard_df = pl.read_parquet(shard)
+        shard_df = shard_df.drop(
+            "__index_level_0__"
+        )  # TODO: This is probably a pandas artifact
         data_counts["loaded"] += len(shard_df)
 
         # Drop duplicates
@@ -49,7 +50,7 @@ def process_split(
 
         # Optional: Exclude codes based on regex
         if exclude_regex is not None:
-            shard_df = exclude_codes(shard_df, exclude_regex)
+            shard_df = shard_df.filter(~pl.col("code").str.contains(exclude_regex))
         data_counts["after_exclusion"] += len(shard_df)
 
         # Create features
@@ -59,19 +60,15 @@ def process_split(
         # Tokenize
         tokenized = tokenizer(features)
 
-        tokenized.to_parquet(
-            path_output_dir_split / f"{shard.stem}.parquet",
-            index=False,
-            schema=pa.schema(
-                {
-                    "subject_id": "int64",
-                    "code": "int64",
-                    "age": "float32",
-                    "abspos": "float64",
-                    "segment": "int32",
-                }
-            ),
+        # Cast to correct dtypes
+        tokenized = tokenized.with_columns(
+            pl.col("subject_id").cast(pl.Int64),
+            pl.col("code").cast(pl.Int64),
+            pl.col("age").cast(pl.Float32),
+            pl.col("abspos").cast(pl.Float64),
+            pl.col("segment").cast(pl.Int32),
         )
+        tokenized.write_parquet(path_output_dir_split / f"{shard.stem}.parquet")
 
         ids.extend(tokenized["subject_id"].unique())
 

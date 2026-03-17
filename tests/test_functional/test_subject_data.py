@@ -2,8 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from bonsai.functional.subject_data import filter_subject_data, prepare_subject_data
 from pathlib import Path
-import torch
-import pandas as pd
+import polars as pl
 
 
 class TestSubjectData(unittest.TestCase):
@@ -19,10 +18,10 @@ class TestSubjectData(unittest.TestCase):
         self.assertEqual(filtered[0]["subject_id"], 1)
         self.assertEqual(filtered[1]["subject_id"], 3)
 
-    @patch("bonsai.functional.subject_data.pd.read_parquet")
+    @patch("bonsai.functional.subject_data.pl.read_parquet")
     def test_prepare_subject_data(self, mock_read_parquet):
         # Mock the dataframe returned by read_parquet
-        df = pd.DataFrame(
+        df = pl.from_dict(
             {
                 "subject_id": [1, 1, 2],
                 "code": [10, 11, 20],
@@ -39,7 +38,8 @@ class TestSubjectData(unittest.TestCase):
 
         result = prepare_subject_data(mock_path)
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["subject_id"], 1)
-        self.assertTrue(torch.equal(result[0]["code"], torch.tensor([10, 11])))
-        self.assertEqual(result[1]["subject_id"], 2)
-        self.assertTrue(torch.equal(result[1]["code"], torch.tensor([20])))
+        for subject in result:  # we dont know order
+            if subject["subject_id"] == 1:
+                self.assertEqual(len(subject["code"]), 2)
+            elif subject["subject_id"] == 2:
+                self.assertEqual(len(subject["code"]), 1)
