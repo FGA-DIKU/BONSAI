@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 import torch
-import pandas as pd
+import polars as pl
 
 from bonsai.paths import get_config_path
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
@@ -64,8 +64,8 @@ def main(cfg: DictConfig) -> None:
 
     torch.save(tokenizer.vocabulary, path_output_dir / "vocabulary.pt")
 
-    population = pd.DataFrame({"subject_id": ids})
-    population.to_csv(path_output_dir / "population_full.csv", index=False)
+    population = pl.from_dict({"subject_id": ids})
+    population.write_csv(path_output_dir / "population_full.csv")
 
 
 if __name__ == "__main__":
