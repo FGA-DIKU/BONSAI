@@ -73,12 +73,9 @@ def binarize_outcomes(
     time_delta_datetime = outcomes["outcome_date"] - outcomes["index_date"]
     time_delta_hours = time_delta_datetime.dt.days * 24
 
-    if n_hours_end_include is None:
-        outcomes_in_prediction_window = n_hours_start_include <= time_delta_hours
-    else:
-        outcomes_in_prediction_window = (
-            n_hours_start_include <= time_delta_hours <= n_hours_end_include
-        )
+    outcomes_in_prediction_window = n_hours_start_include <= time_delta_hours
+    if n_hours_end_include is not None:
+        outcomes_in_prediction_window &= time_delta_hours <= n_hours_end_include
 
     outcomes["label"] = outcomes_in_prediction_window.astype(int)
     return (
