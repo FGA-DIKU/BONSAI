@@ -83,7 +83,7 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(
         model=lightning_module,
         datamodule=data_module,
-        ckpt_path="last",
+        ckpt_path=cfg.paths.ckpt_path,
     )
 
 

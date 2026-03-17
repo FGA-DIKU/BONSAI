@@ -38,7 +38,6 @@ class PretrainDataModule(L.LightningDataModule):
 
         self.dataset_class = dataset_class
         self.masking_config = masking_config
-        self.logger = self.set_logger()
 
     def setup(self, stage: str):
         if stage == "fit":
@@ -66,7 +65,7 @@ class PretrainDataModule(L.LightningDataModule):
                 background_length=background_length,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
-                masking_ratio=self.masking_config.masking_ratio,
+                masking_mask_ratio=self.masking_config.masking_mask_ratio,
                 masking_random_ratio=self.masking_config.masking_random_ratio,
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
             )
@@ -77,7 +76,7 @@ class PretrainDataModule(L.LightningDataModule):
                 background_length=background_length,
                 vocabulary=self.vocabulary,
                 masking_select_ratio=self.masking_config.masking_select_ratio,
-                masking_ratio=self.masking_config.masking_ratio,
+                masking_mask_ratio=self.masking_config.masking_mask_ratio,
                 masking_random_ratio=self.masking_config.masking_random_ratio,
                 masking_ignore_special_tokens=self.masking_config.masking_ignore_special_tokens,
             )

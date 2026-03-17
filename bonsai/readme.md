@@ -16,6 +16,10 @@ We use the [example_outcome.yaml](./configs/data_creation/example_outcome1.yaml)
 `python bonsai/run/finetune.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1 pretrain_path=/path/to/your/pretrained/checkpoints/best.ckpt`
 We use the [finetune.yaml](./configs/finetune.yaml) config to have a short resource-light training that can run locally and point it to the dataset created in step 1, the checkpoint created in step 2, and the labels created in step 3.
 
+5. Train model.
+`python bonsai/run/train.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1`
+We use the [finetune.yaml](./configs/finetune.yaml) config to have a short resource-light no-pretraining training that can run locally and point it to the dataset created in step 1 and the labels created in step 3.
+
 To use the old pre-lightning version use:
 ```
 git checkout tags/pre-lightning

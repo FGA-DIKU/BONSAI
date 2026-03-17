@@ -13,7 +13,7 @@ from bonsai.paths import get_config_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
-from bonsai.functional.labels import split_and_binarize_outcomes
+from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
@@ -83,7 +83,7 @@ def main(cfg: DictConfig) -> None:
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
-        monitor="val/loss",
+        monitor=cfg.training.eval_monitor_metric,
         mode="min",
         save_top_k=1,
         filename="best",
@@ -107,7 +107,7 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(
         model=lightning_module,
         datamodule=data_module,
-        ckpt_path="last",
+        ckpt_path=cfg.paths.ckpt_path,
     )
 
 

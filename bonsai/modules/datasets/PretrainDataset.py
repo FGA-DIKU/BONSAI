@@ -46,7 +46,7 @@ class MLMPretrainDataset(PretrainDataset):
         background_length: int,
         vocabulary: Dict[str, int],
         masking_select_ratio: float,
-        masking_ratio: float = 0.8,
+        masking_mask_ratio: float = 0.8,
         masking_random_ratio: float = 0.1,
         masking_ignore_special_tokens: bool = True,
         cutoff_date: Optional[dict] = None,
@@ -55,7 +55,7 @@ class MLMPretrainDataset(PretrainDataset):
         self.vocabulary = vocabulary
 
         self.masking_select_ratio = masking_select_ratio
-        self.masking_ratio = masking_ratio
+        self.masking_mask_ratio = masking_mask_ratio
         self.masking_random_ratio = masking_random_ratio
         self.masking_n_special_tokens = (
             len([token for token in vocabulary if token.startswith("[")])
@@ -86,13 +86,13 @@ class MLMPretrainDataset(PretrainDataset):
 
         # Replace with [MASK]
         indices_mask = (
-            torch.bernoulli(torch.full(target.shape, self.masking_ratio)).bool()
+            torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
             & selected_indices
         )
         codes[indices_mask] = self.vocabulary["[MASK]"]
 
         # Replace with random word and Account for already masked tokens
-        random_ratio = self.masking_random_ratio / (1 - self.masking_ratio)
+        random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
         indicies_random = (
             torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
             & selected_indices
@@ -123,6 +123,7 @@ class ARPretrainDataset(PretrainDataset):
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
         subject["target"] = subject["code"][1:]
+        subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
         return subject

@@ -57,14 +57,13 @@ class PretrainModule(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
-        if logits.numel() > 0:
-            loss = self.val_loss(
-                logits.view(-1, self.model.config.vocab_size), labels.view(-1)
-            )
-            self.log("val/loss", loss, prog_bar=True)
-            self.val_metrics(logits, labels)
-            self.log_dict(self.val_metrics)
-            return loss
+        loss = self.val_loss(
+            logits.view(-1, self.model.config.vocab_size), labels.view(-1)
+        )
+        self.log("val/loss", loss, prog_bar=True)
+        self.val_metrics(logits, labels)
+        self.log_dict(self.val_metrics)
+        return loss
 
     def configure_optimizers(self):
         optimizer = AdamW(
