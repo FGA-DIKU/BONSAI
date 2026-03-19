@@ -35,24 +35,24 @@ jobs:
               run: |
                 cp template_env .env
             
-            - name: finetune 
-              run: |
-                python bonsai/run/finetune.py --config-name test_finetune dataset=correlated_MEDS_data outcome=example_outcome1 pretrain_path=$CKPT_PATH
-
             - name: create_data
               run: |
                 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
 
-            - name: pretrain
-              run: |
-                python bonsai/run/pretrain.py --config-name test_pretrain dataset=correlated_MEDS_data
+            #- name: pretrain
+            #  run: |
+            #    python bonsai/run/pretrain.py --config-name example_pretrain dataset=correlated_MEDS_data
 
             - name: create_outcome
               run: |
                 python bonsai/run/create_outcome.py --config-name example_outcome1 dataset=correlated_MEDS_data
 
+            - name: finetune 
+              run: |
+                python bonsai/run/finetune.py --config-name example_finetune dataset=correlated_MEDS_data outcome=example_outcome1 pretrain_path=$CKPT_PATH
+
             - name: train (no pretrain path)
               run: |
-                python bonsai/run/train.py --config-name test_finetune dataset=correlated_MEDS_data outcome=example_outcome1
+                python bonsai/run/train.py --config-name example_finetune dataset=correlated_MEDS_data outcome=example_outcome1
 
             
