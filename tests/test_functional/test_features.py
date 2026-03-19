@@ -67,10 +67,12 @@ class TestFeatures(unittest.TestCase):
             [
                 pd.Timestamp("2000-01-01T00:00:00"),
                 pd.Timestamp("2000-01-01T01:00:00"),
+                None,
             ]
         )
         abspos = compute_abspos(times)
         self.assertTrue(np.isclose(abspos.iloc[1] - abspos.iloc[0], 1.0, atol=0.01))
+        self.assertTrue(pd.isna(abspos.iloc[2]))
         # Test with datetime input
         dt = pd.Timestamp("2000-01-01T00:00:00")
         abspos_single = compute_abspos(dt)
