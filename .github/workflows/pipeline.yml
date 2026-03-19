@@ -36,7 +36,7 @@ jobs:
 
             - name: pretrain
               run: |
-                python bonsai/run/pretrain.py --config-name pretrain dataset=correlated_MEDS_data
+                python bonsai/run/pretrain.py --config-name test_pretrain dataset=correlated_MEDS_data
 
             - name: create_outcome
               run: |
@@ -44,4 +44,4 @@ jobs:
 
             - name: train (no pretrain path)
               run: |
-                python bonsai/run/train.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1
+                python bonsai/run/train.py --config-name test_finetune dataset=correlated_MEDS_data outcome=example_outcome1

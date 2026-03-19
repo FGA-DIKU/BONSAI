@@ -1,0 +1,13 @@
+defaults: 
+  - core/base_train@
+  - pretrain@
+  - hardware/1gpu6cpu@hardware
+  - _self_
+
+training:
+  batch_size: 2
+  accumulate_grad_batches: 2 #previously called effective batch size
+  epochs: 5
+  limit_val_batches: 10
+  limit_train_batches: 10
+  ckpt_every_n_epoch: 3

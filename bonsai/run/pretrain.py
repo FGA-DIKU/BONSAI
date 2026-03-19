@@ -6,14 +6,16 @@ from omegaconf import DictConfig
 from transformers import ModernBertConfig
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-
 from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
+from hydra.core.plugins import Plugins
+from bonsai.modules.hydra.plugins import TestingSearchpathPlugin
 
 load_dotenv()
+Plugins.instance().register(TestingSearchpathPlugin)
 
 
 @hydra.main(

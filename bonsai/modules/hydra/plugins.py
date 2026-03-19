@@ -9,3 +9,11 @@ class DataCreationSearchpathPlugin(SearchPathPlugin):
             provider="data-generation-searchpath-plugin",
             path="file://" + get_config_path() + "/data_creation",
         )
+
+
+class TestingSearchpathPlugin(SearchPathPlugin):
+    def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
+        search_path.append(
+            provider="testing-searchpath-plugin",
+            path="file://" + get_config_path() + "/tests",
+        )

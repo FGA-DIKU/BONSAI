@@ -18,8 +18,11 @@ from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
+from hydra.core.plugins import Plugins
+from bonsai.modules.hydra.plugins import TestingSearchpathPlugin
 
 load_dotenv()
+Plugins.instance().register(TestingSearchpathPlugin)
 
 
 @hydra.main(
