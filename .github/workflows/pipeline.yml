@@ -10,6 +10,7 @@ permissions:
 
 env:
   BONSAI_CONFIG_PATH: "${{ github.workspace }}/configs"
+  CKPT_PATH: "${{ github.workspace }}/tests/pretrain/training_runs/version_0/best.ckpt"
   HYDRA_FULL_ERROR: 1
 
 jobs:
@@ -33,6 +34,11 @@ jobs:
             - name: copy .env
               run: |
                 cp template_env .env
+            
+            - name: finetune 
+              run: |
+                python bonsai/run/finetune.py --config-name test_finetune dataset=correlated_MEDS_data outcome=example_outcome1 pretrain_path=$CKPT_PATH
+
             - name: create_data
               run: |
                 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
@@ -48,3 +54,5 @@ jobs:
             - name: train (no pretrain path)
               run: |
                 python bonsai/run/train.py --config-name test_finetune dataset=correlated_MEDS_data outcome=example_outcome1
+
+            
