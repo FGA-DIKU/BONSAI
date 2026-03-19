@@ -1,4 +1,3 @@
-import bonsai
 import os
 
 
