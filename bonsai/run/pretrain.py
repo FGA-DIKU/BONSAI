@@ -11,11 +11,8 @@ from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from hydra.core.plugins import Plugins
-from bonsai.modules.hydra.plugins import ExampleSearchpathPlugin
 
 load_dotenv()
-# Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(

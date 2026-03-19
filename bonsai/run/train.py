@@ -17,11 +17,9 @@ from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
-from hydra.core.plugins import Plugins
-from bonsai.modules.hydra.plugins import ExampleSearchpathPlugin
+
 
 load_dotenv()
-# Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(

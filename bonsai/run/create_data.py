@@ -14,12 +14,10 @@ from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 from bonsai.functional.subject_data import prepare_subject_data
 from bonsai.modules.hydra.plugins import (
     DataCreationSearchpathPlugin,
-    ExampleSearchpathPlugin,
 )
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
-# Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(
