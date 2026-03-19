@@ -10,6 +10,7 @@ permissions:
 
 env:
   BONSAI_CONFIG_PATH: "${{ github.workspace }}/configs"
+  HYDRA_FULL_ERROR: 1
 
 jobs:
     pipeline_tests:
@@ -29,17 +30,9 @@ jobs:
               run: |
                 pip install .[dev]
 
-            - name: Set working directory
-              run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-              working-directory: ${{ github.workspace }}
-          
-            - name: test
-              run: |
-                echo $ls
-
             - name: create_data
               run: |
-                HYDRA_FULL_ERROR=1 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
+                python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
 
             - name: pretrain
               run: |

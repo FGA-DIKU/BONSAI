@@ -1,21 +1,11 @@
+# Python / OS 
 **/__pycache__/
-outputs/
-corebehrt.egg-info/
-.venv
-.azure
-azure_job_config.yaml
-.azure_job_configs
-.amlignore
-**.amltmp
-corebehrt/sandbox
-/profiling
-/tmp
-corebehrt/main/create_data_profiling.py
-**tmp**
-linux_install/
 .DS_Store
 *.egg-info/
+
+# BONSAI Specific things
 *checkpoints/
 *logs/
 *data/
 /configs/custom/**
+*.env*
