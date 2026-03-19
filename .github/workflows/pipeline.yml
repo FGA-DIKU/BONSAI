@@ -39,13 +39,13 @@ jobs:
               run: |
                 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
 
-            #- name: pretrain
-            #  run: |
-            #    python bonsai/run/pretrain.py --config-name example_pretrain dataset=correlated_MEDS_data
-
             - name: create_outcome
               run: |
                 python bonsai/run/create_outcome.py --config-name example_outcome1 dataset=correlated_MEDS_data
+
+            - name: pretrain
+              run: |
+                python bonsai/run/pretrain.py --config-name example_pretrain dataset=correlated_MEDS_data
 
             - name: finetune 
               run: |
