@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - core/base_create@
+  - ../core/base_create@
   - _self_
 
 dataset: correlated_MEDS_data
