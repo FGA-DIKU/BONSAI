@@ -30,6 +30,9 @@ jobs:
               run: |
                 pip install .[dev]
 
+            - name: copy .env
+              run: |
+                cp template_env .env
             - name: create_data
               run: |
                 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
