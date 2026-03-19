@@ -9,7 +9,7 @@ permissions:
   pull-requests: read
 
 env:
-  BONSAI_CONFIG_PATH: "./configs"
+  BONSAI_CONFIG_PATH: "${{ github.workspace }}/configs"
 
 jobs:
     pipeline_tests:
@@ -23,6 +23,7 @@ jobs:
               with:
                 python-version: '3.12'
                 cache: 'pip' 
+                cache-dependency-path: 'pyproject.toml'
 
             - name: Install Dependencies
               run: |
@@ -35,7 +36,7 @@ jobs:
             - name: test
               run: |
                 echo $ls
-                
+
             - name: create_data
               run: |
                 HYDRA_FULL_ERROR=1 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
