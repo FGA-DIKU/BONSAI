@@ -18,3 +18,4 @@ linux_install/
 *checkpoints/
 *logs/
 *data/
+/configs/custom/**
