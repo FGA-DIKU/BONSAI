@@ -11,9 +11,9 @@ class DataCreationSearchpathPlugin(SearchPathPlugin):
         )
 
 
-class TestingSearchpathPlugin(SearchPathPlugin):
+class ExampleSearchpathPlugin(SearchPathPlugin):
     def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
         search_path.append(
-            provider="testing-searchpath-plugin",
-            path="file://" + get_config_path() + "/tests",
+            provider="example-searchpath-plugin",
+            path="file://" + get_config_path() + "/examples",
         )

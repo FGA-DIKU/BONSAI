@@ -7,15 +7,19 @@ import torch
 import pandas as pd
 
 from bonsai.paths import get_config_path
-from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 from hydra.core.plugins import Plugins
 
 from bonsai.functional.create_data import process_split
 from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 from bonsai.functional.subject_data import prepare_subject_data
+from bonsai.modules.hydra.plugins import (
+    DataCreationSearchpathPlugin,
+    ExampleSearchpathPlugin,
+)
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
+Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(

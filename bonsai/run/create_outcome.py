@@ -8,10 +8,14 @@ from omegaconf import DictConfig
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
 from bonsai.functional.outcomes import find, set_dates
-from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
+from bonsai.modules.hydra.plugins import (
+    DataCreationSearchpathPlugin,
+    ExampleSearchpathPlugin,
+)
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
+Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(
