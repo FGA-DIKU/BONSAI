@@ -23,15 +23,19 @@ jobs:
               with:
                 python-version: '3.12'
                 cache: 'pip' 
-                
+
             - name: Install Dependencies
               run: |
                 pip install .[dev]
 
-            #- name: Set working directory
-            #  run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-            #  working-directory: ${{ github.workspace }}
+            - name: Set working directory
+              run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+              working-directory: ${{ github.workspace }}
           
+            - name: test
+              run: |
+                echo $ls
+                
             - name: create_data
               run: |
                 HYDRA_FULL_ERROR=1 python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
