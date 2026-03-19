@@ -15,7 +15,7 @@ from hydra.core.plugins import Plugins
 from bonsai.modules.hydra.plugins import ExampleSearchpathPlugin
 
 load_dotenv()
-Plugins.instance().register(ExampleSearchpathPlugin)
+# Plugins.instance().register(ExampleSearchpathPlugin)
 
 
 @hydra.main(

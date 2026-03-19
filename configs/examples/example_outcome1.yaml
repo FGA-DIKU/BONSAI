@@ -1,3 +1,4 @@
+# @package _global_
 defaults:
   - core/base_create@
   - _self_
