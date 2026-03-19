@@ -88,7 +88,7 @@ def compute_abspos(
     # Cast to microsecond precision
     timestamps = timestamps.astype("datetime64[us]")
     # Convert microseconds to hours
-    nan_mask = ~timestamps.isna()
+    nan_mask = timestamps.isna()
     hours = (timestamps.astype("int64") // 10**6) / 3600
     hours[nan_mask] = None
     return hours
