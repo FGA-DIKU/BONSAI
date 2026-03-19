@@ -19,9 +19,9 @@ jobs:
               run: |
                 pip install .[dev]
 
-            - name: Set working directory
-              run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-              working-directory: ${{ github.workspace }}
+            #- name: Set working directory
+            #  run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+            #  working-directory: ${{ github.workspace }}
 
             - name: create_data
               run: |
