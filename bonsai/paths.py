@@ -2,9 +2,13 @@ import bonsai
 import os
 
 
+# def get_config_path():
+#    base_path = bonsai.__path__[0]
+#    return base_path.replace("bonsai", "configs")
+
+
 def get_config_path():
-    base_path = bonsai.__path__[0]
-    return os.path.join(base_path, "configs")
+    return os.getenv("BONSAI_CONFIG_PATH")
 
 
 def get_data_path():
