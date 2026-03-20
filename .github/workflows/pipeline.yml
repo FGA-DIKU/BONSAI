@@ -49,10 +49,10 @@ jobs:
 
             - name: finetune 
               run: |
-                python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=example_outcome1 pretrain_path=$CKPT_PATH
+                python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=$CKPT_PATH
 
             - name: train (no pretrain path)
               run: |
-                python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=example_outcome1
+                python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1
 
             
