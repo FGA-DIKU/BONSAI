@@ -29,12 +29,14 @@ outcome:
         vals: [ DE11 ]
 
   index:
-    type: absolute # or relative
-    date:
+    type: absolute # or relative or exposure
+    date: # absolute
       year: 2020
       month: 1
       day: 1
+    # hour_shift: 0 # relative
+    dependence: # exposure
+    conditions: # exposure
 
-  censor:
-    type: relative # or absolute
-    hour_shift: -1000
+  censor: # ALWAYS RELATIVE TO INDEX
+    hour_shift: -1000 # 0 sets index=censor

@@ -29,13 +29,11 @@ def main(cfg: DictConfig) -> None:
     index = cfg.outcome.index
     censor = cfg.outcome.censor
 
-    logging.info(
-        f"Starting create_outcome for `{save_path.stem}` \n"
-        f"Excluding with {exclude} \n"
-        f"Matching with {match} \n"
-        f"Index date assigned with {index} \n"
-        f"Censor date assigned with {censor}"
-    )
+    logging.info(f"Starting create_outcome for `{save_path.stem}`")
+    logging.info(f"Excluding with {exclude}")
+    logging.info(f"Matching with {match}")
+    logging.info(f"Index date assigned with {index}")
+    logging.info(f"Censor date assigned with {censor}")
 
     all_outcomes = pd.DataFrame()
     for split in cfg.splits:
@@ -64,22 +62,27 @@ def main(cfg: DictConfig) -> None:
             )
 
             outcomes["index_date"] = set_dates(
-                date_type=index.type,  # Absolute/relative
-                outcome_dates=outcomes["outcome_date"],  # Required for relative
+                date_type=index.type,  # Absolute/relative/exposure
+                dates=outcomes["outcome_date"],  # Required for relative
                 hour_shift=index.get("hour_shift"),  # Required for relative
                 date=index.get("date"),  # Required for absolute
+                subjects=outcomes[["subject_id"]],  # Required for exposure
+                df=df,  # Required for exposure
+                conditions=index.conditions,  # Required for exposure
+                dependence=index.dependence,  # Required for exposure
             )
 
             outcomes["censor_date"] = set_dates(
-                date_type=censor.type,  # Absolute/relative
-                outcome_dates=outcomes["outcome_date"],  # Required for relative
-                hour_shift=censor.get("hour_shift"),  # Required for relative
-                date=censor.get("date"),  # Required for absolute
+                date_type="relative",  # Only relative censoring
+                dates=outcomes["index_date"],  # Censoring is based on index_date
+                hour_shift=censor["hour_shift"],  # 0 sets index_date=censor_date
             )
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
-
+    logging.info(
+        f"Total number of subjects: {len(all_outcomes):_} ({(~all_outcomes['outcome_date'].isna()).sum():_} positives)"
+    )
     logging.info(f"Saving to {save_path}")
     all_outcomes.to_parquet(save_path)
 

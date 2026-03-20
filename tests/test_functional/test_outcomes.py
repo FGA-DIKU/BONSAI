@@ -70,11 +70,50 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         self.assertEqual(result, datetime(2020, 1, 2))
 
     def test_set_dates_relative(self):
-        base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2)])
-        result = set_dates("relative", outcome_dates=base_dates, hour_shift=24)
+        base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2), None])
+        result = set_dates("relative", dates=base_dates, hour_shift=24)
         self.assertTrue(
-            (result == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])).all()
+            (
+                result.iloc[:2]
+                == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])
+            ).all()
         )
+        self.assertFalse(pd.isna(result.iloc[2]))
+        self.assertFalse(result.isna().any())
+
+    def test_set_dates_exposure(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 1, 2, 2, 3],
+                "code": ["A", "B", "A", "C", "D"],
+                "time": [datetime(2020 + i, 1, 1) for i in range(5)],
+            }
+        )
+        conditions = [
+            {"col": "code", "vals": ["A"]},
+            {"col": "code", "vals": ["C"]},
+        ]
+        # Only subject 1 and 2 has A or C
+        outcomes = find(df, conditions, dependence="independent")
+        outcomes = (
+            df[["subject_id"]]
+            .drop_duplicates()
+            .merge(outcomes, on="subject_id", how="left")
+        )
+        outcomes = outcomes.drop(columns="code").rename(
+            columns={"time": "outcome_date"}
+        )
+
+        result = set_dates(
+            "exposure",
+            subjects=outcomes[["subject_id"]],
+            df=df,
+            conditions=conditions,
+            dependence="independent",
+        )
+        self.assertFalse(result.isna().any())
+        self.assertEqual(result.iloc[0], datetime(2020, 1, 1))
+        self.assertEqual(result.iloc[1], datetime(2022, 1, 1))
 
     def test_set_dates_invalid(self):
         with self.assertRaises(ValueError):

@@ -47,22 +47,45 @@ def find(
 
 
 def set_dates(
-    date_type: Literal["relative", "absolute"],
-    outcome_dates: Optional[pd.Series] = None,
+    date_type: Literal["relative", "absolute", "exposure"],
+    dates: Optional[pd.Series] = None,
     hour_shift: Optional[int] = None,
     date: Optional[Dict[str, int]] = None,
+    subjects: Optional[pd.DataFrame] = None,
+    df: Optional[pd.DataFrame] = None,
+    dependence: Optional[Literal["independent", "dependent"]] = None,
+    conditions: Optional[list] = None,
 ):
     if date_type == "absolute":
         assert date is not None
         return datetime(**date)
     elif date_type == "relative":
-        assert outcome_dates is not None
+        assert dates is not None
         assert hour_shift is not None
-        return outcome_dates + pd.Timedelta(hours=hour_shift)
+        dates = dates + pd.Timedelta(hours=hour_shift)
+    elif date_type == "exposure":
+        assert subjects is not None
+        assert df is not None
+        assert dependence is not None
+        assert conditions is not None
+        result = find(df, conditions=conditions, dependence=dependence)
+        dates = subjects.merge(
+            result[["subject_id", "time"]], on="subject_id", how="left"
+        )["time"]
     else:
         raise ValueError(
-            f"Date_type only allowed to be [relative, absolute], not {date_type}"
+            f"Date_type only allowed to be [relative, absolute, exposure], not {date_type}"
         )
+
+    if dates.isna().any():
+        # Randomly sample from non-null
+        samples = dates.dropna().sample(
+            n=dates.isna().sum(), replace=True
+        )  # TODO: Add seed?
+        dates = dates.fillna(
+            value=pd.Series(samples.values, index=dates[dates.isna()].index)
+        )
+    return dates
 
 
 def binarize_outcomes(
