@@ -34,7 +34,7 @@ jobs:
             - name: copy .env
               run: |
                 cp template_env .env
-            
+
             - name: create_data
               run: |
                 python bonsai/run/create_data.py --config-name examples/example_data dataset=correlated_MEDS_data
@@ -55,4 +55,3 @@ jobs:
               run: |
                 python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1
 
-            

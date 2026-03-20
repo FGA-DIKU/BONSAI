@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from transformers import ModernBertConfig
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+
 from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule

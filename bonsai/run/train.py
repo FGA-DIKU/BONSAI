@@ -18,7 +18,6 @@ from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
 
-
 load_dotenv()
 
 
