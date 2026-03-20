@@ -1,0 +1,66 @@
+pad_token_id: 0
+bos_token_id: 50281
+eos_token_id: 50282
+cls_token_id: 1
+sep_token_id: 2
+tie_word_embeddings: true
+vocab_size: 2027
+max_position_embeddings: 512
+hidden_size: 96
+intermediate_size: 64
+num_hidden_layers: 3
+num_attention_heads: 3
+initializer_range: 0.02
+initializer_cutoff_factor: 2.0
+norm_eps: 1.0e-05
+norm_bias: false
+attention_bias: false
+attention_dropout: 0.0
+hidden_activation: gelu
+local_attention: 128
+embedding_dropout: 0.1
+mlp_bias: false
+mlp_dropout: 0.0
+decoder_bias: true
+classifier_pooling: cls
+classifier_dropout: 0.0
+classifier_bias: false
+classifier_activation: gelu
+deterministic_flash_attn: false
+sparse_prediction: true
+sparse_pred_ignore_index: -100
+layer_types:
+- full_attention
+- sliding_attention
+- sliding_attention
+global_attn_every_n_layers: 3
+rope_parameters:
+  sliding_attention:
+    rope_type: default
+    rope_theta: 10000.0
+  full_attention:
+    rope_type: default
+    rope_theta: 160000.0
+return_dict: true
+output_hidden_states: false
+dtype: null
+chunk_size_feed_forward: 0
+is_encoder_decoder: false
+architectures: null
+id2label:
+  0: LABEL_0
+  1: LABEL_1
+label2id:
+  LABEL_0: 0
+  LABEL_1: 1
+problem_type: null
+_name_or_path: ''
+transformers_version: 5.2.0
+type_vocab_size: 1024
+age_scale: 0.01
+abspos_scale: 1.0e-05
+age_shift: -50
+abspos_shift: -90000
+is_causal: false
+model_type: modernbert
+output_attentions: false

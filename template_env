@@ -1,3 +1,6 @@
+# COPY THIS FILE TO .env and adapt the paths as needed
+
+BONSAI_CONFIG_PATH=${PWD}/configs
 BONSAI_MODELS=${PWD}/data/models
 BONSAI_PROCESSED_DATA=${PWD}/data/processed_data
 BONSAI_PREDICTIONS=${PWD}/data/predictions

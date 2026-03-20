@@ -11,141 +11,42 @@
 
 BONSAI helps researchers and data scientists preprocess EHR data, train models, and generate outcomes for downstream clinical predictions and analyses.
 
----
+### Setup (requires Python 3.12)
 
-## Table of Contents
-
-- [BONSAI](#corebehrt)
-  - [Table of Contents](#table-of-contents)
-  - [Key Features](#key-features)
-  - [Directory Overview](#directory-overview)
-  - [Getting Started](#getting-started)
-    - [Virtual Environment Setup](#virtual-environment-setup)
-  - [Pipeline](#pipeline)
-    - [Converting to MEDS](#converting-to-meds)
-    - [1. Create Data](#1-create-data)
-    - [2. Pretrain](#2-pretrain)
-    - [3. Create Outcomes](#3-create-outcomes)
-    - [3.1 Create Cohort](#31-create-cohort)
-    - [4. Finetune](#4-finetune)
-  - [Azure Integration](#azure-integration)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [Citation](#citation)
-
----
-
-## Key Features
-
-- **End-to-end EHR Pipeline**: Tools for data ingestion, cleaning, and feature extraction.
-- **BERT-based Modeling**: Pretraining on massive EHR corpora followed by task-specific finetuning.
-- **Cohort Management**: Flexible inclusion/exclusion logic, temporal alignment, outcome definition.
-- **Scalable**: Designed to run both locally or on cloud infrastructure (Azure).
-- **Built-in Validation**: Cross-validation and out-of-time evaluation strategies.
-
----
-
-## Directory Overview
-
-Below is a high-level overview of the most important directories:
-
-- **main**: Primary pipeline scripts (create_data, pretrain, finetune, etc.)
-- **modules**: Core implementation of model architecture and data processing ([detailed overview](corebehrt/modules/overview.md))
-- **configs**: YAML configuration files for each pipeline stage
-- **functional**: Pure utility functions supporting module operations ([detailed overview](corebehrt/functional/overview.md))
-- **azure**: Cloud deployment and execution utilities ([azure instructions](corebehrt/azure/README.md))
-
-## Getting Started
-
-### Virtual Environment Setup
-
-For running tests and pipelines, create and activate a virtual environment, then install the required dependencies:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-(.venv) pip install -r requirements.txt
+```
+git clone https://github.com/FGA-DIKU/BONSAI.git
+pip install -e .
+cp template_env .env
 ```
 
-## Pipeline
+You can adapt the paths in .env to specify alternative directories containing custom configs, input data or where model checkpoint should be saved.
 
-![BONSAI Overview](docs/COREBEHRT_overview_dark.jpg)
+### Basic usage:
 
-Below is a high-level description of the steps in the BONSAI pipeline. For detailed configuration options, see the [main README](corebehrt/main/README.md).
-The pipeline can be run from the root directory by executing the following commands:
+1. Create data.
+`python bonsai/run/create_data.py --config-name examples/example_data dataset=correlated_MEDS_data`
+We use the [example_data.yaml](./configs/examples/example_data.yaml) config which transforms the correlated_MEDS_data in the example_data folder into the training format. This data will be saved in `data/correlated_MEDS_data`
 
-```bash
-(.venv) python -m corebehrt.main.create_data
-(.venv) python -m corebehrt.main.prepare_training_data --config_path corebehrt/configs/prepare_pretrain.yaml
-(.venv) python -m corebehrt.main.pretrain
-(.venv) python -m corebehrt.main.create_outcomes
-(.venv) python -m corebehrt.main.select_cohort
-(.venv) python -m corebehrt.main.prepare_training_data --config_path corebehrt/configs/prepare_finetune.yaml
-(.venv) python -m corebehrt.main.finetune_cv
-(.venv) python -m corebehrt.main.select_cohort --config_path corebehrt/configs/select_cohort_held_out.yaml
-(.venv) python -m corebehrt.main.prepare_training_data --config_path corebehrt/configs/prepare_held_out.yaml
-(.venv) python -m corebehrt.main.evaluate_finetune --config_path corebehrt/configs/evaluate_finetune.yaml
+2. Pretrain model. 
+`python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data`
+We use the [pretrain.yaml](./configs/examples/example_pretrain.yaml) config to have a short resource-light training that can run locally and point it to the dataset created in step 1.
+
+3. Create outcomes (labels for finetuning)
+`python bonsai/run/create_outcome.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data`
+We use the [example_outcome.yaml](./configs/examples/example_outcome1.yaml) config which processes the target outcomes for the correlated_MEDS_data in the example_data folder and saves them in an outcome file in `data/correlated_MEDS_data/outcomes/examples/example_outcome1.parquet`
+
+4. Finetune model.
+`python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=/path/to/your/pretrained/checkpoints/best.ckpt`
+We use the [finetune.yaml](./configs/examples/example_finetune.yaml) config to have a short resource-light training that can run locally and point it to the dataset created in step 1, the checkpoint created in step 2, and the labels created in step 3.
+
+5. Train model.
+`python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1`
+We use the [finetune.yaml](./configs/examples/example_finetune.yaml) config to have a short resource-light no-pretraining training that can run locally and point it to the dataset created in step 1 and the labels created in step 3.
+
+To use the old pre-lightning version use:
 ```
-
-### Converting to MEDS
-
-Before using BONSAI, you need to convert your raw healthcare data into the [MEDS (Medical-Event-Data-Standard) format](https://github.com/Medical-Event-Data-Standard/meds) format. We provide a companion tool [ehr2meds](https://github.com/FGA-DIKU/ehr2meds) to help with this conversion:
-
-- Converts source data (e.g., hospital EHR dumps, registry data) into MEDS
-- Performs code normalization and standardization
-- Provides configuration options for handling different data sources
-- Includes validation to ensure data quality
-
-### 1. Create Data
-
-- **Goal**: Convert **MEDS** into **tokenized features** suitable for model training.
-- **Key Tasks**:
-  - **Vocabulary Mapping**: Translates raw medical concepts (e.g., diagnoses, procedures) into numerical tokens.
-  - **Temporal Alignment**: Converts timestamps into relative positions (e.g., hours or days from an index date).
-  - **Incorporate Background Variables**: Incorporates static features such as age, gender, or other demographics.
-- **Efficient Output**: Produces a structured parquet format that can be rapidly loaded in subsequent steps.
-
-### 2. Pretrain
-
-- **Goal**: Train a ModernBERT model via masked language modeling.
-- **Key Tasks**:
-  - Large scale self-supervised training on EHR sequences
-  - Embedding temporal relationships between medical events
-  - Saves checkpoints for downstream finetuning
-
-### 3. Create Outcomes
-
-- **Goal**: Generate outcomes from the formatted data for supervised learning.
-- **Key Tasks**:
-  - Search for specific concepts (medications, diagnoses, procedures) in the data
-  - Optionally create exposure definitions for more complex study designs
-
-### 3.1 Create Cohort
-
-- **Goal**: Define the study population
-- **Key Tasks**:
-
-  - Apply inclusion/exclusion criteria (e.g. age, prior outcomes)
-  - Generate index dates for each patient
-  - Produce folds and test set for cross-validation
-
-### 4. Finetune
-
-- **Goal**: Adapt the pretrained model for specific binary outcomes
-- **Key Tasks**:
-  - K-fold cross-validation
-  - Includes early stopping and evaluation on test set
-
-For a detailed overview of the pipeline, see the [main README](corebehrt/main/README.md).
-
-## Azure Integration
-
-For running BONSAI on Azure cloud infrastructure using SDK v2, refer to the [Azure guide](corebehrt/azure/README.md). This includes:
-
-- Configuration setup for Azure
-- Data store management
-- Job execution in the cloud
-- Environment preparation
+git checkout tags/pre-lightning
+```
 
 ## Contributing
 

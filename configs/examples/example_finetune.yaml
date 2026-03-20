@@ -1,0 +1,15 @@
+# @package _global_
+defaults: 
+  - ../finetune@
+  - ../hardware/cpu@hardware
+  - _self_
+
+training:
+  batch_size: 2
+  accumulate_grad_batches: 2
+  epochs: 5
+  ckpt_every_n_epoch: 3
+  limit_val_batches: 10
+  limit_train_batches: 10
+  eval_monitor_metric: val/loss
+ 

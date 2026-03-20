@@ -8,6 +8,11 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  BONSAI_CONFIG_PATH: "${{ github.workspace }}/configs"
+  CKPT_PATH: "${{ github.workspace }}/tests/pretrain/training_runs/version_0/best.ckpt"
+  HYDRA_FULL_ERROR: 1
+
 jobs:
     pipeline_tests:
         runs-on: "ubuntu-latest"
@@ -15,26 +20,38 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: '3.12'
+                cache: 'pip' 
+                cache-dependency-path: 'pyproject.toml'
+
             - name: Install Dependencies
               run: |
                 pip install .[dev]
 
-            - name: Set working directory
-              run: echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-              working-directory: ${{ github.workspace }}
+            - name: copy .env
+              run: |
+                cp template_env .env
 
             - name: create_data
               run: |
-                python bonsai/run/create_data.py --config-name example_data dataset=correlated_MEDS_data
-
-            - name: pretrain
-              run: |
-                python bonsai/run/pretrain.py --config-name pretrain dataset=correlated_MEDS_data
+                python bonsai/run/create_data.py --config-name examples/example_data dataset=correlated_MEDS_data
 
             - name: create_outcome
               run: |
-                python bonsai/run/create_outcome.py --config-name example_outcome1 dataset=correlated_MEDS_data
+                python bonsai/run/create_outcome.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
+
+            - name: pretrain
+              run: |
+                python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data
+
+            - name: finetune 
+              run: |
+                python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=$CKPT_PATH
 
             - name: train (no pretrain path)
               run: |
-                python bonsai/run/train.py --config-name finetune dataset=correlated_MEDS_data outcome=example_outcome1
+                python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1
+
