@@ -1,4 +1,3 @@
-import logging
 from typing import List, Literal, Optional, Dict, Tuple
 from datetime import datetime
 import pandas as pd
@@ -63,33 +62,20 @@ def set_dates(
     elif date_type == "relative":
         assert dates is not None
         assert hour_shift is not None
-        dates = dates + pd.Timedelta(hours=hour_shift)
+        return dates + pd.Timedelta(hours=hour_shift)
     elif date_type == "exposure":
         assert subjects is not None
         assert df is not None
         assert dependence is not None
         assert conditions is not None
         result = find(df, conditions=conditions, dependence=dependence)
-        dates = subjects.merge(
+        return subjects.merge(
             result[["subject_id", "time"]], on="subject_id", how="left"
         )["time"]
     else:
         raise ValueError(
             f"Date_type only allowed to be [relative, absolute, exposure], not {date_type}"
         )
-
-    if dates.isna().any():
-        logging.info(
-            f"Found {dates.isna().sum()} NaN dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
-        )
-        # Randomly sample from non-null
-        samples = dates.dropna().sample(
-            n=dates.isna().sum(), replace=True
-        )  # TODO: Add seed?
-        dates = dates.fillna(
-            value=pd.Series(samples.values, index=dates[dates.isna()].index)
-        )
-    return dates
 
 
 def binarize_outcomes(

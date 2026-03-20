@@ -78,8 +78,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
                 == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])
             ).all()
         )
-        self.assertFalse(pd.isna(result.iloc[2]))
-        self.assertFalse(result.isna().any())
+        self.assertTrue(pd.isna(result.iloc[2]))
 
     def test_set_dates_exposure(self):
         df = pd.DataFrame(
@@ -111,9 +110,9 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             conditions=conditions,
             dependence="independent",
         )
-        self.assertFalse(result.isna().any())
         self.assertEqual(result.iloc[0], datetime(2020, 1, 1))
         self.assertEqual(result.iloc[1], datetime(2022, 1, 1))
+        self.assertTrue(pd.isna(result.iloc[2]))
 
     def test_set_dates_invalid(self):
         with self.assertRaises(ValueError):

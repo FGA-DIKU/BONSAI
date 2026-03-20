@@ -63,7 +63,6 @@ def main(cfg: DictConfig) -> None:
                 columns={"time": "outcome_date"}
             )
 
-            logging.info(f"Assigning {index.type} index_dates")
             outcomes["index_date"] = set_dates(
                 date_type=index.type,  # Absolute/relative/exposure
                 dates=outcomes["outcome_date"],  # Required for relative
@@ -71,18 +70,34 @@ def main(cfg: DictConfig) -> None:
                 date=index.get("date"),  # Required for absolute
                 subjects=outcomes[["subject_id"]],  # Required for exposure
                 df=df,  # Required for exposure
-                conditions=index.conditions,  # Required for exposure
-                dependence=index.dependence,  # Required for exposure
-            )
-
-            outcomes["censor_date"] = set_dates(
-                date_type="relative",  # Only relative censoring
-                dates=outcomes["index_date"],  # Censoring is based on index_date
-                hour_shift=censor["hour_shift"],  # 0 sets index_date=censor_date
+                conditions=index.get("conditions"),  # Required for exposure
+                dependence=index.get("dependence"),  # Required for exposure
             )
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
+    all_outcomes = all_outcomes.reset_index(drop=True)
+
+    if (dates := all_outcomes["index_date"]).isna().any():
+        logging.warning(
+            f"Found {dates.isna().sum()} NaN index dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
+        )
+        if (~dates.isna()).sum() == 0:
+            raise ValueError(f"No non-NaN indexing dates found using {index}")
+        # Randomly sample from non-null
+        samples = dates.dropna().sample(
+            n=dates.isna().sum(), replace=True
+        )  # TODO: Add seed?
+        all_outcomes["index_date"] = dates.fillna(
+            value=pd.Series(samples.values, index=dates[dates.isna()].index)
+        )
+
+    all_outcomes["censor_date"] = set_dates(
+        date_type="relative",  # Only relative censoring
+        dates=all_outcomes["index_date"],  # Censoring is based on index_date
+        hour_shift=censor["hour_shift"],  # 0 sets index_date=censor_date
+    )
+
     logging.info(
         f"Total number of subjects: {len(all_outcomes):_} ({(~all_outcomes['outcome_date'].isna()).sum():_} positives)"
     )

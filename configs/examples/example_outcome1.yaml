@@ -34,7 +34,7 @@ outcome:
       year: 2020
       month: 1
       day: 1
-    # hour_shift: 0 # relative
+    hour_shift: # relative
     dependence: # exposure
     conditions: # exposure
 
