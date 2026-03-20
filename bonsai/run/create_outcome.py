@@ -46,10 +46,12 @@ def main(cfg: DictConfig) -> None:
             # Find rows matching exclude.conditions and exclude them
             if exclude is not None:
                 exclude_df = find(df, exclude.conditions, exclude.dependence)
+                logging.info(f"Excluding {len(exclude_df)} subjects")
                 df = df[~df["subject_id"].isin(exclude_df["subject_id"])]
 
             # Find the outcomes matching match.conditions
             outcomes = find(df, match.conditions, match.dependence)
+            logging.info(f"Matched {len(outcomes)} subjects")
             outcomes = (
                 df[["subject_id"]]
                 .drop_duplicates()
@@ -61,6 +63,7 @@ def main(cfg: DictConfig) -> None:
                 columns={"time": "outcome_date"}
             )
 
+            logging.info(f"Assigning {index.type} index_dates")
             outcomes["index_date"] = set_dates(
                 date_type=index.type,  # Absolute/relative/exposure
                 dates=outcomes["outcome_date"],  # Required for relative

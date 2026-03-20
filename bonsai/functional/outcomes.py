@@ -1,3 +1,4 @@
+import logging
 from typing import List, Literal, Optional, Dict, Tuple
 from datetime import datetime
 import pandas as pd
@@ -78,6 +79,9 @@ def set_dates(
         )
 
     if dates.isna().any():
+        logging.info(
+            f"Found {dates.isna().sum()} NaN dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
+        )
         # Randomly sample from non-null
         samples = dates.dropna().sample(
             n=dates.isna().sum(), replace=True

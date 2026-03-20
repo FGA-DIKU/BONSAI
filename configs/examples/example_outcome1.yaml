@@ -16,20 +16,20 @@ splits:
 
 outcome:
   exclude: # OPTIONAL
-    dependence: independent #or dependent
+    dependence: independent # independent/dependent
     conditions:
       - col: code
         vals: [ D437 ]
       - col: code
         vals: [ D438 ]
   match:
-    dependence: independent #or dependent
+    dependence: independent # independent/dependent
     conditions:
       - col: code
         vals: [ DE11 ]
 
   index:
-    type: absolute # or relative or exposure
+    type: absolute # absolute/relative/exposure
     date: # absolute
       year: 2020
       month: 1
