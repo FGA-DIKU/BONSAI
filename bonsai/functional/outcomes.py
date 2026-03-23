@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 
-def match(
+def get_subject_first_row_for_conditions(
     df: pd.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
 ) -> pd.DataFrame:
     """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
@@ -46,47 +46,28 @@ def match(
     return res
 
 
-def set_dates(
-    date_type: Literal["relative", "absolute", "exposure"],
-    relative_dates: Optional[pd.Series] = None,  # Required for relative
-    relative_hour_shift: Optional[Dict[str, int]] = None,  # Required for relative
-    absolute_date: Optional[Dict[str, int]] = None,  # Required for absolute
-    subjects: Optional[pd.DataFrame] = None,  # Required for exposure
-    df: Optional[pd.DataFrame] = None,  # Required for exposure
-    exposure_dependence: Optional[
-        Literal["independent", "dependent"]
-    ] = None,  # Required for exposure
-    exposure_conditions: Optional[list] = None,  # Required for exposure
-):
-    """Return dates based on three `date_type` options:
+def get_index_date_from_absolute_date(absolute_date):
+    assert absolute_date is not None
+    return datetime(**absolute_date)
 
-    Relative: Returns `relative_dates + relative_hour_shift`.
-    Absolute: Returns `absolute_date` as a datetime object.
-    Exposure: Returns the subjects matching `dependence` and `conditions` using the `match` function on `df` and merges with `subjects`.
 
-    """
-    if date_type == "absolute":
-        assert absolute_date is not None
-        return datetime(**absolute_date)
-    elif date_type == "relative":
-        assert relative_dates is not None
-        assert relative_hour_shift is not None
-        return relative_dates + pd.Timedelta(hours=relative_hour_shift)
-    elif date_type == "exposure":
-        assert subjects is not None
-        assert df is not None
-        assert exposure_dependence is not None
-        assert exposure_conditions is not None
-        result = match(
-            df, conditions=exposure_conditions, dependence=exposure_dependence
-        )
-        return subjects.merge(
-            result[["subject_id", "time"]], on="subject_id", how="left"
-        )["time"]
-    else:
-        raise ValueError(
-            f"Date_type only allowed to be [relative, absolute, exposure], not {date_type}"
-        )
+def get_index_date_from_relative_date(relative_dates, relative_hour_shift):
+    assert relative_dates is not None
+    assert relative_hour_shift is not None
+    return relative_dates + pd.Timedelta(hours=relative_hour_shift)
+
+
+def get_index_date_from_exposure_date(subjects, df, dependence, conditions):
+    assert subjects is not None
+    assert df is not None
+    assert dependence is not None
+    assert conditions is not None
+    result = get_subject_first_row_for_conditions(
+        df, conditions=conditions, dependence=dependence
+    )
+    return subjects.merge(result[["subject_id", "time"]], on="subject_id", how="left")[
+        "time"
+    ]
 
 
 def binarize_outcomes(

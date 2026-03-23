@@ -7,7 +7,12 @@ from omegaconf import DictConfig
 
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
-from bonsai.functional.outcomes import match, set_dates
+from bonsai.functional.outcomes import (
+    get_subject_first_row_for_conditions,
+    get_index_date_from_absolute_date,
+    get_index_date_from_relative_date,
+    get_index_date_from_exposure_date,
+)
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 
 load_dotenv()
@@ -45,12 +50,16 @@ def main(cfg: DictConfig) -> None:
 
             # Find rows matching exclude.conditions and exclude them
             if exclude is not None:
-                exclude_df = match(df, exclude.conditions, exclude.dependence)
+                exclude_df = get_subject_first_row_for_conditions(
+                    df, exclude.conditions, exclude.dependence
+                )
                 logging.info(f"Excluding {len(exclude_df)} subjects")
                 df = df[~df["subject_id"].isin(exclude_df["subject_id"])]
 
             # Find the outcomes matching outcome.conditions
-            outcomes = match(df, outcome.conditions, outcome.dependence)
+            outcomes = get_subject_first_row_for_conditions(
+                df, outcome.conditions, outcome.dependence
+            )
             logging.info(f"Matched {len(outcomes)} subjects")
             outcomes = (
                 df[["subject_id"]]
@@ -63,18 +72,26 @@ def main(cfg: DictConfig) -> None:
                 columns={"time": "outcome_date"}
             )
 
-            outcomes["index_date"] = set_dates(
-                date_type=index.type,  # Absolute/relative/exposure
-                relative_dates=outcomes["outcome_date"],  # Required for relative
-                relative_hour_shift=index.get(
-                    "relative_hour_shift"
-                ),  # Required for relative
-                absolute_date=index.get("absolute_date"),  # Required for absolute
-                subjects=outcomes[["subject_id"]],  # Required for exposure
-                df=df,  # Required for exposure
-                exposure_conditions=index.get("conditions"),  # Required for exposure
-                exposure_dependence=index.get("dependence"),  # Required for exposure
-            )
+            if index.type == "absolute":
+                outcomes["index_date"] = get_index_date_from_absolute_date(
+                    absolute_date=index["absolute_date"]
+                )
+            elif index.type == "relative":
+                outcomes["index_date"] = get_index_date_from_relative_date(
+                    relative_dates=outcomes["outcome_date"],
+                    relative_hour_shift=index["relative_hour_shift"],
+                )
+            elif index.type == "exposure":
+                outcomes["index_date"] = get_index_date_from_exposure_date(
+                    subjects=outcomes[["subject_id"]],
+                    df=df,
+                    dependence=index["dependence"],
+                    conditions=index["conditions"],
+                )
+            else:
+                raise NameError(
+                    f"got index.type={index.type}. This is either misconfigured or not yet supported"
+                )
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
@@ -94,8 +111,7 @@ def main(cfg: DictConfig) -> None:
             value=pd.Series(samples.values, index=dates[dates.isna()].index)
         )
 
-    all_outcomes["censor_date"] = set_dates(
-        date_type="relative",  # Only relative censoring
+    all_outcomes["censor_date"] = get_index_date_from_relative_date(
         relative_dates=all_outcomes["index_date"],  # Censoring is based on index_date
         relative_hour_shift=censor[
             "relative_hour_shift"
