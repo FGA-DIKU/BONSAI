@@ -2,9 +2,10 @@ import unittest
 import pandas as pd
 from bonsai.functional.outcomes import (
     get_subject_first_row_for_conditions,
-    get_index_date_from_absolute_date,
-    get_index_date_from_relative_date,
-    get_index_date_from_exposure_date,
+    get_date_from_absolute_date,
+    get_date_from_relative_date,
+    get_date_from_exposure_date,
+    fill_nans_with_sampled,
     binarize_outcomes,
     split_and_binarize_outcomes,
 )
@@ -72,14 +73,14 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_subject_first_row_for_conditions(df, conditions, dependence="invalid")
 
-    def test_get_index_date_from_absolute_date(self):
+    def test_get_date_from_absolute_date(self):
         date_dict = {"year": 2020, "month": 1, "day": 2}
-        result = get_index_date_from_absolute_date(absolute_date=date_dict)
+        result = get_date_from_absolute_date(absolute_date=date_dict)
         self.assertEqual(result, datetime(2020, 1, 2))
 
-    def test_get_index_date_from_relative_date(self):
+    def test_get_date_from_relative_date(self):
         base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2), None])
-        result = get_index_date_from_relative_date(
+        result = get_date_from_relative_date(
             relative_dates=base_dates, relative_hour_shift=24
         )
         self.assertTrue(
@@ -90,7 +91,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         )
         self.assertTrue(pd.isna(result.iloc[2]))
 
-    def test_get_index_date_from_exposure_date(self):
+    def test_get_date_from_exposure_date(self):
         df = pd.DataFrame(
             {
                 "subject_id": [1, 1, 2, 2, 3],
@@ -115,19 +116,25 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             columns={"time": "outcome_date"}
         )
 
-        result = get_index_date_from_exposure_date(
+        result = get_date_from_exposure_date(
             subjects=outcomes[["subject_id"]],
             df=df,
-            exposure_conditions=conditions,
-            exposure_dependence="independent",
+            conditions=conditions,
+            dependence="independent",
         )
         self.assertEqual(result.iloc[0], datetime(2020, 1, 1))
         self.assertEqual(result.iloc[1], datetime(2022, 1, 1))
         self.assertTrue(pd.isna(result.iloc[2]))
 
-    def test_get_index_date_from_absolute_date_invalid(self):
+    def test_fill_nans_with_sampled(self):
+        dates = pd.Series([datetime(2020, 1, 1), datetime(2021, 1, 1), None])
+        res = fill_nans_with_sampled(dates)
+        self.assertFalse(res.isna().any())
+
+    def test_fill_nans_with_sampled_false(self):
+        dates = pd.Series([None, None, None])
         with self.assertRaises(ValueError):
-            get_index_date_from_absolute_date("foo")
+            fill_nans_with_sampled(dates)
 
 
 class TestBinizationOutcomes(unittest.TestCase):

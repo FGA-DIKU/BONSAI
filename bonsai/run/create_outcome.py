@@ -9,9 +9,10 @@ from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
 from bonsai.functional.outcomes import (
     get_subject_first_row_for_conditions,
-    get_index_date_from_absolute_date,
-    get_index_date_from_relative_date,
-    get_index_date_from_exposure_date,
+    get_date_from_absolute_date,
+    get_date_from_relative_date,
+    get_date_from_exposure_date,
+    fill_nans_with_sampled,
 )
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 
@@ -20,7 +21,7 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
 
 
 @hydra.main(
-    config_path=get_config_path(),  # TODO: make this more flexible to allow for different config paths
+    config_path=get_config_path(),
     config_name="example_outcome1",
     version_base="1.2",
 )
@@ -48,7 +49,7 @@ def main(cfg: DictConfig) -> None:
 
             df = df.dropna(subset=["subject_id", "time", "code"])
 
-            # Find rows matching exclude.conditions and exclude them
+            # Exclude subjects matching exclude.conditions
             if exclude is not None:
                 exclude_df = get_subject_first_row_for_conditions(
                     df, exclude.conditions, exclude.dependence
@@ -56,40 +57,41 @@ def main(cfg: DictConfig) -> None:
                 logging.info(f"Excluding {len(exclude_df)} subjects")
                 df = df[~df["subject_id"].isin(exclude_df["subject_id"])]
 
-            # Find the outcomes matching outcome.conditions
+            # Assign the outcomes matching outcome.conditions
             outcomes = get_subject_first_row_for_conditions(
                 df, outcome.conditions, outcome.dependence
             )
             logging.info(f"Matched {len(outcomes)} subjects")
             outcomes = (
-                df[["subject_id"]]
-                .drop_duplicates()
-                .merge(outcomes, on="subject_id", how="left")
+                (
+                    df[["subject_id"]]
+                    .drop_duplicates()
+                    .merge(outcomes, on="subject_id", how="left")
+                )
+                .drop(columns="code")
+                .rename(columns={"time": "outcome_date"})
             )
             assert len(outcomes) == df["subject_id"].nunique()
 
-            outcomes = outcomes.drop(columns="code").rename(
-                columns={"time": "outcome_date"}
-            )
-
+            # Assign index dates
             if index.type == "absolute":
-                outcomes["index_date"] = get_index_date_from_absolute_date(
+                outcomes["index_date"] = get_date_from_absolute_date(
                     absolute_date=index["absolute_date"]
                 )
             elif index.type == "relative":
-                outcomes["index_date"] = get_index_date_from_relative_date(
+                outcomes["index_date"] = get_date_from_relative_date(
                     relative_dates=outcomes["outcome_date"],
                     relative_hour_shift=index["relative_hour_shift"],
                 )
             elif index.type == "exposure":
-                outcomes["index_date"] = get_index_date_from_exposure_date(
+                outcomes["index_date"] = get_date_from_exposure_date(
                     subjects=outcomes[["subject_id"]],
                     df=df,
                     dependence=index["dependence"],
                     conditions=index["conditions"],
                 )
             else:
-                raise NameError(
+                raise ValueError(
                     f"got index.type={index.type}. This is either misconfigured or not yet supported"
                 )
 
@@ -101,17 +103,9 @@ def main(cfg: DictConfig) -> None:
         logging.warning(
             f"Found {dates.isna().sum()} NaN index dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
         )
-        if (~dates.isna()).sum() == 0:
-            raise ValueError(f"No non-NaN indexing dates found using {index}")
-        # Randomly sample from non-null
-        samples = dates.dropna().sample(
-            n=dates.isna().sum(), replace=True
-        )  # TODO: Add seed?
-        all_outcomes["index_date"] = dates.fillna(
-            value=pd.Series(samples.values, index=dates[dates.isna()].index)
-        )
+        all_outcomes["index_date"] = fill_nans_with_sampled(dates)
 
-    all_outcomes["censor_date"] = get_index_date_from_relative_date(
+    all_outcomes["censor_date"] = get_date_from_relative_date(
         relative_dates=all_outcomes["index_date"],  # Censoring is based on index_date
         relative_hour_shift=censor[
             "relative_hour_shift"

@@ -46,18 +46,18 @@ def get_subject_first_row_for_conditions(
     return res
 
 
-def get_index_date_from_absolute_date(absolute_date):
+def get_date_from_absolute_date(absolute_date):
     assert absolute_date is not None
     return datetime(**absolute_date)
 
 
-def get_index_date_from_relative_date(relative_dates, relative_hour_shift):
+def get_date_from_relative_date(relative_dates, relative_hour_shift):
     assert relative_dates is not None
     assert relative_hour_shift is not None
     return relative_dates + pd.Timedelta(hours=relative_hour_shift)
 
 
-def get_index_date_from_exposure_date(subjects, df, dependence, conditions):
+def get_date_from_exposure_date(subjects, df, dependence, conditions):
     assert subjects is not None
     assert df is not None
     assert dependence is not None
@@ -68,6 +68,18 @@ def get_index_date_from_exposure_date(subjects, df, dependence, conditions):
     return subjects.merge(result[["subject_id", "time"]], on="subject_id", how="left")[
         "time"
     ]
+
+
+def fill_nans_with_sampled(dates):
+    if (~dates.isna()).sum() == 0:
+        raise ValueError("No non-NaN indexing dates found")
+    # Randomly sample from non-null
+    samples = dates.dropna().sample(
+        n=dates.isna().sum(), replace=True
+    )  # TODO: Add seed?
+    return dates.fillna(
+        value=pd.Series(samples.values, index=dates[dates.isna()].index)
+    )
 
 
 def binarize_outcomes(
