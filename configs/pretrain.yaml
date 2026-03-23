@@ -21,7 +21,7 @@ training:
     month: 1
     year: 2015
   batch_size: 32
-  accumulate_grad_batches: 2 #previously called effective batch size
+  accumulate_grad_batches: 2 
   epochs: 1
   learning_rate: 5e-4
   optimizer_epsilon: 1e-6

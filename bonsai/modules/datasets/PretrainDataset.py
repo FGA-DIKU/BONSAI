@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
-
+from bonsai.functional.normalization import normalize_segments
 
 class PretrainDataset(Dataset):
     def __init__(
@@ -32,6 +32,7 @@ class PretrainDataset(Dataset):
         truncated_subject["attention_mask"] = torch.ones(
             len(truncated_subject["code"]), dtype=torch.long
         )
+        truncated_subject["segment"] = normalize_segments(subject["segment"])
         return truncated_subject
 
     def __len__(self):

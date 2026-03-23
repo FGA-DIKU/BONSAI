@@ -35,7 +35,7 @@ dependencies = [
     "pyarrow>=23.0.1",
     "PyYAML>=6.0.3",
     "scikit-learn>=1.8.0",
-    "torch==2.10.0",
+    "torch==2.8.0",
     "tqdm==4.67.3",
     "transformers>=4.48.2",
     "xgboost>=3.0.2",
