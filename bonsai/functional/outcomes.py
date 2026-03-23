@@ -3,10 +3,10 @@ from datetime import datetime
 import pandas as pd
 
 
-def find(
+def match(
     df: pd.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
 ) -> pd.DataFrame:
-    """Returns the first row (priority based on condition order) for each patient that matches the conditions"""
+    """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
     # Initialization
     df["_prio"] = pd.Series()
     row_masks = False
@@ -48,27 +48,38 @@ def find(
 
 def set_dates(
     date_type: Literal["relative", "absolute", "exposure"],
-    dates: Optional[pd.Series] = None,
-    hour_shift: Optional[int] = None,
-    date: Optional[Dict[str, int]] = None,
-    subjects: Optional[pd.DataFrame] = None,
-    df: Optional[pd.DataFrame] = None,
-    dependence: Optional[Literal["independent", "dependent"]] = None,
-    conditions: Optional[list] = None,
+    relative_dates: Optional[pd.Series] = None,  # Required for relative
+    relative_hour_shift: Optional[Dict[str, int]] = None,  # Required for relative
+    absolute_date: Optional[Dict[str, int]] = None,  # Required for absolute
+    subjects: Optional[pd.DataFrame] = None,  # Required for exposure
+    df: Optional[pd.DataFrame] = None,  # Required for exposure
+    exposure_dependence: Optional[
+        Literal["independent", "dependent"]
+    ] = None,  # Required for exposure
+    exposure_conditions: Optional[list] = None,  # Required for exposure
 ):
+    """Return dates based on three `date_type` options:
+
+    Relative: Returns `relative_dates + relative_hour_shift`.
+    Absolute: Returns `absolute_date` as a datetime object.
+    Exposure: Returns the subjects matching `dependence` and `conditions` using the `match` function on `df` and merges with `subjects`.
+
+    """
     if date_type == "absolute":
-        assert date is not None
-        return datetime(**date)
+        assert absolute_date is not None
+        return datetime(**absolute_date)
     elif date_type == "relative":
-        assert dates is not None
-        assert hour_shift is not None
-        return dates + pd.Timedelta(hours=hour_shift)
+        assert relative_dates is not None
+        assert relative_hour_shift is not None
+        return relative_dates + pd.Timedelta(hours=relative_hour_shift)
     elif date_type == "exposure":
         assert subjects is not None
         assert df is not None
-        assert dependence is not None
-        assert conditions is not None
-        result = find(df, conditions=conditions, dependence=dependence)
+        assert exposure_dependence is not None
+        assert exposure_conditions is not None
+        result = match(
+            df, conditions=exposure_conditions, dependence=exposure_dependence
+        )
         return subjects.merge(
             result[["subject_id", "time"]], on="subject_id", how="left"
         )["time"]

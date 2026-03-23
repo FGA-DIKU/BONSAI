@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 from bonsai.functional.outcomes import (
-    find,
+    match,
     set_dates,
     binarize_outcomes,
     split_and_binarize_outcomes,
@@ -21,7 +21,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["A"]},
             {"col": "code", "vals": ["C"]},
         ]
-        result = find(df, conditions, dependence="independent")
+        result = match(df, conditions, dependence="independent")
         self.assertEqual(set(result["subject_id"]), {1, 2})
         # Should return first row for each subject that matches any condition
         self.assertIn("A", result["code"].tolist())
@@ -38,7 +38,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["C"]},
         ]
         # Only subject 2 has both A and C
-        result = find(df, conditions, dependence="dependent")
+        result = match(df, conditions, dependence="dependent")
         self.assertEqual(set(result["subject_id"]), {2})
         self.assertIn("A", result["code"].tolist())
 
@@ -54,7 +54,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["A"]},
         ]
         # Only subject 2 has both A and C
-        result = find(df, conditions, dependence="dependent")
+        result = match(df, conditions, dependence="dependent")
         self.assertEqual(set(result["subject_id"]), {2})
         self.assertIn("C", result["code"].tolist())  # NEW PRIORITY!
 
@@ -62,16 +62,18 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         df = pd.DataFrame({"subject_id": [1], "code": ["A"]})
         conditions = [{"col": "code", "vals": ["A"]}]
         with self.assertRaises(ValueError):
-            find(df, conditions, dependence="invalid")
+            match(df, conditions, dependence="invalid")
 
     def test_set_dates_absolute(self):
         date_dict = {"year": 2020, "month": 1, "day": 2}
-        result = set_dates("absolute", date=date_dict)
+        result = set_dates("absolute", absolute_date=date_dict)
         self.assertEqual(result, datetime(2020, 1, 2))
 
     def test_set_dates_relative(self):
         base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2), None])
-        result = set_dates("relative", dates=base_dates, hour_shift=24)
+        result = set_dates(
+            "relative", relative_dates=base_dates, relative_hour_shift=24
+        )
         self.assertTrue(
             (
                 result.iloc[:2]
@@ -93,7 +95,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["C"]},
         ]
         # Only subject 1 and 2 has A or C
-        outcomes = find(df, conditions, dependence="independent")
+        outcomes = match(df, conditions, dependence="independent")
         outcomes = (
             df[["subject_id"]]
             .drop_duplicates()
@@ -107,8 +109,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             "exposure",
             subjects=outcomes[["subject_id"]],
             df=df,
-            conditions=conditions,
-            dependence="independent",
+            exposure_conditions=conditions,
+            exposure_dependence="independent",
         )
         self.assertEqual(result.iloc[0], datetime(2020, 1, 1))
         self.assertEqual(result.iloc[1], datetime(2022, 1, 1))

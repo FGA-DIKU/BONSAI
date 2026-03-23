@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
-from bonsai.functional.outcomes import find, set_dates
+from bonsai.functional.outcomes import match, set_dates
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 
 load_dotenv()
@@ -25,13 +25,13 @@ def main(cfg: DictConfig) -> None:
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     exclude = cfg.outcome.exclude
-    match = cfg.outcome.match
+    outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
 
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
-    logging.info(f"Excluding with {exclude}")
-    logging.info(f"Matching with {match}")
+    logging.info(f"Excluding subjects with {exclude}")
+    logging.info(f"Outcome date assigned with {outcome}")
     logging.info(f"Index date assigned with {index}")
     logging.info(f"Censor date assigned with {censor}")
 
@@ -45,12 +45,12 @@ def main(cfg: DictConfig) -> None:
 
             # Find rows matching exclude.conditions and exclude them
             if exclude is not None:
-                exclude_df = find(df, exclude.conditions, exclude.dependence)
+                exclude_df = match(df, exclude.conditions, exclude.dependence)
                 logging.info(f"Excluding {len(exclude_df)} subjects")
                 df = df[~df["subject_id"].isin(exclude_df["subject_id"])]
 
-            # Find the outcomes matching match.conditions
-            outcomes = find(df, match.conditions, match.dependence)
+            # Find the outcomes matching outcome.conditions
+            outcomes = match(df, outcome.conditions, outcome.dependence)
             logging.info(f"Matched {len(outcomes)} subjects")
             outcomes = (
                 df[["subject_id"]]
@@ -65,13 +65,15 @@ def main(cfg: DictConfig) -> None:
 
             outcomes["index_date"] = set_dates(
                 date_type=index.type,  # Absolute/relative/exposure
-                dates=outcomes["outcome_date"],  # Required for relative
-                hour_shift=index.get("hour_shift"),  # Required for relative
-                date=index.get("date"),  # Required for absolute
+                relative_dates=outcomes["outcome_date"],  # Required for relative
+                relative_hour_shift=index.get(
+                    "relative_hour_shift"
+                ),  # Required for relative
+                absolute_date=index.get("absolute_date"),  # Required for absolute
                 subjects=outcomes[["subject_id"]],  # Required for exposure
                 df=df,  # Required for exposure
-                conditions=index.get("conditions"),  # Required for exposure
-                dependence=index.get("dependence"),  # Required for exposure
+                exposure_conditions=index.get("conditions"),  # Required for exposure
+                exposure_dependence=index.get("dependence"),  # Required for exposure
             )
 
             outcomes["split"] = split
@@ -94,8 +96,10 @@ def main(cfg: DictConfig) -> None:
 
     all_outcomes["censor_date"] = set_dates(
         date_type="relative",  # Only relative censoring
-        dates=all_outcomes["index_date"],  # Censoring is based on index_date
-        hour_shift=censor["hour_shift"],  # 0 sets index_date=censor_date
+        relative_dates=all_outcomes["index_date"],  # Censoring is based on index_date
+        relative_hour_shift=censor[
+            "relative_hour_shift"
+        ],  # 0 sets index_date=censor_date
     )
 
     logging.info(
