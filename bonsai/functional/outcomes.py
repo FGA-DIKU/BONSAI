@@ -3,10 +3,10 @@ from datetime import datetime
 import pandas as pd
 
 
-def find(
+def get_subject_first_row_for_conditions(
     df: pd.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
 ) -> pd.DataFrame:
-    """Returns the first row (priority based on condition order) for each patient that matches the conditions"""
+    """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
     # Initialization
     df["_prio"] = pd.Series()
     row_masks = False
@@ -46,23 +46,40 @@ def find(
     return res
 
 
-def set_dates(
-    date_type: Literal["relative", "absolute"],
-    outcome_dates: Optional[pd.Series] = None,
-    hour_shift: Optional[int] = None,
-    date: Optional[Dict[str, int]] = None,
-):
-    if date_type == "absolute":
-        assert date is not None
-        return datetime(**date)
-    elif date_type == "relative":
-        assert outcome_dates is not None
-        assert hour_shift is not None
-        return outcome_dates + pd.Timedelta(hours=hour_shift)
-    else:
-        raise ValueError(
-            f"Date_type only allowed to be [relative, absolute], not {date_type}"
-        )
+def get_date_from_absolute_date(absolute_date):
+    assert absolute_date is not None
+    return datetime(**absolute_date)
+
+
+def get_date_from_relative_date(relative_dates, relative_hour_shift):
+    assert relative_dates is not None
+    assert relative_hour_shift is not None
+    return relative_dates + pd.Timedelta(hours=relative_hour_shift)
+
+
+def get_date_from_exposure_date(subjects, df, dependence, conditions):
+    assert subjects is not None
+    assert df is not None
+    assert dependence is not None
+    assert conditions is not None
+    result = get_subject_first_row_for_conditions(
+        df, conditions=conditions, dependence=dependence
+    )
+    return subjects.merge(result[["subject_id", "time"]], on="subject_id", how="left")[
+        "time"
+    ]
+
+
+def fill_nans_with_sampled(dates):
+    if (~dates.isna()).sum() == 0:
+        raise ValueError("No non-NaN indexing dates found")
+    # Randomly sample from non-null
+    samples = dates.dropna().sample(
+        n=dates.isna().sum(), replace=True
+    )  # TODO: Add seed?
+    return dates.fillna(
+        value=pd.Series(samples.values, index=dates[dates.isna()].index)
+    )
 
 
 def binarize_outcomes(

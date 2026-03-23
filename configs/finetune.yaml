@@ -22,7 +22,6 @@ data:
 
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
-  n_hours_censoring: -10 # censor time after index date (negative means before)
   n_hours_start_include: 1 # start follow up (considering outcomes) time after index date (negative means before)
   n_hours_end_include: null
 

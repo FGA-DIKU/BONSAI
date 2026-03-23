@@ -1,8 +1,11 @@
 import unittest
 import pandas as pd
 from bonsai.functional.outcomes import (
-    find,
-    set_dates,
+    get_subject_first_row_for_conditions,
+    get_date_from_absolute_date,
+    get_date_from_relative_date,
+    get_date_from_exposure_date,
+    fill_nans_with_sampled,
     binarize_outcomes,
     split_and_binarize_outcomes,
 )
@@ -21,7 +24,9 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["A"]},
             {"col": "code", "vals": ["C"]},
         ]
-        result = find(df, conditions, dependence="independent")
+        result = get_subject_first_row_for_conditions(
+            df, conditions, dependence="independent"
+        )
         self.assertEqual(set(result["subject_id"]), {1, 2})
         # Should return first row for each subject that matches any condition
         self.assertIn("A", result["code"].tolist())
@@ -38,7 +43,9 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["C"]},
         ]
         # Only subject 2 has both A and C
-        result = find(df, conditions, dependence="dependent")
+        result = get_subject_first_row_for_conditions(
+            df, conditions, dependence="dependent"
+        )
         self.assertEqual(set(result["subject_id"]), {2})
         self.assertIn("A", result["code"].tolist())
 
@@ -54,7 +61,9 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {"col": "code", "vals": ["A"]},
         ]
         # Only subject 2 has both A and C
-        result = find(df, conditions, dependence="dependent")
+        result = get_subject_first_row_for_conditions(
+            df, conditions, dependence="dependent"
+        )
         self.assertEqual(set(result["subject_id"]), {2})
         self.assertIn("C", result["code"].tolist())  # NEW PRIORITY!
 
@@ -62,23 +71,70 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         df = pd.DataFrame({"subject_id": [1], "code": ["A"]})
         conditions = [{"col": "code", "vals": ["A"]}]
         with self.assertRaises(ValueError):
-            find(df, conditions, dependence="invalid")
+            get_subject_first_row_for_conditions(df, conditions, dependence="invalid")
 
-    def test_set_dates_absolute(self):
+    def test_get_date_from_absolute_date(self):
         date_dict = {"year": 2020, "month": 1, "day": 2}
-        result = set_dates("absolute", date=date_dict)
+        result = get_date_from_absolute_date(absolute_date=date_dict)
         self.assertEqual(result, datetime(2020, 1, 2))
 
-    def test_set_dates_relative(self):
-        base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2)])
-        result = set_dates("relative", outcome_dates=base_dates, hour_shift=24)
+    def test_get_date_from_relative_date(self):
+        base_dates = pd.Series([datetime(2020, 1, 1), datetime(2020, 1, 2), None])
+        result = get_date_from_relative_date(
+            relative_dates=base_dates, relative_hour_shift=24
+        )
         self.assertTrue(
-            (result == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])).all()
+            (
+                result.iloc[:2]
+                == pd.Series([datetime(2020, 1, 2), datetime(2020, 1, 3)])
+            ).all()
+        )
+        self.assertTrue(pd.isna(result.iloc[2]))
+
+    def test_get_date_from_exposure_date(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 1, 2, 2, 3],
+                "code": ["A", "B", "A", "C", "D"],
+                "time": [datetime(2020 + i, 1, 1) for i in range(5)],
+            }
+        )
+        conditions = [
+            {"col": "code", "vals": ["A"]},
+            {"col": "code", "vals": ["C"]},
+        ]
+        # Only subject 1 and 2 has A or C
+        outcomes = get_subject_first_row_for_conditions(
+            df, conditions, dependence="independent"
+        )
+        outcomes = (
+            df[["subject_id"]]
+            .drop_duplicates()
+            .merge(outcomes, on="subject_id", how="left")
+        )
+        outcomes = outcomes.drop(columns="code").rename(
+            columns={"time": "outcome_date"}
         )
 
-    def test_set_dates_invalid(self):
+        result = get_date_from_exposure_date(
+            subjects=outcomes[["subject_id"]],
+            df=df,
+            conditions=conditions,
+            dependence="independent",
+        )
+        self.assertEqual(result.iloc[0], datetime(2020, 1, 1))
+        self.assertEqual(result.iloc[1], datetime(2022, 1, 1))
+        self.assertTrue(pd.isna(result.iloc[2]))
+
+    def test_fill_nans_with_sampled(self):
+        dates = pd.Series([datetime(2020, 1, 1), datetime(2021, 1, 1), None])
+        res = fill_nans_with_sampled(dates)
+        self.assertFalse(res.isna().any())
+
+    def test_fill_nans_with_sampled_false(self):
+        dates = pd.Series([None, None, None])
         with self.assertRaises(ValueError):
-            set_dates("foo")
+            fill_nans_with_sampled(dates)
 
 
 class TestBinizationOutcomes(unittest.TestCase):
