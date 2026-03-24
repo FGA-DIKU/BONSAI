@@ -1,5 +1,5 @@
 import unittest
-import pandas as pd
+import polars as pl
 from bonsai.functional.features import (
     create_features,
     create_background,
@@ -10,27 +10,28 @@ from bonsai.functional.features import (
     exclude_incorrect_event_ages,
 )
 import numpy as np
+from datetime import datetime
 
 
 class TestFeatures(unittest.TestCase):
     def setUp(self):
-        self.df = pd.DataFrame(
+        self.df = pl.DataFrame(
             {
                 "subject_id": [1, 1, 1, 2, 2, 2],
                 "code": ["DOB", "GENDER", "A", "DOB", "GENDER", "B"],
                 "time": [
-                    pd.Timestamp("2000-01-01"),
+                    datetime(2000, 1, 1),
                     None,
-                    pd.Timestamp("2000-01-02"),
-                    pd.Timestamp("2010-01-01"),
+                    datetime(2000, 1, 2),
+                    datetime(2010, 1, 1),
                     None,
-                    pd.Timestamp("2010-01-03"),
+                    datetime(2010, 1, 3),
                 ],
             }
         )
 
     def test_create_features_basic(self):
-        features = create_features(self.df.copy())
+        features = create_features(self.df.clone())
         self.assertIn("subject_id", features.columns)
         self.assertIn("code", features.columns)
         self.assertIn("age", features.columns)
@@ -39,57 +40,65 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(len(features), 6)
 
     def test_create_background(self):
-        df, dob_info = create_background(self.df.copy())
-        self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertTrue(isinstance(dob_info, pd.Series))
-        self.assertEqual(dob_info.loc[1], pd.Timestamp("2000-01-01"))
-        self.assertEqual(dob_info.loc[2], pd.Timestamp("2010-01-01"))
+        df, dob_info = create_background(self.df.clone())
+        self.assertTrue(isinstance(df, pl.DataFrame))
+        self.assertTrue(isinstance(dob_info, pl.DataFrame))
+        dob_dict = dict(zip(dob_info["subject_id"], dob_info["time"]))
+        self.assertEqual(dob_dict[1], datetime(2000, 1, 1))
+        self.assertEqual(dob_dict[2], datetime(2010, 1, 1))
         # Check that background rows are filled in
-        bg_rows = df[df["code"].str.startswith("BACKGROUND//", na=False)]
+        bg_rows = df.filter(pl.col("code").str.starts_with("BACKGROUND//"))
         self.assertEqual(len(bg_rows), 2)
-        self.assertEqual(len(bg_rows[bg_rows["time"].isna()]), 0)
+        self.assertEqual(bg_rows.filter(pl.col("time").is_null()).height, 0)
 
     def test_compute_age(self):
-        df, dob_info = create_background(self.df.copy())
-        ages = compute_age(df, dob_info)
-        # The DOB row for each subject should have age 0
-        dob_ages = ages[df["code"] == "DOB"]
-        self.assertTrue(np.allclose(dob_ages.values, 0.0))
-        # The non-DOB rows should have positive age
-        non_dob_ages = ages[df["code"] != "DOB"]
-        self.assertTrue((non_dob_ages > 0).any())
+        df, dob_info = create_background(self.df.clone())
+        features = df.join(
+            dob_info.rename({"time": "dob_time"}), on="subject_id", how="left"
+        ).with_columns(compute_age().alias("age"))
+        ages = features["age"]
 
-        bg_ages = ages[df["code"].str.startswith("BACKGROUND//")]
-        self.assertTrue((bg_ages == 0).all())
+        dob_ages = features.filter(pl.col("code") == "DOB")["age"]
+        self.assertTrue(np.allclose(dob_ages.to_numpy(), 0.0))
+
+        non_dob_ages = features.filter(pl.col("code") != "DOB")["age"]
+        self.assertTrue((non_dob_ages.to_numpy() > 0).any())
+
+        bg_ages = features.filter(pl.col("code").str.starts_with("BACKGROUND//"))[
+            "age"
+        ]
+        self.assertTrue((bg_ages.to_numpy() == 0).all())
 
     def test_compute_abspos(self):
-        times = pd.Series(
+        times = pl.Series(
             [
-                pd.Timestamp("2000-01-01T00:00:00"),
-                pd.Timestamp("2000-01-01T01:00:00"),
+                datetime(2000, 1, 1, 0, 0, 0),
+                datetime(2000, 1, 1, 1, 0, 0),
                 None,
             ]
         )
         abspos = compute_abspos(times)
-        self.assertTrue(np.isclose(abspos.iloc[1] - abspos.iloc[0], 1.0, atol=0.01))
-        self.assertTrue(pd.isna(abspos.iloc[2]))
-        # Test with datetime input
-        dt = pd.Timestamp("2000-01-01T00:00:00")
+        self.assertTrue(
+            np.isclose(abspos[1] - abspos[0], 1.0, atol=0.01)
+        )
+        self.assertTrue(abspos[2] is None)
+
+        dt = datetime(2000, 1, 1, 0, 0, 0)
         abspos_single = compute_abspos(dt)
         self.assertTrue(isinstance(abspos_single, float))
 
     def test_compute_segments(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "subject_id": [1, 1, 2, 2, 2],
                 "time": [1, 2, 1, 1, 2],
             }
         )
-        segs = compute_segments(df)
-        self.assertEqual(list(segs), [1, 2, 1, 1, 2])
+        segs = df.with_columns(compute_segments().alias("segment"))["segment"]
+        self.assertEqual(segs.to_list(), [1, 2, 1, 1, 2])
 
     def test_drop_invalids(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "subject_id": [1, None, 2],
                 "code": ["A", "B", None],
@@ -100,7 +109,7 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(len(cleaned), 1)
 
     def test_exclude_incorrect_event_ages(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "subject_id": [1, 2, 3],
                 "code": ["A", "B", "C"],

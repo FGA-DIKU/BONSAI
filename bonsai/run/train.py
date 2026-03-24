@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import hydra
 import lightning as L
 import torch
@@ -33,8 +33,10 @@ def main(cfg: DictConfig) -> None:
     model_cfg = cfg.model
 
     vocab = torch.load(cfg.paths.vocabulary)
-    outcomes = pd.read_parquet(cfg.paths.outcome)
-    outcomes["censor_abspos"] = compute_abspos(outcomes["censor_date"])
+    outcomes = pl.read_parquet(cfg.paths.outcome)
+    outcomes = outcomes.with_columns(
+        compute_abspos(pl.col("censor_date")).alias("censor_abspos")
+        )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
