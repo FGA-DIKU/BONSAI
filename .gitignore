@@ -10,3 +10,4 @@
 /configs/custom/**
 *.env*build/
 venv/
+build/
