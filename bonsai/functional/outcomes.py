@@ -97,7 +97,10 @@ def binarize_outcomes(
         )
 
     outcomes = outcomes.with_columns(
-        outcomes_in_prediction_window.cast(pl.Int64).alias("label")
+        outcomes_in_prediction_window
+        .fill_null(False)
+        .cast(pl.Int64)
+        .alias("label")
     )
 
     rows = outcomes.select(["subject_id", "label", "censor_abspos"]).to_dicts()
