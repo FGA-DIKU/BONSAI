@@ -8,4 +8,5 @@
 *logs/
 *data/
 /configs/custom/**
-*.env*
+*.env*build/
+venv/
