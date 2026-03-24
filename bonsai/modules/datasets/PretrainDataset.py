@@ -32,7 +32,7 @@ class PretrainDataset(Dataset):
         truncated_subject["attention_mask"] = torch.ones(
             len(truncated_subject["code"]), dtype=torch.long
         )
-        truncated_subject["segment"] = normalize_segments(subject["segment"])
+        truncated_subject["segment"] = normalize_segments(truncated_subject["segment"])
         return truncated_subject
 
     def __len__(self):
