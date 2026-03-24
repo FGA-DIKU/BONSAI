@@ -1,6 +1,6 @@
 from typing import List, Dict
 import torch
-import pandas as pd
+import polars as pl
 from torch.utils.data import Dataset
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.truncation import truncate_subject
@@ -28,7 +28,7 @@ class FinetuneDataset(Dataset):
 
         subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
 
-        if not pd.isnull(subject_outcome["censor_abspos"]):
+        if not pl.Series([subject_outcome["censor_abspos"]]).is_null()[0]:
             subject = censor_subject(
                 subject,
                 censor_date_abspos=subject_outcome["censor_abspos"],

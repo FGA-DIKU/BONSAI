@@ -1,5 +1,5 @@
 from typing import Literal, Dict, Optional
-import pandas as pd
+import polars as pl
 import lightning as L
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
@@ -25,7 +25,7 @@ class FinetuneDataModule(L.LightningDataModule):
         super().__init__()
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
-        self.population = pd.read_csv(path_population)
+        self.population = pl.read_csv(path_population)
 
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -53,8 +53,9 @@ class FinetuneDataModule(L.LightningDataModule):
         ]
         val_data = [sub for sub in val_data if sub["subject_id"] in self.val_outcomes]
 
-        train_data = filter_subject_data(train_data, self.population["subject_id"])
-        val_data = filter_subject_data(val_data, self.population["subject_id"])
+        population_subject_ids = self.population["subject_id"].to_list()
+        train_data = filter_subject_data(train_data, population_subject_ids)
+        val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
         background_length = (train_data[0]["segment"] == 0).sum()
