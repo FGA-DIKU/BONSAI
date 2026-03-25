@@ -45,6 +45,13 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
             f"for {df['subject_id'].n_unique()} unique subject_ids."
         )
 
+    if dob_rows["time"].is_null().any():
+        null_subjects = dob_rows.filter(pl.col("time").is_null())["subject_id"].to_list()
+        raise ValueError(
+            f"Found DOB entries with null time for subject_ids: {null_subjects}. "
+            "A valid DOB time is required to assign background event timestamps."
+        )
+
     df = (
         df.join(
             dob_rows.rename({"time": "dob_time"}),
