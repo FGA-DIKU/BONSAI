@@ -51,24 +51,32 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
             f"and {df['subject_id'].n_unique()} unique subjects in the full DataFrame."
         )
 
-    df = (
-        df.join(
-            dob_rows.rename({"time": "dob_time"}),
-            on="subject_id",
-            how="left",
-        )
-        .with_columns(
-            pl.when(pl.col("time").is_null())
-            .then(pl.lit("BACKGROUND//") + pl.col("code"))
-            .otherwise(pl.col("code"))
-            .alias("code"),
-            pl.when(pl.col("time").is_null())
-            .then(pl.col("dob_time"))
-            .otherwise(pl.col("time"))
-            .alias("time"),
-        )
-        .drop("dob_time")
+    df = df.join(
+        dob_rows.rename({"time": "dob_time"}),
+        on="subject_id",
+        how="left",
     )
+
+    background_code = (
+        pl.when(pl.col("time").is_null())
+        .then(pl.lit("BACKGROUND//") + pl.col("code"))
+        .otherwise(pl.col("code"))
+        .alias("code")
+    )
+
+    background_time = (
+        pl.when(pl.col("time").is_null())
+        .then(pl.col("dob_time"))
+        .otherwise(pl.col("time"))
+        .alias("time")
+    )
+
+    df = df.with_columns(
+        background_code,
+        background_time,
+    )
+
+    df = df.drop("dob_time")
 
     return df, dob_rows
 
