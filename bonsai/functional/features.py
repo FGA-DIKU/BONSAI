@@ -89,10 +89,10 @@ def compute_age() -> pl.Expr:
     """
     return (
         (
-            pl.col("time").cast(pl.Datetime("us"))
-            - pl.col("dob_time").cast(pl.Datetime("us"))
-        ).dt.total_microseconds()
-        / (365.25 * 24 * 3600 * 1_000_000)
+            pl.col("time").cast(pl.Datetime("ms"))
+            - pl.col("dob_time").cast(pl.Datetime("ms"))
+        ).dt.total_milliseconds()
+        / (365.25 * 24 * 3600 * 1_000)
     ).cast(pl.Float64)
 
 
