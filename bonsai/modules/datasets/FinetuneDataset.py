@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.normalization import normalize_segments
+from copy import deepcopy
 
 
 class FinetuneDataset(Dataset):
@@ -23,7 +24,7 @@ class FinetuneDataset(Dataset):
         self.max_len = max_len
 
     def __getitem__(self, index: int) -> dict:
-        subject = self.subjects[index]
+        subject = deepcopy(self.subjects[index])
         subject_outcome = self.outcomes[subject["subject_id"]]
 
         subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
