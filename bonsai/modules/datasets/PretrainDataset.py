@@ -7,6 +7,7 @@ from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.normalization import normalize_segments
 
+
 class PretrainDataset(Dataset):
     def __init__(
         self,
