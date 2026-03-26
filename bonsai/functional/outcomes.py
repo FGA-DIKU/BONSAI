@@ -38,7 +38,7 @@ def get_subject_first_row_for_conditions(
 
     # Take first row based on `conditions` ordering
     res = (
-        res.sort("_prio")
+        res.sort(["_prio", "time"])
         .group_by("subject_id", maintain_order=True)
         .first()
     )
