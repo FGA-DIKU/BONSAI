@@ -37,12 +37,18 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
 
 def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     """Requires DOB token per person. Creates BACKGROUND//{var} tokens with time set to DOB time."""
-    dob_rows = df.filter(pl.col("code") == "DOB").select(["subject_id", "time"])
+    dob_rows = df.filter(
+        (pl.col("code") == "DOB") & pl.col("time").is_not_null()
+    ).select(["subject_id", "time"])
 
-    if dob_rows.height != df["subject_id"].n_unique():
+    if (dob_rows.height != dob_rows["subject_id"].n_unique()) or (
+        dob_rows.height != df["subject_id"].n_unique()
+    ):
         raise ValueError(
-            f"Expected one DOB entry per subject_id, but found {dob_rows.height} DOB entries "
-            f"for {df['subject_id'].n_unique()} unique subject_ids."
+            f"Expected exactly one non-null DOB entry per subject_id. "
+            f"Found {dob_rows.height} non-null DOB rows for "
+            f"{dob_rows['subject_id'].n_unique()} unique subjects in DOB rows "
+            f"and {df['subject_id'].n_unique()} unique subjects in the full DataFrame."
         )
 
     df = (
