@@ -39,9 +39,6 @@ def process_split(
 
         # Load
         shard_df = pl.read_parquet(shard)
-        shard_df = shard_df.drop(
-            "__index_level_0__"
-        )  # TODO: This is probably a pandas artifact
         data_counts["loaded"] += len(shard_df)
 
         # Drop duplicates
