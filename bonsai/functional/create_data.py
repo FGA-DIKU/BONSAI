@@ -58,7 +58,7 @@ def process_split(
         tokenized = tokenizer(features)
 
         # Cast to correct dtypes
-        tokenized = tokenized.with_columns(
+        tokenized = tokenized.select(
             pl.col("subject_id").cast(pl.Int64),
             pl.col("code").cast(pl.Int64),
             pl.col("age").cast(pl.Float32),
