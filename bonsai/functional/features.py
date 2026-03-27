@@ -98,18 +98,22 @@ def compute_age() -> pl.Expr:
 
 def compute_abspos(
     timestamps: Union[pl.Expr, pl.Series, datetime],
-) -> Union[pl.Expr, float, pl.Series]:
+) -> Union[pl.Expr, pl.Series, float]:
     if isinstance(timestamps, datetime):
-        ts = pl.Series([timestamps]).cast(pl.Datetime("ms"))
-        return ts.dt.timestamp("ms")[0] / (3600 * 1_000)
-
-    if isinstance(timestamps, pl.Series):
-        ts = timestamps.cast(pl.Datetime("ms"))
-        return ts.dt.timestamp("ms").cast(pl.Float64) / (3600 * 1_000)
-
-    if isinstance(timestamps, pl.Expr):
         return (
-            timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
+            pl.Series([timestamps])
+            .cast(pl.Datetime("ms"))
+            .dt.timestamp("ms")
+            .cast(pl.Float64)[0]
+            / (3600 * 1_000)
+        )
+
+    if isinstance(timestamps, (pl.Expr, pl.Series)):
+        return (
+            timestamps
+            .cast(pl.Datetime("ms"))
+            .dt.timestamp("ms")
+            .cast(pl.Float64)
             / (3600 * 1_000)
         )
 
