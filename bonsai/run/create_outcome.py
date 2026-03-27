@@ -78,55 +78,52 @@ def main(cfg: DictConfig) -> None:
             # Assign index dates
             if index.type == "absolute":
                 outcomes = outcomes.with_columns(
-                    pl.lit(
+                    index_date=pl.lit(
                         get_date_from_absolute_date(
                             absolute_date=index["absolute_date"]
                         )
-                    ).alias("index_date")
+                    )
                 )
             elif index.type == "relative":
                 outcomes = outcomes.with_columns(
-                    get_date_from_relative_date(
+                    index_date=get_date_from_relative_date(
                         relative_dates=pl.col("outcome_date"),
                         relative_hour_shift=index["relative_hour_shift"],
-                    ).alias("index_date")
+                    )
                 )
             elif index.type == "exposure":
                 outcomes = outcomes.with_columns(
-                    get_date_from_exposure_date(
-                        subjects=outcomes.select(["subject_id"]),
+                    index_date=get_date_from_exposure_date(
+                        subjects=outcomes.select("subject_id"),
                         df=df,
                         dependence=index["dependence"],
                         conditions=index["conditions"],
-                    ).alias("index_date")
+                    )
                 )
             else:
                 raise ValueError(
                     f"got index.type={index.type}. This is either misconfigured or not yet supported"
                 )
 
-            outcomes = outcomes.with_columns(pl.lit(split).alias("split"))
+            outcomes = outcomes.with_columns(split=pl.lit(split))
             all_outcomes.append(outcomes)
 
     all_outcomes = pl.concat(all_outcomes) if all_outcomes else pl.DataFrame()
     all_outcomes = all_outcomes.with_row_index().drop("index")
 
-    dates = all_outcomes["index_date"]
-    if dates.is_null().any():
+    if (index_dates := all_outcomes["index_date"]).is_null().any():
         logging.warning(
-            f"Found {dates.is_null().sum()} NaN index dates -- Replacing them with randomly sampled {dates.is_not_null().sum()} non-NaNs"
+            f"Found {index_dates.is_null().sum()} NaN index dates -- Replacing them..."
         )
         all_outcomes = all_outcomes.with_columns(
-            fill_nans_with_sampled(dates).alias("index_date")
+            index_date=fill_nans_with_sampled(all_outcomes["index_date"])
         )
 
     all_outcomes = all_outcomes.with_columns(
-        get_date_from_relative_date(
+        censor_date=get_date_from_relative_date(
             relative_dates=pl.col("index_date"),  # Censoring is based on index_date
-            relative_hour_shift=censor[
-                "relative_hour_shift"
-            ],  # 0 sets index_date=censor_date
-        ).alias("censor_date")
+            relative_hour_shift=censor["relative_hour_shift"],  # 0 sets index_date=censor_date
+        )
     )
 
     logging.info(
