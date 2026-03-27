@@ -11,7 +11,7 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
     df, dob_info = create_background(df)
 
     df = drop_invalids(df)  # Must be done post create_background
-    
+
     features = (
         df.join(
             dob_info.rename({"time": "dob_time"}),
@@ -32,7 +32,7 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
         compute_segments().alias("segment")
     )
 
-    features = features.select(["subject_id", "code", "age", "abspos", "segment"])
+    features = features.select("subject_id", "code", "age", "abspos", "segment")
 
     return features
 
@@ -41,7 +41,7 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     """Requires DOB token per person. Creates BACKGROUND//{var} tokens with time set to DOB time."""
     dob_rows = df.filter(
         (pl.col("code") == "DOB") & pl.col("time").is_not_null()
-    ).select(["subject_id", "time"])
+    ).select("subject_id", "time")
 
     if (dob_rows.height != dob_rows["subject_id"].n_unique()) or (
         dob_rows.height != df["subject_id"].n_unique()
