@@ -71,15 +71,12 @@ def get_date_from_exposure_date(subjects, df, dependence, conditions):
 
 
 def fill_nans_with_sampled(dates):
-    if dates.drop_nulls().len() == 0:
+    if dates.is_null().all():
         raise ValueError("No non-NaN indexing dates found")
-    # Randomly sample from non-null
-    samples = dates.drop_nulls().sample(
-        n=dates.is_null().sum(), with_replacement=True
-    )  # TODO: Add seed?
-    sample_iter = iter(samples.to_list())
-    filled = [next(sample_iter) if x is None else x for x in dates.to_list()]
-    return pl.Series(dates.name, filled)
+
+    return dates.fill_null(
+        dates.drop_nulls().sample(dates.len(), with_replacement=True)
+    )
 
 
 def binarize_outcomes(
