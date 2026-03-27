@@ -31,7 +31,7 @@ class TestFeatures(unittest.TestCase):
         )
 
     def test_create_features_basic(self):
-        features = create_features(self.df.clone())
+        features = create_features(self.df)
         self.assertIn("subject_id", features.columns)
         self.assertIn("code", features.columns)
         self.assertIn("age", features.columns)
@@ -40,7 +40,7 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(len(features), 6)
 
     def test_create_background(self):
-        df, dob_info = create_background(self.df.clone())
+        df, dob_info = create_background(self.df)
         self.assertTrue(isinstance(df, pl.DataFrame))
         self.assertTrue(isinstance(dob_info, pl.DataFrame))
         dob_dict = dict(zip(dob_info["subject_id"], dob_info["time"]))
