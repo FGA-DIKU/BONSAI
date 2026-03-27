@@ -45,7 +45,7 @@ def main(cfg: DictConfig) -> None:
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
         for shard in shards:
-            df = pl.read_parquet(shard).select(["subject_id", "time", "code"])
+            df = pl.read_parquet(shard, columns=["subject_id", "time", "code"])
 
             df = df.drop_nulls(["subject_id", "time", "code"])
 
