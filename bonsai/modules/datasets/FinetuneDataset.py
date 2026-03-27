@@ -6,7 +6,7 @@ from bonsai.functional.censoring import censor_subject
 from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.normalization import normalize_segments
 from copy import deepcopy
-
+import math
 
 class FinetuneDataset(Dataset):
     def __init__(
@@ -29,7 +29,7 @@ class FinetuneDataset(Dataset):
 
         subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
 
-        if not pl.Series([subject_outcome["censor_abspos"]]).is_null()[0]:
+        if subject_outcome["censor_abspos"] is not None:
             subject = censor_subject(
                 subject,
                 censor_date_abspos=subject_outcome["censor_abspos"],
