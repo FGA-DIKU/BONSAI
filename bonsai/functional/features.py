@@ -11,13 +11,15 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
     df, dob_info = create_background(df)
 
     df = drop_invalids(df)  # Must be done post create_background
-
-    features = df.join(
-        dob_info.rename({"time": "dob_time"}),
-        on="subject_id",
-        how="left",
-    ).with_columns(
-        compute_age().alias("age")
+    
+    features = (
+        df.join(
+            dob_info.rename({"time": "dob_time"}),
+            on="subject_id",
+            how="left",
+        )
+        .with_columns(compute_age().alias("age"))
+        .drop("dob_time")
     )
 
     features = exclude_incorrect_event_ages(features)
