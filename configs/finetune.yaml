@@ -45,9 +45,8 @@ training:
 model:
   hidden_size: 64
   num_hidden_layers: 3
-  num_attention_heads: 4
-  intermediate_size: 256
-  embedding_dropout: 0.1
-  max_position_embeddings: ${training.max_len}
-  is_causal: false
-
+  num_attention_heads: 3
+  # intermediate_size: 256 # ALWAYS SET THIS TO x4 hidden_size
+  max_seqlen: 8192
+  causal: false
+  bias: false

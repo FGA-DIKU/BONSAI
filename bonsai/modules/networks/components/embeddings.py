@@ -4,62 +4,37 @@ from typing import Optional
 
 
 class EhrEmbeddings(nn.Module):
-    """
-    Forward inputs:
-        input_ids: torch.LongTensor             - (batch_size, sequence_length)
-        token_type_ids: torch.LongTensor        - (batch_size, sequence_length)
-        position_ids: dict(str, torch.Tensor)   - (batch_size, sequence_length)
-            We abuse huggingface's standard position_ids to pass additional information (age, abspos)
-            This makes BertModel's forward method compatible with our EhrEmbeddings
-
-    Parameters:
-        vocab_size: int                         - size of the vocabulary
-        hidden_size: int                        - size of the hidden layer
-        max_position_embeddings: int            - maximum sequence length (used for segments)
-        embedding_dropout: float                - dropout probability
-        pad_token_id: int                       - token ID used for padding
-    """
-
     def __init__(
         self,
         vocab_size: int,
         hidden_size: int,
-        max_position_embeddings: int,
-        embedding_dropout: float,
+        max_seqlen: int = 8192,
         pad_token_id: int = 0,
     ):
         super().__init__()
-        self.LayerNorm = nn.LayerNorm(hidden_size)
-        self.dropout = nn.Dropout(embedding_dropout)
 
         # Initialize embeddings
         self.code_embedding = nn.Embedding(
             vocab_size, hidden_size, padding_idx=pad_token_id
         )
         self.segment_embedding = nn.Embedding(
-            max_position_embeddings, hidden_size, padding_idx=pad_token_id
+            max_seqlen, hidden_size, padding_idx=pad_token_id
         )
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
 
     def forward(
         self,
-        input_ids: torch.LongTensor = None,  # code
-        segments: torch.LongTensor = None,
-        age: torch.Tensor = None,
-        abspos: torch.Tensor = None,
-        inputs_embeds: torch.Tensor = None,
+        code: torch.LongTensor,
+        age: torch.Tensor,
+        abspos: torch.Tensor,
+        segment: torch.LongTensor,
     ) -> torch.Tensor:
-        if inputs_embeds is not None:
-            return inputs_embeds
-        embeddings = self.code_embedding(input_ids)
+        embeddings = self.code_embedding(code)
 
-        embeddings += self.segment_embedding(segments)
         embeddings += self.age_embedding(age)
         embeddings += self.abspos_embedding(abspos)
-
-        embeddings = self.LayerNorm(embeddings)
-        embeddings = self.dropout(embeddings)
+        embeddings += self.segment_embedding(segment)
 
         return embeddings
 
@@ -78,10 +53,8 @@ class Time2Vec(torch.nn.Module):
             Dimension of the output embedding vector. Default: 768
         function: callable
             Periodic function to use (e.g., torch.cos). Default: torch.cos
-        clip_min: float, optional
-            Minimum value for clipping the linear component
-        clip_max: float, optional
-            Maximum value for clipping the linear component
+        clip_range: float, optional
+            -Minimum/maximum value for clipping the linear component
 
     Forward Input:
         tau: torch.Tensor

@@ -41,6 +41,10 @@ dependencies = [
     "xgboost>=3.0.2",
     "ruff==0.15.1",
     "dotenv==0.9.9",
+    "ninja==1.13.0",
+    "packaging==25.0",
+    "psutil==7.2.0",
+    "flash-attn==2.8.3", # requires GCC version >=9
 ]
 
 [tool.setuptools.packages.find]

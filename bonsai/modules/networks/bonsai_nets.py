@@ -53,8 +53,8 @@ class BonsaiEncoder(ModernBertModel):
             BaseModelOutput: output of ModernBertModel with last_hidden_state, etc.
         """
         inputs_embeds = self.embeddings(
-            input_ids=batch["code"],
-            segments=batch["segment"],
+            code=batch["code"],
+            segment=batch["segment"],
             age=batch["age"],
             abspos=batch["abspos"],
         )
