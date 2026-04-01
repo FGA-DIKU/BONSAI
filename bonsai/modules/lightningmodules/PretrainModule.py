@@ -50,19 +50,25 @@ class PretrainModule(L.LightningModule):
         loss = self.train_loss(
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
-        self.train_metrics(logits, labels)
-        self.log("train/loss", loss, prog_bar=True)
-        self.log_dict(self.train_metrics)
+        # self.train_metrics(logits, labels)
+        # self.log("train/loss", loss, prog_bar=True)
+        # self.log_dict(self.train_metrics)
         return loss
 
     def validation_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
+        print(
+            logits.size(),
+            labels.size(),
+            logits.view(-1, self.model.config.vocab_size).size(),
+            labels.view(-1).size(),
+        )
         loss = self.val_loss(
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
         self.log("val/loss", loss, prog_bar=True)
-        self.val_metrics(logits, labels)
-        self.log_dict(self.val_metrics)
+        # self.val_metrics(logits, labels)
+        # self.log_dict(self.val_metrics)
         return loss
 
     def configure_optimizers(self):

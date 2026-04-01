@@ -4,4 +4,4 @@ num_devices: 1
 num_workers: 1
 precision: "bf16-mixed"
 strategy: "auto"
-compile_mode: "default"
+compile_mode:

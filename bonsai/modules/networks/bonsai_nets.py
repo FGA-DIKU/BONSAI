@@ -58,7 +58,13 @@ class BonsaiEncoder(ModernBertModel):
             age=batch["age"],
             abspos=batch["abspos"],
         )
-
+        print(
+            super().forward(
+                inputs_embeds=inputs_embeds,
+                attention_mask=batch["attention_mask"],
+                **kwargs,
+            )
+        )
         return super().forward(
             inputs_embeds=inputs_embeds,
             attention_mask=batch["attention_mask"],
