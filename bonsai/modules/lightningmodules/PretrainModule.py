@@ -3,7 +3,7 @@ from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
 from torchmetrics import MetricCollection
-from bonsai.modules.metrics.metrics import PrecisionAtKs
+from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 
 
 class PretrainModule(L.LightningModule):
@@ -32,10 +32,23 @@ class PretrainModule(L.LightningModule):
     def configure_metrics(self, prefix: str):
         return MetricCollection(
             {
-                f"{prefix}/Precision": PrecisionAtKs(
-                    ks=[1, 10, 100], reduce="mean", prefix=prefix
-                )
-            }
+                f"{prefix}/Precision@1": SharedPrecisionAtK(
+                    k=1, max_k=100, reduce="mean"
+                ),
+                f"{prefix}/Precision@10": SharedPrecisionAtK(
+                    k=10, max_k=100, reduce="mean"
+                ),
+                f"{prefix}/Precision@100": SharedPrecisionAtK(
+                    k=100, max_k=100, reduce="mean"
+                ),
+            },
+            compute_groups=[
+                [
+                    f"{prefix}/Precision@1",
+                    f"{prefix}/Precision@10",
+                    f"{prefix}/Precision@100",
+                ]
+            ],
         )
 
     def training_step(self, batch, batch_idx):
@@ -52,8 +65,8 @@ class PretrainModule(L.LightningModule):
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
         self.log("val/loss", loss, prog_bar=True)
-        self.val_metrics(logits, labels)
-        self.log_dict(self.val_metrics.compute())
+        self.val_metrics.update(logits, labels)
+        self.log_dict(self.val_metrics)
         return loss
 
     def configure_optimizers(self):
