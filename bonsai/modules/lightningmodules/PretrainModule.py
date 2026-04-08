@@ -2,7 +2,8 @@ import lightning as L
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
-from torchmetrics import MetricCollection, Precision
+from torchmetrics import MetricCollection
+from bonsai.modules.metrics.metrics import PrecisionAtKs
 
 
 class PretrainModule(L.LightningModule):
@@ -26,23 +27,15 @@ class PretrainModule(L.LightningModule):
 
         self.train_loss = nn.CrossEntropyLoss()
         self.val_loss = nn.CrossEntropyLoss()
-        self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
             {
-                f"{prefix}/Prec-K1": Precision(
-                    task="multiclass",
-                    num_classes=self.model.config.vocab_size,
-                    top_k=1,
-                ),
-                f"{prefix}/Prec-K10": Precision(
-                    task="multiclass",
-                    num_classes=self.model.config.vocab_size,
-                    top_k=10,
-                ),
-            },
+                f"{prefix}/Precision": PrecisionAtKs(
+                    ks=[1, 10, 100], reduce="mean", prefix=prefix
+                )
+            }
         )
 
     def training_step(self, batch, batch_idx):
@@ -50,9 +43,7 @@ class PretrainModule(L.LightningModule):
         loss = self.train_loss(
             logits.view(-1, self.model.config.vocab_size), labels.view(-1)
         )
-        self.train_metrics(logits, labels)
         self.log("train/loss", loss, prog_bar=True)
-        self.log_dict(self.train_metrics)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -62,7 +53,7 @@ class PretrainModule(L.LightningModule):
         )
         self.log("val/loss", loss, prog_bar=True)
         self.val_metrics(logits, labels)
-        self.log_dict(self.val_metrics)
+        self.log_dict(self.val_metrics.compute())
         return loss
 
     def configure_optimizers(self):

@@ -40,7 +40,7 @@ def fused_precision_at_k(
         reduce: Method to reduce the batch precision scores. Options are "mean" or "sum".
 
     Returns:
-        Yields tuples of (k, precision_score) for each k value.
+        Yields precision_score for each k value.
     """
     max_k = max(k)
     top_k_preds = logits.topk(max_k, dim=-1).indices  # (B, max_k)
@@ -48,9 +48,9 @@ def fused_precision_at_k(
         correct = top_k_preds[:, :k_val].eq(labels.unsqueeze(-1))  # (B, k_val)
         precision_scores = correct.any(dim=-1).float()  # (B,)
         if reduce == "mean":
-            yield k_val, precision_scores.mean().item()
+            yield precision_scores.mean().item()
         elif reduce == "sum":
-            yield k_val, precision_scores.sum().item()
+            yield precision_scores.sum().item()
         else:
             raise ValueError(
                 f"Invalid reduce option: {reduce}. Must be 'mean' or 'sum'."
