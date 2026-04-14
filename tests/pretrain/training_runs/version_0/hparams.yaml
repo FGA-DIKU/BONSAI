@@ -5,7 +5,7 @@ cls_token_id: 1
 sep_token_id: 2
 tie_word_embeddings: true
 vocab_size: 2027
-max_position_embeddings: 512
+max_position_embeddings: 8192
 hidden_size: 96
 intermediate_size: 64
 num_hidden_layers: 3
@@ -56,7 +56,6 @@ label2id:
 problem_type: null
 _name_or_path: ''
 transformers_version: 5.2.0
-type_vocab_size: 1024
 age_scale: 0.01
 abspos_scale: 1.0e-05
 age_shift: -50

@@ -41,28 +41,12 @@ training:
   limit_train_batches: 50
   eval_monitor_metric: val/loss
 
-  #Below is planned for implementation but not yet done
-  #checkpoint_frequency: 1
-  #early_stopping: 20 # rename this to tell what the value represents
-  #stopping_criterion: roc_auc
-  #n_layers_to_freeze: 1
-  #unfreeze_on_plateau: true # unfreeze all layers if the performance is less than plateau_threshold 
-  #unfreeze_at_epoch: 2 # if unfrezze_on_plateau is true, whichever condition is met first
-  #plateau_threshold: 0.01 
-  #reset_patience_after_unfreeze: true # reset early stopping counter after unfreezing
-
-  # Below is not planned to be implemented
-  #info: true
-  #gradient_clip: 
-  #  clip_value: 1.0
-
 model:
-  hidden_size: 96
+  hidden_size: 64
   num_hidden_layers: 3
   num_attention_heads: 3
-  intermediate_size: 64
-  type_vocab_size: 1024
+  intermediate_size: 256
   embedding_dropout: 0.1
-  max_position_embeddings: 512
+  max_position_embeddings: 8192
   is_causal: false
 
