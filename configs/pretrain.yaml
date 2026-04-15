@@ -12,23 +12,23 @@ paths:
   vocab: ${paths.dir}/vocabulary.pt
   dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset # or MLMPretrainDataset
   population: ${paths.dir}/population_full.csv
-  ckpt_path: last
+  ckpt_path: #last
 
 training:
-  max_len: 10
-  cutoff_date:
-    day: 1
-    month: 1
-    year: 2015
-  batch_size: 32
-  accumulate_grad_batches: 2 
-  epochs: 1
-  learning_rate: 5e-4
+  max_len: 8192
+  batch_size: 128
+  accumulate_grad_batches: 1
+  epochs: 10
+  learning_rate: 3e-4
   optimizer_epsilon: 1e-6
-  scheduler_warmup_epochs: 2
+  scheduler_warmup_epochs: 1
   limit_val_batches: 1.0
   limit_train_batches: 1.0
   ckpt_every_n_epoch: 1
+  cutoff_date: # Optional
+  #   day: 1
+  #   month: 1
+  #   year: 2015
   # MLM specific
   # masking:
   #   masking_select_ratio: 1.
@@ -42,5 +42,5 @@ model:
   num_attention_heads: 4
   intermediate_size: 256
   embedding_dropout: 0.1
-  max_position_embeddings: 8192
+  max_position_embeddings: ${training.max_len}
   is_causal: false

@@ -20,10 +20,10 @@ class PretrainDataModule(L.LightningDataModule):
         path_population: str,
         batch_size: int,
         num_workers: int,
+        max_len: int,
         dataset_class: torch.utils.data.Dataset,
         masking_config: Optional[dict] = None,
         cutoff_date: Optional[dict] = None,
-        max_len: int = 8192,
     ):
         super().__init__()
         self.path_train_data = path_train_data

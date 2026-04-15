@@ -17,6 +17,7 @@ class FinetuneDataModule(L.LightningDataModule):
         batch_size: int,
         num_workers: int,
         predict_token_id: int,
+        max_len: int,
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
         test_outcomes: Dict[int, dict],
@@ -30,6 +31,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.predict_token_id = predict_token_id
+        self.max_len = max_len
 
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
@@ -64,12 +66,14 @@ class FinetuneDataModule(L.LightningDataModule):
             outcomes=self.train_outcomes,
             predict_token_id=self.predict_token_id,
             background_length=background_length,
+            max_len=self.max_len,
         )
         self.val_dataset = FinetuneDataset(
             val_data,
             outcomes=self.val_outcomes,
             predict_token_id=self.predict_token_id,
             background_length=background_length,
+            max_len=self.max_len,
         )
 
     def train_dataloader(self):
