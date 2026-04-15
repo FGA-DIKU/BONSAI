@@ -30,7 +30,7 @@ class BonsaiEncoder(ModernBertModel):
         self.embeddings = EhrEmbeddings(
             vocab_size=config.vocab_size,
             hidden_size=config.hidden_size,
-            type_vocab_size=config.type_vocab_size,
+            max_position_embeddings=config.max_position_embeddings,
             embedding_dropout=config.embedding_dropout,
             pad_token_id=config.pad_token_id,
         )

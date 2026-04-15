@@ -55,6 +55,7 @@ def main(cfg: DictConfig) -> None:
         val_outcomes=val_outcomes,
         test_outcomes=test_outcomes,
         predict_token_id=vocab["[CLS]"],
+        max_len=cfg.training.max_len,
         train_sampler=get_sampler(
             weight_fn=cfg.training.sampling_weight_fn, labels=train_labels
         ),

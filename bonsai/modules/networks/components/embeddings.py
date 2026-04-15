@@ -15,7 +15,7 @@ class EhrEmbeddings(nn.Module):
     Parameters:
         vocab_size: int                         - size of the vocabulary
         hidden_size: int                        - size of the hidden layer
-        type_vocab_size: int                    - size of max segments
+        max_position_embeddings: int            - maximum sequence length (used for segments)
         embedding_dropout: float                - dropout probability
         pad_token_id: int                       - token ID used for padding
     """
@@ -24,7 +24,7 @@ class EhrEmbeddings(nn.Module):
         self,
         vocab_size: int,
         hidden_size: int,
-        type_vocab_size: int,
+        max_position_embeddings: int,
         embedding_dropout: float,
         pad_token_id: int = 0,
     ):
@@ -37,7 +37,7 @@ class EhrEmbeddings(nn.Module):
             vocab_size, hidden_size, padding_idx=pad_token_id
         )
         self.segment_embedding = nn.Embedding(
-            type_vocab_size, hidden_size, padding_idx=pad_token_id
+            max_position_embeddings, hidden_size, padding_idx=pad_token_id
         )
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)

@@ -15,7 +15,7 @@ class FinetuneDataset(Dataset):
         outcomes: Dict[int, dict],
         predict_token_id: int,
         background_length: int,
-        max_len: int = 8192,
+        max_len: int,
     ):
         self.subjects = subjects
         self.outcomes = outcomes
