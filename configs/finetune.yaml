@@ -14,7 +14,7 @@ paths:
   outcome: ${paths.dir}/outcomes/${outcome}.parquet
   vocabulary: ${paths.dir}/vocabulary.pt
   population: ${paths.dir}/population_full.csv
-  ckpt_path: #last
+  ckpt_path: 
 
 
 data:
