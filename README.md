@@ -49,15 +49,15 @@ git checkout tags/pre-lightning
 ```
 
 ## Outcomes creation
-We provide a standardized script to generate outcomes in [create_outcomes.py](/bonsai/run/create_outcome.py), however you can also provide your own, in case our script doesn't accommodate your needs. 
+We provide a standardized script to generate outcomes in [create_outcome.py](/bonsai/run/create_outcome.py), however you can also provide your own, in case our script doesn't accommodate your needs. 
 
 An outcome file requires the following 5 columns saved as a `.parquet` file:
 
-1. A `subject_id` to define the person in interest
+1. A `subject_id` to define the person of interest
 2. A `split` string (e.g. "train", "tuning", "held_out") that denotes which split the given row belongs to (i.e. we make one file for all splits)
-3. A `outcome_date` that denotes when the outcome happened
-4. A `index_date` that denotes from when we consider the prediction
-5. A `censor_date` that denotes the data cutoff
+3. A `outcome_date` that denotes when the outcome happened (can be null)
+4. A `index_date` that denotes from when we consider the prediction (can't be null)
+5. A `censor_date` that denotes the data cutoff (can't be null)
 
 ## Contributing
 
