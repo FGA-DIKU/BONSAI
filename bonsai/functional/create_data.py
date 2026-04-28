@@ -60,10 +60,10 @@ def process_split(
         # Cast to correct dtypes
         tokenized = tokenized.select(
             pl.col("subject_id").cast(pl.Int64),
-            pl.col("code").cast(pl.Int64),
-            pl.col("age").cast(pl.Float32),
-            pl.col("abspos").cast(pl.Float64),
-            pl.col("segment").cast(pl.Int32),
+            pl.col("code").cast(pl.Int32),
+            pl.col("age").cast(pl.Float16),
+            pl.col("abspos").cast(pl.Float32),
+            pl.col("segment").cast(pl.Int16),
         )
         tokenized.write_parquet(path_output_dir_split / f"{shard.stem}.parquet")
 
