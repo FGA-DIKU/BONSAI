@@ -18,18 +18,26 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
             on="subject_id",
             how="left",
         )
-        .with_columns(compute_age().alias("age"))
+        .with_columns(
+            age=compute_age(
+                time=pl.col("time"),
+                dob_time=pl.col("dob_time"),
+            )
+        )
         .drop("dob_time")
     )
 
     features = exclude_incorrect_event_ages(features)
 
     features = features.with_columns(
-        compute_abspos(pl.col("time")).alias("abspos")
+        abspos=compute_abspos(pl.col("time"))
     )
 
     features = features.sort(["subject_id", "time"]).with_columns(
-        compute_segments().alias("segment")
+        segment=compute_segments(
+            time=pl.col("time"),
+            subject_id=pl.col("subject_id"),
+        )
     )
 
     features = features.select("subject_id", "code", "age", "abspos", "segment")
@@ -63,19 +71,17 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
         pl.when(pl.col("time").is_null())
         .then(pl.lit("BACKGROUND//") + pl.col("code"))
         .otherwise(pl.col("code"))
-        .alias("code")
     )
 
     background_time = (
         pl.when(pl.col("time").is_null())
         .then(pl.col("dob_time"))
         .otherwise(pl.col("time"))
-        .alias("time")
     )
 
     df = df.with_columns(
-        background_code,
-        background_time,
+        code=background_code,
+        time=background_time,
     )
 
     df = df.drop("dob_time")
@@ -83,19 +89,17 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     return df, dob_rows
 
 
-def compute_age() -> pl.Expr:
+def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
     """
-    Compute age in years from columns:
-      - time
-      - dob_time
+    Compute age in years from time and DOB expressions.
     """
     return (
         (
-            pl.col("time").cast(pl.Datetime("ms"))
-            - pl.col("dob_time").cast(pl.Datetime("ms"))
+            time.cast(pl.Datetime("ms"))
+            - dob_time.cast(pl.Datetime("ms"))
         ).dt.total_milliseconds()
         / (365.25 * 24 * 3600 * 1_000)
-    ).cast(pl.Float64)
+    ).cast(pl.Float16)
 
 
 def compute_abspos(
@@ -106,7 +110,7 @@ def compute_abspos(
             pl.Series([timestamps])
             .cast(pl.Datetime("ms"))
             .dt.timestamp("ms")
-            .cast(pl.Float64)[0]
+            .cast(pl.Float32)[0]
             / (3600 * 1_000)
         )
 
@@ -115,7 +119,7 @@ def compute_abspos(
             timestamps
             .cast(pl.Datetime("ms"))
             .dt.timestamp("ms")
-            .cast(pl.Float64)
+            .cast(pl.Float32)
             / (3600 * 1_000)
         )
 
@@ -124,13 +128,13 @@ def compute_abspos(
     )
 
 
-def compute_segments() -> pl.Expr:
+def compute_segments(time: pl.Expr, subject_id: pl.Expr) -> pl.Expr:
     return (
-        (pl.col("time") != pl.col("time").shift(1))
+        (time != time.shift(1))
         .fill_null(True)
         .cast(pl.Int64)
         .cum_sum()
-        .over("subject_id")
+        .over(subject_id)
     )
 
 
