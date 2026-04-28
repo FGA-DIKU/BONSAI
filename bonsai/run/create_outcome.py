@@ -56,7 +56,7 @@ def main(cfg: DictConfig) -> None:
                 )
                 logging.info(f"Excluding {len(exclude_df)} subjects")
                 df = df.join(
-                    exclude_df.select("subject_id").unique(),
+                    exclude_df.select("subject_id"),
                     on="subject_id",
                     how="anti",
                 )
@@ -67,7 +67,7 @@ def main(cfg: DictConfig) -> None:
             )
             logging.info(f"Matched {len(outcomes)} subjects")
             outcomes = (
-                df.select(["subject_id"])
+                df.select("subject_id")
                 .unique()
                 .join(outcomes, on="subject_id", how="left")
                 .drop("code")
