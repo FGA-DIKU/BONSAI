@@ -109,7 +109,6 @@ def main(cfg: DictConfig) -> None:
             all_outcomes.append(outcomes)
 
     all_outcomes = pl.concat(all_outcomes) if all_outcomes else pl.DataFrame()
-    all_outcomes = all_outcomes.with_row_index().drop("index")
 
     if (index_dates := all_outcomes["index_date"]).is_null().any():
         logging.warning(
