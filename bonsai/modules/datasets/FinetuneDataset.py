@@ -1,6 +1,5 @@
 from typing import List, Dict
 import torch
-import polars as pl
 from torch.utils.data import Dataset
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.truncation import truncate_subject
