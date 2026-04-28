@@ -4,8 +4,6 @@
 [![Unittests](https://github.com/FGA-DIKU/EHR/actions/workflows/unittests.yml/badge.svg)](https://github.com/FGA-DIKU/EHR/actions/workflows/unittests.yml)
 [![Format](https://github.com/FGA-DIKU/EHR/actions/workflows/format.yml/badge.svg)](https://github.com/FGA-DIKU/EHR/actions/workflows/format.yml)
 [![Lint](https://github.com/FGA-DIKU/EHR/actions/workflows/lint.yml/badge.svg)](https://github.com/FGA-DIKU/EHR/actions/workflows/lint.yml)
-![Doc Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/kirilklein/b02ecb317ea24a8ced5e72ae96e1c0c3/raw/docstr-coverage.json)
-![Test Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/kirilklein/b02ecb317ea24a8ced5e72ae96e1c0c3/raw/covbadge.json)
 
 > **A framework for processing and analyzing Electronic Health Records (EHR) data using transformer-based models.**
 
