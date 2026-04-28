@@ -6,6 +6,7 @@ from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.normalization import normalize_segments
 from copy import deepcopy
 
+
 class FinetuneDataset(Dataset):
     def __init__(
         self,

@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Tuple, Union
 
+
 def create_features(df: pl.DataFrame) -> pl.DataFrame:
     """
     Create background, age, absolute position, and segment features.
@@ -29,9 +30,7 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
 
     features = exclude_incorrect_event_ages(features)
 
-    features = features.with_columns(
-        abspos=compute_abspos(pl.col("time"))
-    )
+    features = features.with_columns(abspos=compute_abspos(pl.col("time")))
 
     features = features.sort(["subject_id", "time"]).with_columns(
         segment=compute_segments(
@@ -95,8 +94,7 @@ def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
     """
     return (
         (
-            time.cast(pl.Datetime("ms"))
-            - dob_time.cast(pl.Datetime("ms"))
+            time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
         ).dt.total_milliseconds()
         / (365.25 * 24 * 3600 * 1_000)
     ).cast(pl.Float16)
@@ -106,22 +104,14 @@ def compute_abspos(
     timestamps: Union[pl.Expr, pl.Series, datetime],
 ) -> Union[pl.Expr, pl.Series, float]:
     if isinstance(timestamps, datetime):
-        return (
-            pl.Series([timestamps])
-            .cast(pl.Datetime("ms"))
-            .dt.timestamp("ms")
-            .cast(pl.Float32)[0]
-            / (3600 * 1_000)
-        )
+        return pl.Series([timestamps]).cast(pl.Datetime("ms")).dt.timestamp("ms").cast(
+            pl.Float32
+        )[0] / (3600 * 1_000)
 
     if isinstance(timestamps, (pl.Expr, pl.Series)):
-        return (
-            timestamps
-            .cast(pl.Datetime("ms"))
-            .dt.timestamp("ms")
-            .cast(pl.Float32)
-            / (3600 * 1_000)
-        )
+        return timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(
+            pl.Float32
+        ) / (3600 * 1_000)
 
     raise TypeError(
         "Invalid type for timestamps, only pl.Expr, pl.Series, and datetime are supported."

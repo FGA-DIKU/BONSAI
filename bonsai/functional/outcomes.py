@@ -41,9 +41,7 @@ def get_subject_first_row_for_conditions(
 
     # Take first row based on `conditions` ordering
     res = (
-        res.sort(["_prio", "time"])
-        .group_by("subject_id", maintain_order=True)
-        .first()
+        res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
     )
     res = res.drop("_prio")
     return res
@@ -97,9 +95,7 @@ def binarize_outcomes(
         )
 
     outcomes = outcomes.with_columns(
-        label=outcomes_in_prediction_window
-        .fill_null(False)
-        .cast(pl.Int64)
+        label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
     )
 
     rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()

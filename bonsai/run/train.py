@@ -36,7 +36,7 @@ def main(cfg: DictConfig) -> None:
     outcomes = pl.read_parquet(cfg.paths.outcome)
     outcomes = outcomes.with_columns(
         censor_abspos=compute_abspos(pl.col("censor_date"))
-        )
+    )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",

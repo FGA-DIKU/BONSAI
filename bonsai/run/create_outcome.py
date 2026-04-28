@@ -121,7 +121,9 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = all_outcomes.with_columns(
         censor_date=get_date_from_relative_date(
             relative_dates=pl.col("index_date"),  # Censoring is based on index_date
-            relative_hour_shift=censor["relative_hour_shift"],  # 0 sets index_date=censor_date
+            relative_hour_shift=censor[
+                "relative_hour_shift"
+            ],  # 0 sets index_date=censor_date
         )
     )
 

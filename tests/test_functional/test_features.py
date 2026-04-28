@@ -68,9 +68,7 @@ class TestFeatures(unittest.TestCase):
         non_dob_ages = features.filter(pl.col("code") != "DOB")["age"]
         self.assertTrue((non_dob_ages.to_numpy() > 0).any())
 
-        bg_ages = features.filter(pl.col("code").str.starts_with("BACKGROUND//"))[
-            "age"
-        ]
+        bg_ages = features.filter(pl.col("code").str.starts_with("BACKGROUND//"))["age"]
         self.assertTrue((bg_ages.to_numpy() == 0).all())
 
     def test_compute_abspos(self):
@@ -82,9 +80,7 @@ class TestFeatures(unittest.TestCase):
             ]
         )
         abspos = compute_abspos(times)
-        self.assertTrue(
-            np.isclose(abspos[1] - abspos[0], 1.0, atol=0.01)
-        )
+        self.assertTrue(np.isclose(abspos[1] - abspos[0], 1.0, atol=0.01))
         self.assertTrue(abspos[2] is None)
 
         dt = datetime(2000, 1, 1, 0, 0, 0)
