@@ -52,11 +52,15 @@ class TestFeatures(unittest.TestCase):
         self.assertEqual(bg_rows.filter(pl.col("time").is_null()).height, 0)
 
     def test_compute_age(self):
-        df, dob_info = create_background(self.df.clone())
+        df, dob_info = create_background(self.df)
         features = df.join(
             dob_info.rename({"time": "dob_time"}), on="subject_id", how="left"
-        ).with_columns(compute_age().alias("age"))
-        ages = features["age"]
+        ).with_columns(
+            age=compute_age(
+                time=pl.col("time"),
+                dob_time=pl.col("dob_time"),
+            )
+        )
 
         dob_ages = features.filter(pl.col("code") == "DOB")["age"]
         self.assertTrue(np.allclose(dob_ages.to_numpy(), 0.0))
@@ -94,7 +98,12 @@ class TestFeatures(unittest.TestCase):
                 "time": [1, 2, 1, 1, 2],
             }
         )
-        segs = df.with_columns(compute_segments().alias("segment"))["segment"]
+        segs = df.with_columns(
+            segment=compute_segments(
+                time=pl.col("time"),
+                subject_id=pl.col("subject_id"),
+            )
+        )["segment"]
         self.assertEqual(segs.to_list(), [1, 2, 1, 1, 2])
 
     def test_drop_invalids(self):

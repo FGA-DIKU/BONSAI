@@ -28,8 +28,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="independent"
         )
-        self.assertEqual(set(result["subject_id"].to_list()), {1, 2})
-        self.assertIn("A", result["code"].to_list())
+        self.assertEqual(set(result["subject_id"]), {1, 2})
+        self.assertIn("A", result["code"])
 
     def test_find_dependent(self):
         df = pl.DataFrame(
@@ -46,8 +46,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
         )
-        self.assertEqual(set(result["subject_id"].to_list()), {2})
-        self.assertIn("A", result["code"].to_list())
+        self.assertEqual(set(result["subject_id"]), {2})
+        self.assertIn("A", result["code"])
 
     def test_find_dependent2(self):
         df = pl.DataFrame(
@@ -64,8 +64,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
         )
-        self.assertEqual(set(result["subject_id"].to_list()), {2})
-        self.assertIn("C", result["code"].to_list())
+        self.assertEqual(set(result["subject_id"]), {2})
+        self.assertIn("C", result["code"])
 
     def test_find_invalid_dependence(self):
         df = pl.DataFrame(
@@ -109,7 +109,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df, conditions, dependence="independent"
         )
         outcomes = (
-            df.select(["subject_id"])
+            df.select("subject_id")
             .unique()
             .join(outcomes, on="subject_id", how="left")
             .drop("code")
@@ -117,14 +117,16 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         )
 
         result = get_date_from_exposure_date(
-            subjects=outcomes.select(["subject_id"]),
+            subjects=outcomes.select("subject_id"),
             df=df,
             conditions=conditions,
             dependence="independent",
         )
-        self.assertEqual(result[0], datetime(2020, 1, 1))
-        self.assertEqual(result[1], datetime(2022, 1, 1))
-        self.assertIsNone(result[2])
+        result_by_subject = dict(zip(outcomes["subject_id"], result))
+
+        self.assertEqual(result_by_subject[1], datetime(2020, 1, 1))
+        self.assertEqual(result_by_subject[2], datetime(2022, 1, 1))
+        self.assertIsNone(result_by_subject[3])
 
     def test_fill_nans_with_sampled(self):
         dates = pl.Series([datetime(2020, 1, 1), datetime(2021, 1, 1), None])

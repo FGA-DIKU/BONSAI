@@ -38,8 +38,7 @@ class TestSubjectData(unittest.TestCase):
 
         result = prepare_subject_data(mock_path)
         self.assertEqual(len(result), 2)
-        for subject in result:  # we dont know order
-            if subject["subject_id"] == 1:
-                self.assertEqual(len(subject["code"]), 2)
-            elif subject["subject_id"] == 2:
-                self.assertEqual(len(subject["code"]), 1)
+        result_by_subject = {s["subject_id"]: s for s in result}
+
+        self.assertEqual(len(result_by_subject[1]["code"]), 2)
+        self.assertEqual(len(result_by_subject[2]["code"]), 1)
