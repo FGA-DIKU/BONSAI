@@ -18,6 +18,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {
                 "subject_id": [1, 1, 2, 2],
                 "code": ["A", "B", "A", "C"],
+                "time": [datetime(2020, 1, i + 1) for i in range(4)],
             }
         )
         conditions = [
@@ -35,6 +36,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {
                 "subject_id": [1, 1, 2, 2, 3],
                 "code": ["A", "B", "A", "C", "A"],
+                "time": [datetime(2020, 1, i + 1) for i in range(5)],
             }
         )
         conditions = [
@@ -52,6 +54,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             {
                 "subject_id": [1, 1, 2, 2, 3],
                 "code": ["A", "B", "A", "C", "A"],
+                "time": [datetime(2020, 1, i + 1) for i in range(5)],
             }
         )
         conditions = [
@@ -65,7 +68,13 @@ class TestCreateOutcomesUtils(unittest.TestCase):
         self.assertIn("C", result["code"].to_list())
 
     def test_find_invalid_dependence(self):
-        df = pl.DataFrame({"subject_id": [1], "code": ["A"]})
+        df = pl.DataFrame(
+            {
+                "subject_id": [1],
+                "code": ["A"],
+                "time": [datetime(2020, 1, 1)],
+            }
+        )
         conditions = [{"col": "code", "vals": ["A"]}]
         with self.assertRaises(ValueError):
             get_subject_first_row_for_conditions(df, conditions, dependence="invalid")

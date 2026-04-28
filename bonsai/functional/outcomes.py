@@ -8,7 +8,7 @@ def get_subject_first_row_for_conditions(
 ) -> pl.DataFrame:
     """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
     # Initialization
-    df = df.with_columns(pl.lit(None).cast(pl.Int64).alias("_prio"))
+    df = df.with_columns(pl.lit(None).cast(pl.Int32).alias("_prio"))
     row_mask = pl.lit(False)
     subject_sets = []
 
@@ -17,7 +17,10 @@ def get_subject_first_row_for_conditions(
         cond_expr = pl.col(cond["col"]).is_in(cond["vals"])  # Rows that meet condition
         row_mask = row_mask | cond_expr  # OR operation
         df = df.with_columns(
-            pl.when(cond_expr).then(pl.lit(i)).otherwise(pl.col("_prio")).alias("_prio")
+            pl.when(cond_expr & pl.col("_prio").is_null())
+            .then(pl.lit(i))
+            .otherwise(pl.col("_prio"))
+            .alias("_prio")
         )  # Set priority (to take first row later)
         subject_sets.append(
             set(df.filter(cond_expr).get_column("subject_id").to_list())
@@ -66,7 +69,7 @@ def get_date_from_exposure_date(subjects, df, dependence, conditions):
         df, conditions=conditions, dependence=dependence
     )
     return subjects.join(
-        result.select(["subject_id", "time"]), on="subject_id", how="left"
+        result.select("subject_id", "time"), on="subject_id", how="left"
     )["time"]
 
 
@@ -94,13 +97,12 @@ def binarize_outcomes(
         )
 
     outcomes = outcomes.with_columns(
-        outcomes_in_prediction_window
+        label=outcomes_in_prediction_window
         .fill_null(False)
         .cast(pl.Int64)
-        .alias("label")
     )
 
-    rows = outcomes.select(["subject_id", "label", "censor_abspos"]).to_dicts()
+    rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
     return {
         row["subject_id"]: {
             "label": row["label"],
