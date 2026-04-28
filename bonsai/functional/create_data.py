@@ -63,7 +63,7 @@ def process_split(
             pl.col("code").cast(pl.Int32),
             pl.col("age").cast(pl.Float16),
             pl.col("abspos").cast(pl.Float32),
-            pl.col("segment").cast(pl.Int16),
+            pl.col("segment").cast(pl.Int32),
         )
         tokenized.write_parquet(path_output_dir_split / f"{shard.stem}.parquet")
 

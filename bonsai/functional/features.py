@@ -122,7 +122,7 @@ def compute_segments(time: pl.Expr, subject_id: pl.Expr) -> pl.Expr:
     return (
         (time != time.shift(1))
         .fill_null(True)
-        .cast(pl.Int64)
+        .cast(pl.Int32)
         .cum_sum()
         .over(subject_id)
     )
