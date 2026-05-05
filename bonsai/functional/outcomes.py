@@ -1,7 +1,6 @@
 from typing import List, Literal, Optional, Dict, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 import polars as pl
-
 
 def get_subject_first_row_for_conditions(
     df: pl.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
@@ -52,10 +51,15 @@ def get_date_from_absolute_date(absolute_date):
     return datetime(**absolute_date)
 
 
+#def get_date_from_relative_date(relative_dates, relative_hour_shift):
+#    assert relative_dates is not None
+#    assert relative_hour_shift is not None
+#    return relative_dates + pl.duration(hours=relative_hour_shift)
+
 def get_date_from_relative_date(relative_dates, relative_hour_shift):
     assert relative_dates is not None
     assert relative_hour_shift is not None
-    return relative_dates + pl.duration(hours=relative_hour_shift)
+    return relative_dates + timedelta(hours=relative_hour_shift)
 
 
 def get_date_from_exposure_date(subjects, df, dependence, conditions):
