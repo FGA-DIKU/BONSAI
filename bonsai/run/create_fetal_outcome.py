@@ -4,6 +4,7 @@ import hydra
 import pandas as pd
 from dotenv import load_dotenv
 from omegaconf import DictConfig
+import pickle 
 
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
@@ -28,10 +29,14 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
 def main(cfg: DictConfig) -> None:
     input_dir = Path(cfg.paths.input_dir)
     patient_table = Path(cfg.paths.patient_table)
+    hash_mapping = Path(cfg.paths.hash_mapping)
+    with open(hash_mapping, "rb") as f:
+        mapping_dict = pickle.load(f)
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     patient_table = pd.read_csv(patient_table)
+    patient_table["subject_id"] = patient_table["m_cpr"].map(mapping_dict)
     print(patient_table.head())
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
