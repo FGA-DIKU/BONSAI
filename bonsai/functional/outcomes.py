@@ -8,7 +8,7 @@ def get_subject_first_row_for_conditions(
 ) -> pl.DataFrame:
     """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
     # Initialization
-    df = df.with_columns(pl.lit(None).cast(pl.Int32).alias("_prio"))
+    df = df.with_columns(_prio=pl.lit(None).cast(pl.Int32))
     row_mask = pl.lit(False)
     subject_sets = []
 
@@ -17,10 +17,9 @@ def get_subject_first_row_for_conditions(
         cond_expr = pl.col(cond["col"]).is_in(cond["vals"])  # Rows that meet condition
         row_mask = row_mask | cond_expr  # OR operation
         df = df.with_columns(
-            pl.when(cond_expr & pl.col("_prio").is_null())
+            _prio=pl.when(cond_expr & pl.col("_prio").is_null())
             .then(pl.lit(i))
             .otherwise(pl.col("_prio"))
-            .alias("_prio")
         )  # Set priority (to take first row later)
         subject_sets.append(
             set(df.filter(cond_expr).get_column("subject_id").to_list())
