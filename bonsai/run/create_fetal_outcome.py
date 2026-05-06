@@ -31,7 +31,8 @@ def main(cfg: DictConfig) -> None:
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    patient_table = pd.read_parquet(patient_table)
+    patient_table = pd.read_csv(patient_table)
+    print(patient_table.head())
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
