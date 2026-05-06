@@ -29,8 +29,8 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
 def main(cfg: DictConfig) -> None:
     input_dir = Path(cfg.paths.input_dir)
     patient_table = Path(cfg.paths.patient_table)
-    hash_mapping = Path(cfg.paths.hash_mapping)
-    with open(hash_mapping, "rb") as f:
+    mapping_file = Path(cfg.paths.mapping_file)
+    with open(mapping_file, "rb") as f:
         mapping_dict = pickle.load(f)
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
