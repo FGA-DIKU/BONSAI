@@ -75,9 +75,9 @@ def main(cfg: DictConfig) -> None:
             subject_ids = df["subject_id"].drop_duplicates()
 
             outcomes = (
-                patient_table.reindex(subject_ids)[[outcome, index]]
-                .rename(columns={outcome: "outcome_date", index: "index_date"})
-                .reset_index(drop=False)[["subject_id", "outcome_date", "index_date"]]
+                patient_table.reindex(subject_ids)[[outcome.date, index]]
+                .rename(columns={outcome.date: "outcome_date", index: "index_date"})
+                .reset_index(drop=False)[["subject_id", outcome.date, index]]
             )
             outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
             outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
