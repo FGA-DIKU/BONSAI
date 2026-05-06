@@ -82,7 +82,7 @@ def main(cfg: DictConfig) -> None:
             outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
             outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
             outcomes["outcome_date"] = outcomes["outcome_date"].where(
-                outcomes["label"].notna(), pd.NaT
+                outcomes["label"], pd.NaT
             )
 
             outcomes["split"] = split
