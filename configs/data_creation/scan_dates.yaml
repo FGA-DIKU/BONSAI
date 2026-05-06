@@ -1,0 +1,22 @@
+defaults:
+  - core/base_create@
+  - _self_
+
+dataset:
+
+patient_table:
+
+paths: 
+  input_dir: ${dataset}/data
+  patient_table: ${patient_table}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - test
+
+outcome: # defining outcomes based on the patient table
+  outcome: pregnancy_end
+  index: scan_date
+  censor: # relative to index
+    relative_hour_shift: 0 # 0 sets index=censor
