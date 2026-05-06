@@ -10,7 +10,7 @@ pretrain_path:
 paths:
   dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
   train_split: ${paths.dir}/subject_data_train.pt
-  val_split: ${paths.dir}/subject_data_tuning.pt
+  val_split: ${paths.dir}/subject_data_val.pt
   outcome: ${paths.dir}/outcomes/${outcome}.parquet
   vocabulary: ${paths.dir}/vocabulary.pt
   population: ${paths.dir}/population_full.csv

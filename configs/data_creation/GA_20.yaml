@@ -17,6 +17,7 @@ paths:
 splits:
   - train
   - test
+  - val
 
 outcome: # defining outcomes based on the patient table
   outcome: 
