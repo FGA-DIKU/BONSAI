@@ -37,6 +37,8 @@ def main(cfg: DictConfig) -> None:
 
     patient_table = pd.read_csv(patient_table)
     patient_table["subject_id"] = patient_table["m_cpr"].map(mapping_dict)
+    # Index by subject_id so lookups from event shards are correct.
+    patient_table = patient_table.set_index("subject_id", drop=False)
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
@@ -50,24 +52,27 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = pd.DataFrame()
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
-        n_pts = 0
         for shard in shards:
             df = pd.read_parquet(shard, columns=["subject_id", "time", "code"])
             df = df.dropna(subset=["subject_id", "time", "code"])
-            n_pts += df["subject_id"].nunique()
 
-            subject_ids = df["subject_id"].astype(patient_table.index.dtype, copy=False)
+            # Ensure 1 row per subject in this shard.
+            subject_ids = df["subject_id"].drop_duplicates()
+
             outcomes = (
                 patient_table.reindex(subject_ids)[[outcome, index]]
                 .rename(columns={outcome: "outcome_date", index: "index_date"})
-                .reset_index(names="subject_id")
+                .reset_index(drop=False)[["subject_id", "outcome_date", "index_date"]]
             )
             outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
             outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
-        logging.info(f"Processed {n_pts} subjects in {split}")
+        logging.info(
+            f"Processed {all_outcomes.loc[all_outcomes['split'].eq(split), 'subject_id'].nunique():_} "
+            f"unique subjects in {split}"
+        )
     all_outcomes = all_outcomes.reset_index(drop=True)
 
     if (dates := all_outcomes["index_date"]).isna().any():
