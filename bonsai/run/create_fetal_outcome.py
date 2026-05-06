@@ -75,9 +75,9 @@ def main(cfg: DictConfig) -> None:
             subject_ids = df["subject_id"].drop_duplicates()
 
             outcomes = (
-                patient_table.reindex(subject_ids)[[outcome.date, index]]
+                patient_table.reindex(subject_ids)[[outcome.date, index, "label"]]
                 .rename(columns={outcome.date: "outcome_date", index: "index_date"})
-                .reset_index(drop=False)[["subject_id", outcome.date, index]]
+                .reset_index(drop=False)[["subject_id", "outcome_date", "index_date", "label"]]
             )
             outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
             outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
@@ -103,7 +103,7 @@ def main(cfg: DictConfig) -> None:
         )
         print(
             patient_table.reindex(missing_subject_ids)[
-                ["m_cpr", "subject_id", outcome.date, index]
+                ["m_cpr", "subject_id", outcome.date, index, "label"]
             ].head(20)
         )
         logging.warning(
