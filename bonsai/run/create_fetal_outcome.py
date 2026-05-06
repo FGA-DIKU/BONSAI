@@ -37,10 +37,10 @@ def main(cfg: DictConfig) -> None:
 
     patient_table = pd.read_csv(patient_table)
     patient_table["subject_id"] = patient_table["m_cpr"].map(mapping_dict)
-    print(patient_table.head())
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
+    print(patient_table[["m_cpr", "subject_id", outcome, index]].head())
 
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
     logging.info(f"Outcome date assigned with {outcome}")
@@ -55,21 +55,12 @@ def main(cfg: DictConfig) -> None:
 
             df = df.dropna(subset=["subject_id", "time", "code"])
 
-            outcomes = patient_table.loc[df["subject_id"], outcome]
-            logging.info(f"Matched {len(outcomes)} subjects")
+            subject_ids = df["subject_id"].astype(patient_table.index.dtype, copy=False)
             outcomes = (
-                (
-                    df[["subject_id"]]
-                    .drop_duplicates()
-                    .merge(outcomes, on="subject_id", how="left")
-                )
-                .drop(columns="code")
-                .rename(columns={outcome: "outcome_date"})
+                patient_table.reindex(subject_ids)[[outcome, index]]
+                .rename(columns={outcome: "outcome_date", index: "index_date"})
+                .reset_index(names="subject_id")
             )
-            # TODO: handle multiple outcomes pr subject assert len(outcomes) == df["subject_id"].nunique()
-
-            index_dates = patient_table.loc[df["subject_id"], index].rename(columns={index: "index_date"})["subject_id", "index_date"]
-            outcomes = outcomes.merge(index_dates, on="subject_id", how="left")
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
     all_outcomes = all_outcomes.reset_index(drop=True)
