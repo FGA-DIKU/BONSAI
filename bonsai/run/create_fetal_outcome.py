@@ -50,10 +50,11 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = pd.DataFrame()
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
+        n_pts = 0
         for shard in shards:
             df = pd.read_parquet(shard, columns=["subject_id", "time", "code"])
-
             df = df.dropna(subset=["subject_id", "time", "code"])
+            n_pts += df["subject_id"].nunique()
 
             subject_ids = df["subject_id"].astype(patient_table.index.dtype, copy=False)
             outcomes = (
@@ -66,6 +67,7 @@ def main(cfg: DictConfig) -> None:
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
+        logging.info(f"Processed {n_pts} subjects in {split}")
     all_outcomes = all_outcomes.reset_index(drop=True)
 
     if (dates := all_outcomes["index_date"]).isna().any():
