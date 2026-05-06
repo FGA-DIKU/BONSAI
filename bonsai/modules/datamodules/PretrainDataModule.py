@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 from typing import Optional
 import torch
 from torch.utils.data import DataLoader
@@ -29,7 +29,7 @@ class PretrainDataModule(L.LightningDataModule):
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
         self.vocabulary = torch.load(path_vocab)
-        self.population = pd.read_csv(path_population)
+        self.population = pl.read_csv(path_population)
         self.num_workers = num_workers
         self.batch_size = batch_size
 
@@ -50,8 +50,10 @@ class PretrainDataModule(L.LightningDataModule):
     def setup_fit(self):
         train_data = torch.load(self.path_train_data)
         val_data = torch.load(self.path_val_data)
-        train_data = filter_subject_data(train_data, self.population["subject_id"])
-        val_data = filter_subject_data(val_data, self.population["subject_id"])
+
+        population_subject_ids = self.population["subject_id"].to_list()
+        train_data = filter_subject_data(train_data, population_subject_ids)
+        val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
         background_length = (train_data[0]["segment"] == 0).sum()

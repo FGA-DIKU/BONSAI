@@ -2,24 +2,24 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Iterable
 import torch
-import pandas as pd
+import polars as pl
 
 
 def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     """Load tokenized data and prepare it in the format needed for the models (subject_data)."""
     all_tokenized = []
     for shard in split_path.glob("*.parquet"):
-        tokenized_data = pd.read_parquet(shard)
+        tokenized_data = pl.read_parquet(shard)
 
         # Convert to training format
-        for subject_id, group in tokenized_data.groupby("subject_id", sort=False):
+        for subject_id, group in tokenized_data.group_by("subject_id"):
             all_tokenized.append(
                 {
-                    "subject_id": subject_id,
-                    "code": torch.tensor(group["code"].tolist()),
-                    "abspos": torch.tensor(group["abspos"].tolist()),
-                    "segment": torch.tensor(group["segment"].tolist()),
-                    "age": torch.tensor(group["age"].tolist()),
+                    "subject_id": subject_id[0],
+                    "code": group["code"].to_torch(),
+                    "abspos": group["abspos"].to_torch(),
+                    "segment": group["segment"].to_torch(),
+                    "age": group["age"].to_torch(),
                 }
             )
 

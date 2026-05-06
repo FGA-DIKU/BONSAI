@@ -9,3 +9,6 @@
 *data/
 /configs/custom/**
 *.env*
+build/
+.venv/
+venv/
