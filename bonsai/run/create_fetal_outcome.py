@@ -5,6 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 import pickle 
+import operator
 
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
@@ -20,6 +21,19 @@ from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
 
+def get_python_operator(operator_str):
+    ops = {
+        "==": operator.eq,
+        "!=": operator.ne,
+        ">": operator.gt,
+        "<": operator.lt,
+        ">=": operator.ge,
+        "<=": operator.le,
+    }
+    try:
+        return ops[operator_str]
+    except KeyError as e:
+        raise NotImplementedError(f"Unknown operator: {operator_str}") from e
 
 @hydra.main(
     config_path=get_config_path(),
@@ -37,12 +51,14 @@ def main(cfg: DictConfig) -> None:
 
     patient_table = pd.read_csv(patient_table)
     patient_table["subject_id"] = patient_table["m_cpr"].map(mapping_dict)
+    py_op = get_python_operator(cfg.outcome.outcome.conditions[0].operator)
+    patient_table["label"] = py_op(patient_table[cfg.outcome.outcome.conditions[0].col], cfg.outcome.outcome.conditions[0].value)
     # Index by subject_id so lookups from event shards are correct.
     patient_table = patient_table.set_index("subject_id", drop=False)
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
-    print(patient_table[["m_cpr", "subject_id", outcome, index]].head())
+    print(patient_table[["m_cpr", "subject_id", outcome, index, "label"]].head())
 
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
     logging.info(f"Outcome date assigned with {outcome}")
@@ -56,7 +72,6 @@ def main(cfg: DictConfig) -> None:
             df = pd.read_parquet(shard, columns=["subject_id", "time", "code"])
             df = df.dropna(subset=["subject_id", "time", "code"])
 
-            # Ensure 1 row per subject in this shard.
             subject_ids = df["subject_id"].drop_duplicates()
 
             outcomes = (
@@ -66,6 +81,9 @@ def main(cfg: DictConfig) -> None:
             )
             outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
             outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
+            outcomes["outcome_date"] = outcomes["outcome_date"].where(
+                outcomes["label"].notna(), pd.NaT
+            )
 
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
@@ -76,6 +94,18 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = all_outcomes.reset_index(drop=True)
 
     if (dates := all_outcomes["index_date"]).isna().any():
+        missing_subject_ids = (
+            all_outcomes.loc[dates.isna(), "subject_id"].dropna().drop_duplicates()
+        )
+        logging.warning(
+            f"Subjects with missing index_date: {len(missing_subject_ids):_} "
+            f"(showing up to 20 patient_table rows below)"
+        )
+        print(
+            patient_table.reindex(missing_subject_ids)[
+                ["m_cpr", "subject_id", outcome, index]
+            ].head(20)
+        )
         logging.warning(
             f"Found {dates.isna().sum()} NaN index dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
         )

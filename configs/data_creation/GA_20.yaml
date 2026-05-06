@@ -19,7 +19,13 @@ splits:
   - test
 
 outcome: # defining outcomes based on the patient table
-  outcome: pregnancy_end
+  outcome: 
+    date: pregnancy_end
+    conditions: 
+      - col: GA_days
+        operator: "<"
+        value: 259
+
   index: GA_140_date
   censor: # relative to index
     relative_hour_shift: 0 # 0 sets index=censor
