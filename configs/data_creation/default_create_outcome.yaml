@@ -29,12 +29,12 @@ outcome:
         vals: [ DE11 ]
 
   index:
-    type: absolute # absolute/relative/exposure
-    absolute_date: # absolute
-      year: 2020
-      month: 1
-      day: 1
-    relative_hour_shift: # relative
+    type: relative # absolute/relative/exposure
+    # absolute_date: # absolute
+    #   year: 2020
+    #   month: 1
+    #   day: 1
+    relative_hour_shift: 0 # relative
     dependence: # exposure
     conditions: # exposure
 
