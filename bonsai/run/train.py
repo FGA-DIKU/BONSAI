@@ -45,8 +45,8 @@ def main(cfg: DictConfig) -> None:
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
-        val_key="tuning",
-        test_key="held_out",
+        val_key="val",
+        test_key="test",
         n_hours_start_include=cfg.labels.n_hours_start_include,
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )

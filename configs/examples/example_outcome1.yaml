@@ -16,12 +16,12 @@ splits:
 
 outcome:
   exclude: # OPTIONAL
-    dependence: independent # independent/dependent
-    conditions:
-      - col: code
-        vals: [ D437 ]
-      - col: code
-        vals: [ D438 ]
+  #   dependence: independent # independent/dependent
+  #   conditions:
+  #     - col: code
+  #       vals: [ D437 ]
+  #     - col: code
+  #       vals: [ D438 ]
 
   outcome:
     dependence: independent # independent/dependent
@@ -30,14 +30,10 @@ outcome:
         vals: [ DE11 ]
 
   index:
-    type: absolute # absolute/relative/exposure
-    absolute_date: # absolute
-      year: 2020
-      month: 1
-      day: 1
-    relative_hour_shift: # relative
+    type: relative # absolute/relative/exposure
+    relative_hour_shift: -100 # relative
     dependence: # exposure
     conditions: # exposure
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: -1000 # 0 sets index=censor
+    relative_hour_shift: 0 # 0 sets index=censor
