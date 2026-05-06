@@ -61,6 +61,9 @@ def main(cfg: DictConfig) -> None:
                 .rename(columns={outcome: "outcome_date", index: "index_date"})
                 .reset_index(names="subject_id")
             )
+            outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
+            outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
+
             outcomes["split"] = split
             all_outcomes = pd.concat((all_outcomes, outcomes))
     all_outcomes = all_outcomes.reset_index(drop=True)
