@@ -97,7 +97,7 @@ def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
             time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
         ).dt.total_milliseconds()
         / (365.25 * 24 * 3600 * 1_000)
-    ).cast(pl.Float16)
+    ).cast(pl.Float32)
 
 
 def compute_abspos(
