@@ -58,7 +58,7 @@ def main(cfg: DictConfig) -> None:
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
-    print(patient_table[["m_cpr", "subject_id", outcome, index, "label"]].head())
+    print(patient_table[["m_cpr", "subject_id", outcome.date, index, "label"]].head())
 
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
     logging.info(f"Outcome date assigned with {outcome}")
@@ -103,7 +103,7 @@ def main(cfg: DictConfig) -> None:
         )
         print(
             patient_table.reindex(missing_subject_ids)[
-                ["m_cpr", "subject_id", outcome, index]
+                ["m_cpr", "subject_id", outcome.date, index]
             ].head(20)
         )
         logging.warning(
