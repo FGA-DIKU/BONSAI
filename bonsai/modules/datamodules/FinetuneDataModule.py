@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from bonsai.functional.collate import dynamic_padding
 from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 from bonsai.functional.subject_data import filter_subject_data
+from bonsai.functional.sampling import get_sampler
 
 
 class FinetuneDataModule(L.LightningDataModule):
@@ -21,6 +22,7 @@ class FinetuneDataModule(L.LightningDataModule):
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
         test_outcomes: Dict[int, dict],
+        sampling_weight_fn: Optional[Any] = None,
         train_sampler: Optional[WeightedRandomSampler] = None,
     ):
         super().__init__()
@@ -36,6 +38,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
         self.test_outcomes = test_outcomes
+        self.sampling_weight_fn = sampling_weight_fn
         self.train_sampler = train_sampler
 
     def setup(self, stage: Literal["fit", "test", "predict"]):
@@ -78,15 +81,32 @@ class FinetuneDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self):
+        # WeightedRandomSampler weights must match dataset index i -> train_dataset[i].
+        # Labels derived from dict.values() do not match subject order in train_data; build
+        # the sampler here after setup_fit.
+        sampler: Optional[WeightedRandomSampler] = None
+        shuffle = False
+        if self.sampling_weight_fn is not None:
+            labels = [
+                self.train_outcomes[sub["subject_id"]]["label"]
+                for sub in self.train_dataset.subjects
+            ]
+            sampler = get_sampler(self.sampling_weight_fn, labels)
+        elif self.train_sampler is not None:
+            sampler = self.train_sampler
+        else:
+            shuffle = True
+
         return DataLoader(
             self.train_dataset,
             num_workers=self.num_workers,
             batch_size=self.batch_size,
             pin_memory=True,
-            persistent_workers=True,
+            persistent_workers=self.num_workers > 0,
             drop_last=True,
             collate_fn=dynamic_padding,
-            sampler=self.train_sampler,
+            sampler=sampler,
+            shuffle=shuffle,
         )
 
     def val_dataloader(self):

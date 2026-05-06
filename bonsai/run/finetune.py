@@ -15,7 +15,6 @@ from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.loss import get_loss_weight
-from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
 from bonsai.functional.versioning import generate_unused_run_id
@@ -72,9 +71,7 @@ def main(cfg: DictConfig) -> None:
         test_outcomes=test_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
-        train_sampler=get_sampler(
-            weight_fn=cfg.training.sampling_weight_fn, labels=train_labels
-        ),
+        sampling_weight_fn=cfg.training.sampling_weight_fn,
     )
 
     model = BonsaiFinetune(
