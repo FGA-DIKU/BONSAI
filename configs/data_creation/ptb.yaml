@@ -1,0 +1,32 @@
+defaults:
+  - core/base_create@
+  - _self_
+
+dataset: 
+
+paths: 
+  input_dir: example_data/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+outcome:
+  exclude: # OPTIONAL
+  outcome:
+    dependence: independent # independent/dependent
+    conditions:
+      - col: code
+        vals: [ D//DO47, D//DO470, D//DO471, D//DO472, D//DO479 ]
+
+  index:
+    type: exposure # absolute/relative/exposure
+    dependence: independent # exposure
+    conditions: 
+      - col: code
+        vals: [ P//UXUD85 ]
+
+  censor: # ALWAYS RELATIVE TO INDEX
+    relative_hour_shift: 0 # 0 sets index=censor
