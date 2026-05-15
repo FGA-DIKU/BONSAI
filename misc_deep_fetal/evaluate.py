@@ -1,6 +1,6 @@
 import argparse
 
-import polars as pl
+import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score
 from torchmetrics.classification import (
@@ -9,7 +9,7 @@ from torchmetrics.classification import (
 )
 
 def main(predictions_file: str):
-    predictions = pl.read_csv(predictions_file)
+    predictions = pd.read_csv(predictions_file)
     auc = roc_auc_score(predictions["label"], predictions["prob"])
     sens_at_spec_metric = BinarySensitivityAtSpecificity(min_specificity=0.85)
     sens_at_spec, _ = sens_at_spec_metric(
@@ -27,6 +27,10 @@ def main(predictions_file: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate model predictions.")
-    parser.add_argument("predictions_file", help="Path to predictions CSV")
+    parser.add_argument(
+        "--predictions-file",
+        required=True,
+        help="Path to predictions CSV",
+    )
     args = parser.parse_args()
     main(args.predictions_file)
