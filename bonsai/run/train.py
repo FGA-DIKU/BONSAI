@@ -56,6 +56,7 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
         path_val_data=cfg.paths.val_split,
+        path_test_data=cfg.paths.test_split,
         path_population=cfg.paths.population,
         train_outcomes=train_outcomes,
         val_outcomes=val_outcomes,
@@ -114,6 +115,28 @@ def main(cfg: DictConfig) -> None:
         datamodule=data_module,
         ckpt_path=cfg.paths.ckpt_path,
     )
+
+    if cfg.paths.test_split is not None:
+        predictions_path = Path(model_save_dir) / "test_predictions.csv"
+        outputs = trainer.predict(
+            model=lightning_module,
+            datamodule=data_module,
+            ckpt_path="best",
+            return_predictions=True,
+        )
+        subject_ids = torch.cat([batch["subject_id"].detach().cpu() for batch in outputs])
+        logits = torch.cat([batch["logit"].detach().cpu() for batch in outputs])
+        probs = torch.cat([batch["prob"].detach().cpu() for batch in outputs])
+        labels = torch.cat([batch["label"].detach().cpu() for batch in outputs])
+        pd.DataFrame(
+            {
+                "subject_id": subject_ids.numpy(),
+                "logit": logits.float().numpy(),
+                "prob": probs.float().numpy(),
+                "label": labels.numpy(),
+            }
+        ).to_csv(predictions_path, index=False)
+        print(f"Saved predictions to {predictions_path}")
 
 
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.

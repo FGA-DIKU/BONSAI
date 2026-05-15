@@ -28,6 +28,7 @@ class FinetuneModule(L.LightningModule):
         self.val_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
+<<<<<<< HEAD
         self.test_metrics = self.configure_metrics("test")
         hparams = model.config.to_dict()
         hparams.update(
@@ -39,6 +40,8 @@ class FinetuneModule(L.LightningModule):
             }
         )
         self.save_hyperparameters(hparams)
+=======
+>>>>>>> b44e83d (run predict)
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
@@ -74,11 +77,16 @@ class FinetuneModule(L.LightningModule):
         self.log_dict(self.val_metrics)
         return loss
 
-    def test_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
         labels = batch["target"]
-        logits, _ = self.model(batch)
-        self.test_metrics(logits, labels)
-        self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
+        logits = self.model(batch)
+        probs = torch.sigmoid(logits)
+        return {
+            "subject_id": batch["subject_id"],
+            "logit": logits.squeeze(-1),
+            "prob": probs.squeeze(-1),
+            "label": labels.squeeze(-1),
+        }
 
     def configure_optimizers(self):
         optimizer = AdamW(

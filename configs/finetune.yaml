@@ -15,6 +15,7 @@ paths:
   vocabulary: ${paths.dir}/vocabulary.pt
   population: ${paths.dir}/population_full.csv
   ckpt_path: 
+  test_split: ${paths.dir}/subject_data_test.pt
 
 
 data:
