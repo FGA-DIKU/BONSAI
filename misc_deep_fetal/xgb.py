@@ -1,6 +1,7 @@
+import json
 from bisect import bisect_right
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import hydra
 import numpy as np
@@ -8,8 +9,9 @@ import pandas as pd
 import torch
 import xgboost as xgb
 from dotenv import load_dotenv
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from torchmetrics.classification import (
     BinarySensitivityAtSpecificity,
     BinarySpecificityAtSensitivity,
@@ -26,6 +28,8 @@ RUNS_DIR = "training_runs"
 METRICS_FILE = "metrics.csv"
 TEST_PREDICTIONS_FILE = "test_predictions.csv"
 TOP_FEATURES_FILE = "top_features.csv"
+CV_RESULTS_FILE = "cv_results.csv"
+BEST_PARAMS_FILE = "best_params.json"
 TOP_FEATURES = 20
 
 
@@ -213,28 +217,81 @@ def save_predictions(
     ).to_csv(path, index=False)
 
 
-def build_classifier(cfg: DictConfig, y_train: np.ndarray) -> xgb.XGBClassifier:
-    xgb_cfg = cfg.xgb
-    scale_pos_weight = xgb_cfg.scale_pos_weight
+def scale_pos_weight_from_labels(y_train: np.ndarray, cfg: DictConfig) -> float:
+    scale_pos_weight = cfg.xgb.scale_pos_weight
     if scale_pos_weight is None:
         n_pos = max(int(y_train.sum()), 1)
         n_neg = max(int(len(y_train) - y_train.sum()), 1)
         scale_pos_weight = n_neg / n_pos
+    return float(scale_pos_weight)
 
-    return xgb.XGBClassifier(
-        n_estimators=xgb_cfg.n_estimators,
-        max_depth=xgb_cfg.max_depth,
-        learning_rate=xgb_cfg.learning_rate,
-        subsample=xgb_cfg.subsample,
-        colsample_bytree=xgb_cfg.colsample_bytree,
-        min_child_weight=xgb_cfg.min_child_weight,
-        reg_alpha=xgb_cfg.reg_alpha,
-        reg_lambda=xgb_cfg.reg_lambda,
-        gamma=xgb_cfg.gamma,
-        scale_pos_weight=scale_pos_weight,
-        eval_metric=xgb_cfg.eval_metric,
-        random_state=xgb_cfg.random_state,
+
+def build_classifier(
+    cfg: DictConfig,
+    y_train: np.ndarray,
+    params: Optional[Dict[str, Any]] = None,
+) -> xgb.XGBClassifier:
+    xgb_cfg = cfg.xgb
+    classifier_kwargs = {
+        "n_estimators": xgb_cfg.n_estimators,
+        "max_depth": xgb_cfg.max_depth,
+        "learning_rate": xgb_cfg.learning_rate,
+        "subsample": xgb_cfg.subsample,
+        "colsample_bytree": xgb_cfg.colsample_bytree,
+        "min_child_weight": xgb_cfg.min_child_weight,
+        "reg_alpha": xgb_cfg.reg_alpha,
+        "reg_lambda": xgb_cfg.reg_lambda,
+        "gamma": xgb_cfg.gamma,
+        "scale_pos_weight": scale_pos_weight_from_labels(y_train, cfg),
+        "eval_metric": xgb_cfg.eval_metric,
+        "random_state": xgb_cfg.random_state,
+    }
+    if params:
+        classifier_kwargs.update(params)
+    return xgb.XGBClassifier(**classifier_kwargs)
+
+
+def tune_hyperparameters(
+    cfg: DictConfig,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+) -> GridSearchCV:
+    tuning_cfg = cfg.tuning
+    param_grid = OmegaConf.to_container(tuning_cfg.param_grid, resolve=True)
+    cv = StratifiedKFold(
+        n_splits=tuning_cfg.cv_folds,
+        shuffle=True,
+        random_state=cfg.xgb.random_state,
     )
+    search = GridSearchCV(
+        estimator=build_classifier(cfg, y_train),
+        param_grid=param_grid,
+        scoring="roc_auc",
+        cv=cv,
+        n_jobs=tuning_cfg.n_jobs,
+        verbose=tuning_cfg.verbose,
+        refit=True,
+    )
+    search.fit(X_train, y_train)
+    return search
+
+
+def fit_classifier(
+    cfg: DictConfig,
+    model: xgb.XGBClassifier,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_val: np.ndarray,
+    y_val: np.ndarray,
+) -> xgb.XGBClassifier:
+    fit_kwargs = {
+        "eval_set": [(X_val, y_val)],
+        "verbose": cfg.xgb.verbose,
+    }
+    if cfg.xgb.early_stopping_rounds is not None:
+        fit_kwargs["early_stopping_rounds"] = cfg.xgb.early_stopping_rounds
+    model.fit(X_train, y_train, **fit_kwargs)
+    return model
 
 
 @hydra.main(
@@ -279,14 +336,25 @@ def main(cfg: DictConfig) -> None:
 
     run_dir = get_versioned_run_dir(Path(get_experiment_output_path()), RUNS_DIR)
 
-    model = build_classifier(cfg, y_train)
-    fit_kwargs = {
-        "eval_set": [(X_val, y_val)],
-        "verbose": cfg.xgb.verbose,
-    }
-    if cfg.xgb.early_stopping_rounds is not None:
-        fit_kwargs["early_stopping_rounds"] = cfg.xgb.early_stopping_rounds
-    model.fit(X_train, y_train, **fit_kwargs)
+    best_params: Dict[str, Any] = {}
+    if cfg.tuning.enabled:
+        search = tune_hyperparameters(cfg, X_train, y_train)
+        best_params = dict(search.best_params_)
+        print(
+            f"Grid search best CV ROC-AUC: {search.best_score_:.4f} "
+            f"({cfg.tuning.cv_folds}-fold)"
+        )
+        print(f"Best params: {best_params}")
+        pd.DataFrame(search.cv_results_).to_csv(run_dir / CV_RESULTS_FILE, index=False)
+        with open(run_dir / BEST_PARAMS_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                {"best_cv_roc_auc": search.best_score_, "params": best_params},
+                f,
+                indent=2,
+            )
+
+    model = build_classifier(cfg, y_train, params=best_params or None)
+    model = fit_classifier(cfg, model, X_train, y_train, X_val, y_val)
 
     importance_df = feature_importance_df(model, id_to_token_name(vocab))
     log_top_features(importance_df)
@@ -314,6 +382,9 @@ def main(cfg: DictConfig) -> None:
 
     print(f"Saved run outputs to {run_dir}")
     print(f"  metrics: {metrics_path}")
+    if cfg.tuning.enabled:
+        print(f"  cv results: {run_dir / CV_RESULTS_FILE}")
+        print(f"  best params: {run_dir / BEST_PARAMS_FILE}")
     print(f"  top features: {top_features_path}")
     print(f"  test predictions: {test_predictions_path}")
 

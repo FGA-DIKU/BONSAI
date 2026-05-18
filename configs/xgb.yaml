@@ -17,18 +17,35 @@ labels:
   n_hours_start_include: 1
   n_hours_end_include: null
 
+tuning:
+  enabled: true  # set false to train once with xgb.* below only
+  cv_folds: 5
+  n_jobs: -1
+  verbose: 1
+  # ~768 fits (3*2^8); shrink further if this is too slow on your data
+  param_grid:
+    max_depth: [3, 4, 5]
+    min_child_weight: [5, 10]
+    learning_rate: [0.05, 0.1]
+    subsample: [0.7, 0.8]
+    colsample_bytree: [0.7, 0.8]
+    reg_alpha: [0.0, 1.0]
+    reg_lambda: [5.0, 10.0]
+    gamma: [0.0, 0.1]
+    n_estimators: [100, 200]
+
 xgb:
   n_estimators: 200
-  max_depth: 6
-  learning_rate: 0.1
-  subsample: 0.8
-  colsample_bytree: 0.8
-  min_child_weight: 1
-  reg_alpha: 0.0
-  reg_lambda: 1.0
-  gamma: 0.0
+  max_depth: 4
+  learning_rate: 0.05
+  subsample: 0.7
+  colsample_bytree: 0.7
+  min_child_weight: 5
+  reg_alpha: 0.1
+  reg_lambda: 5.0
+  gamma: 0.1
   scale_pos_weight: null  # null = auto from train class balance
   eval_metric: logloss
   random_state: 42
-  early_stopping_rounds: null
+  early_stopping_rounds: 30
   verbose: false
