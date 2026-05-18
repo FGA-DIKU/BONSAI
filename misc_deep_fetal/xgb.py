@@ -284,13 +284,15 @@ def fit_classifier(
     X_val: np.ndarray,
     y_val: np.ndarray,
 ) -> xgb.XGBClassifier:
-    fit_kwargs = {
-        "eval_set": [(X_val, y_val)],
-        "verbose": cfg.xgb.verbose,
-    }
+    # XGBoost >= 2.1: early_stopping_rounds is a constructor param, not a fit() kwarg.
     if cfg.xgb.early_stopping_rounds is not None:
-        fit_kwargs["early_stopping_rounds"] = cfg.xgb.early_stopping_rounds
-    model.fit(X_train, y_train, **fit_kwargs)
+        model.set_params(early_stopping_rounds=cfg.xgb.early_stopping_rounds)
+    model.fit(
+        X_train,
+        y_train,
+        eval_set=[(X_val, y_val)],
+        verbose=cfg.xgb.verbose,
+    )
     return model
 
 
