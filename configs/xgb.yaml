@@ -1,0 +1,34 @@
+defaults:
+  - core/base_train@
+  - _self_
+
+dataset:
+outcome:
+
+paths:
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  train_split: ${paths.dir}/subject_data_train.pt
+  val_split: ${paths.dir}/subject_data_tuning.pt
+  test_split: ${paths.dir}/subject_data_held_out.pt
+  outcome: ${paths.dir}/outcomes/${outcome}.parquet
+  vocabulary: ${paths.dir}/vocabulary.pt
+
+labels:
+  n_hours_start_include: 1
+  n_hours_end_include: null
+
+xgb:
+  n_estimators: 200
+  max_depth: 6
+  learning_rate: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 1
+  reg_alpha: 0.0
+  reg_lambda: 1.0
+  gamma: 0.0
+  scale_pos_weight: null  # null = auto from train class balance
+  eval_metric: logloss
+  random_state: 42
+  early_stopping_rounds: null
+  verbose: false

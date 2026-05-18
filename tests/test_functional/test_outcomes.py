@@ -8,6 +8,8 @@ from bonsai.functional.outcomes import (
     fill_nans_with_sampled,
     binarize_outcomes,
     split_and_binarize_outcomes,
+    expand_subjects_for_outcomes,
+    outcomes_to_frame,
 )
 from datetime import datetime
 
@@ -150,8 +152,9 @@ class TestBinizationOutcomes(unittest.TestCase):
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 0)
+        by_subject = {row["subject_id"]: row for row in result}
+        self.assertEqual(by_subject[1]["label"], 1)
+        self.assertEqual(by_subject[2]["label"], 0)
 
     def test_binarize_outcomes_with_end(self):
         df = pl.DataFrame(
@@ -167,9 +170,26 @@ class TestBinizationOutcomes(unittest.TestCase):
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
+        by_subject = {row["subject_id"]: row for row in result}
+        self.assertEqual(by_subject[1]["label"], 1)
+        self.assertEqual(by_subject[2]["label"], 1)
+        self.assertEqual(by_subject[3]["label"], 0)
+
+    def test_binarize_outcomes_duplicate_subjects(self):
+        df = pd.DataFrame(
+            {
+                "subject_id": [1, 1],
+                "index_date": pd.to_datetime(["2020-01-01", "2020-01-01"]),
+                "outcome_date": pd.to_datetime(["2020-01-01", "2020-01-03"]),
+                "censor_abspos": [10, 20],
+            }
+        )
+        result = binarize_outcomes(df, n_hours_start_include=24)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["label"], 0)
         self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 1)
-        self.assertEqual(result[3]["label"], 0)
+        frame = outcomes_to_frame(result)
+        self.assertListEqual(frame["subject_id"].tolist(), [1, 1])
 
     def test_binarize_outcomes_empty(self):
         df = pl.DataFrame(
@@ -181,7 +201,7 @@ class TestBinizationOutcomes(unittest.TestCase):
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result, {})
+        self.assertEqual(result, [])
 
     def test_split_and_binarize_outcomes(self):
         df = pl.DataFrame(
@@ -203,12 +223,28 @@ class TestBinizationOutcomes(unittest.TestCase):
         train, val, test = split_and_binarize_outcomes(
             df, "train", "val", "test", n_hours_start_include=24
         )
-        self.assertEqual(set(train.keys()), {1, 2})
-        self.assertEqual(set(val.keys()), {3, 4})
-        self.assertEqual(set(test.keys()), {5, 6})
-        self.assertEqual(train[1]["label"], 1)
-        self.assertEqual(train[2]["label"], 0)
-        self.assertEqual(val[3]["label"], 1)
-        self.assertEqual(val[4]["label"], 0)
-        self.assertEqual(test[5]["label"], 1)
-        self.assertEqual(test[6]["label"], 0)
+        self.assertEqual(len(train), 2)
+        self.assertEqual(len(val), 2)
+        self.assertEqual(len(test), 2)
+        train_by_subject = {row["subject_id"]: row for row in train}
+        val_by_subject = {row["subject_id"]: row for row in val}
+        test_by_subject = {row["subject_id"]: row for row in test}
+        self.assertEqual(train_by_subject[1]["label"], 1)
+        self.assertEqual(train_by_subject[2]["label"], 0)
+        self.assertEqual(val_by_subject[3]["label"], 1)
+        self.assertEqual(val_by_subject[4]["label"], 0)
+        self.assertEqual(test_by_subject[5]["label"], 1)
+        self.assertEqual(test_by_subject[6]["label"], 0)
+
+    def test_expand_subjects_for_outcomes_duplicates(self):
+        subjects = [{"subject_id": 1, "code": [1]}, {"subject_id": 2, "code": [2]}]
+        outcomes = [
+            {"subject_id": 1, "label": 0, "censor_abspos": 10},
+            {"subject_id": 1, "label": 1, "censor_abspos": 20},
+        ]
+        expanded_subjects, expanded_outcomes = expand_subjects_for_outcomes(
+            subjects, outcomes
+        )
+        self.assertEqual(len(expanded_subjects), 2)
+        self.assertEqual(expanded_outcomes[0]["censor_abspos"], 10)
+        self.assertEqual(expanded_outcomes[1]["censor_abspos"], 20)

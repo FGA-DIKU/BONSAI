@@ -83,9 +83,20 @@ def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
+<<<<<<< HEAD
 ) -> Dict[int, dict]:
     time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
     time_delta_hours = time_delta_datetime.dt.total_hours()
+=======
+) -> List[dict]:
+    """One record per input row. Supports multiple outcomes per subject_id."""
+    if outcomes.empty:
+        return []
+
+    outcomes = outcomes.copy()
+    time_delta_datetime = outcomes["outcome_date"] - outcomes["index_date"]
+    time_delta_hours = time_delta_datetime.dt.days * 24
+>>>>>>> c046c73 (try xgb and multiple outcomes)
 
     outcomes_in_prediction_window = pl.lit(n_hours_start_include) <= time_delta_hours
     if n_hours_end_include is not None:
@@ -93,9 +104,37 @@ def binarize_outcomes(
             time_delta_hours <= pl.lit(n_hours_end_include)
         )
 
+<<<<<<< HEAD
     outcomes = outcomes.with_columns(
         label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
     )
+=======
+    outcomes["label"] = outcomes_in_prediction_window.astype(int)
+    return outcomes[["subject_id", "label", "censor_abspos"]].to_dict(orient="records")
+
+
+def outcomes_to_frame(outcomes: List[dict]) -> pd.DataFrame:
+    return pd.DataFrame(outcomes)
+
+
+def outcome_subject_ids(outcomes: List[dict]) -> Set[int]:
+    return {outcome["subject_id"] for outcome in outcomes}
+
+
+def expand_subjects_for_outcomes(
+    subjects: List[dict], outcomes: List[dict]
+) -> Tuple[List[dict], List[dict]]:
+    """One dataset row per outcome record; reuses subject event data when ids repeat."""
+    subjects_by_id = {subject["subject_id"]: subject for subject in subjects}
+    expanded_subjects: List[dict] = []
+    expanded_outcomes: List[dict] = []
+    for outcome in outcomes:
+        subject_id = outcome["subject_id"]
+        if subject_id in subjects_by_id:
+            expanded_subjects.append(subjects_by_id[subject_id])
+            expanded_outcomes.append(outcome)
+    return expanded_subjects, expanded_outcomes
+>>>>>>> c046c73 (try xgb and multiple outcomes)
 
     rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
     return {
@@ -114,8 +153,13 @@ def split_and_binarize_outcomes(
     test_key: str,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
+<<<<<<< HEAD
 ) -> Tuple[Dict[int, dict], Dict[int, dict], Dict[int, dict]]:
     train_outcomes = outcomes.filter(pl.col("split") == train_key)
+=======
+) -> Tuple[List[dict], List[dict], List[dict]]:
+    train_outcomes = outcomes[outcomes["split"] == train_key]
+>>>>>>> c046c73 (try xgb and multiple outcomes)
     train_outcomes = binarize_outcomes(
         train_outcomes, n_hours_start_include, n_hours_end_include
     )

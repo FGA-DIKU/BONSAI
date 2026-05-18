@@ -11,20 +11,22 @@ class FinetuneDataset(Dataset):
     def __init__(
         self,
         subjects: List[Dict],
-        outcomes: Dict[int, dict],
+        outcome_rows: List[dict],
         predict_token_id: int,
         background_length: int,
         max_len: int,
     ):
+        if len(subjects) != len(outcome_rows):
+            raise ValueError("subjects and outcome_rows must have the same length")
         self.subjects = subjects
-        self.outcomes = outcomes
+        self.outcome_rows = outcome_rows
         self.predict_token_id = predict_token_id
         self.background_length = background_length
         self.max_len = max_len
 
     def __getitem__(self, index: int) -> dict:
         subject = deepcopy(self.subjects[index])
-        subject_outcome = self.outcomes[subject["subject_id"]]
+        subject_outcome = self.outcome_rows[index]
 
         subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
 

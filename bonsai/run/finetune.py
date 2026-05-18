@@ -59,7 +59,7 @@ def main(cfg: DictConfig) -> None:
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )
 
-    train_labels = [v["label"] for v in train_outcomes.values()]
+    train_labels = [outcome["label"] for outcome in train_outcomes]
     data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
