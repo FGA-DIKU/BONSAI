@@ -79,15 +79,62 @@ def fill_nans_with_sampled(dates):
     )
 
 
+def warn_duplicate_subject_outcomes(
+    outcomes: pd.DataFrame,
+    *,
+    split_name: Optional[str] = None,
+    max_examples: int = 5,
+) -> None:
+    dup_mask = outcomes.duplicated(subset=["subject_id"], keep=False)
+    if not dup_mask.any():
+        return
+
+    n_rows = int(dup_mask.sum())
+    n_subjects = outcomes.loc[dup_mask, "subject_id"].nunique()
+    split_part = f" in split {split_name!r}" if split_name is not None else ""
+
+    example_cols = [
+        c
+        for c in [
+            "subject_id",
+            "index_date",
+            "outcome_date",
+            "censor_abspos",
+            "censor_date",
+            "label",
+        ]
+        if c in outcomes.columns
+    ]
+    examples = (
+        outcomes.loc[dup_mask, example_cols].sort_values("subject_id").head(max_examples)
+    )
+    example_lines = examples.to_string(index=False)
+    message = (
+        f"WARNING: Found {n_rows} outcome rows for {n_subjects} subject_id(s) "
+        f"with duplicates{split_part}. Each row will be used as a separate sample.\n"
+        f"Example rows:\n{example_lines}"
+    )
+    print(message, flush=True)
+    warnings.warn(
+        message.removeprefix("WARNING: "),
+        UserWarning,
+        stacklevel=3,
+    )
+
+
 def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
 <<<<<<< HEAD
+<<<<<<< HEAD
 ) -> Dict[int, dict]:
     time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
     time_delta_hours = time_delta_datetime.dt.total_hours()
 =======
+=======
+    split_name: Optional[str] = None,
+>>>>>>> 22a3328 (warning on multiple outcomes)
 ) -> List[dict]:
     """One record per input row. Supports multiple outcomes per subject_id."""
     if outcomes.empty:
@@ -110,6 +157,7 @@ def binarize_outcomes(
     )
 =======
     outcomes["label"] = outcomes_in_prediction_window.astype(int)
+    warn_duplicate_subject_outcomes(outcomes, split_name=split_name)
     return outcomes[["subject_id", "label", "censor_abspos"]].to_dict(orient="records")
 
 
@@ -161,15 +209,24 @@ def split_and_binarize_outcomes(
     train_outcomes = outcomes[outcomes["split"] == train_key]
 >>>>>>> c046c73 (try xgb and multiple outcomes)
     train_outcomes = binarize_outcomes(
-        train_outcomes, n_hours_start_include, n_hours_end_include
+        train_outcomes,
+        n_hours_start_include,
+        n_hours_end_include,
+        split_name=train_key,
     )
     val_outcomes = outcomes.filter(pl.col("split") == val_key)
     val_outcomes = binarize_outcomes(
-        val_outcomes, n_hours_start_include, n_hours_end_include
+        val_outcomes,
+        n_hours_start_include,
+        n_hours_end_include,
+        split_name=val_key,
     )
     test_outcomes = outcomes.filter(pl.col("split") == test_key)
     test_outcomes = binarize_outcomes(
-        test_outcomes, n_hours_start_include, n_hours_end_include
+        test_outcomes,
+        n_hours_start_include,
+        n_hours_end_include,
+        split_name=test_key,
     )
 
     return train_outcomes, val_outcomes, test_outcomes

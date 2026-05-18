@@ -184,7 +184,13 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_abspos": [10, 20],
             }
         )
-        result = binarize_outcomes(df, n_hours_start_include=24)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = binarize_outcomes(df, n_hours_start_include=24, split_name="train")
+        self.assertEqual(len(caught), 1)
+        self.assertTrue(issubclass(caught[0].category, UserWarning))
+        self.assertIn("duplicates", str(caught[0].message))
+        self.assertIn("subject_id", str(caught[0].message))
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["label"], 0)
         self.assertEqual(result[1]["label"], 1)
