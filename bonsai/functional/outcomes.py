@@ -1,49 +1,46 @@
-from typing import List, Literal, Optional, Dict, Tuple
+from typing import List, Literal, Optional, Set, Tuple
 from datetime import datetime, timedelta
+import warnings
+
 import polars as pl
+
+DuplicateSubjectPolicy = Literal["all", "first_lowest_censor_abspos"]
 
 
 def get_subject_first_row_for_conditions(
     df: pl.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
     """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
-    # Initialization
     df = df.with_columns(_prio=pl.lit(None).cast(pl.Int32))
     row_mask = pl.lit(False)
     subject_sets = []
 
-    # Find matches (dataframe rows AND subject_ids) of conditions
     for i, cond in enumerate(conditions):
-        cond_expr = pl.col(cond["col"]).is_in(cond["vals"])  # Rows that meet condition
-        row_mask = row_mask | cond_expr  # OR operation
+        cond_expr = pl.col(cond["col"]).is_in(cond["vals"])
+        row_mask = row_mask | cond_expr
         df = df.with_columns(
             _prio=pl.when(cond_expr & pl.col("_prio").is_null())
             .then(pl.lit(i))
             .otherwise(pl.col("_prio"))
-        )  # Set priority (to take first row later)
+        )
         subject_sets.append(
             set(df.filter(cond_expr).get_column("subject_id").to_list())
-        )  # Get subjects that match condition
+        )
 
-    # Toggle between any or all conditions met
     if dependence == "independent":
-        matched_subjects = set.union(*subject_sets)  # Any condition met
-    elif dependence == "dependent":  # TODO: Implement time_window
-        matched_subjects = set.intersection(*subject_sets)  # All conditions met
+        matched_subjects = set.union(*subject_sets)
+    elif dependence == "dependent":
+        matched_subjects = set.intersection(*subject_sets)
     else:
         raise ValueError(
             f"Dependence can only be [independent, dependent], not {dependence}"
         )
 
-    # Get matched subjects AND rows
     res = df.filter(pl.col("subject_id").is_in(list(matched_subjects)) & row_mask)
-
-    # Take first row based on `conditions` ordering
     res = (
         res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
     )
-    res = res.drop("_prio")
-    return res
+    return res.drop("_prio")
 
 
 def get_date_from_absolute_date(absolute_date):
@@ -79,18 +76,61 @@ def fill_nans_with_sampled(dates):
     )
 
 
+def resolve_duplicate_subject_outcomes(
+    outcomes: pl.DataFrame,
+    policy: DuplicateSubjectPolicy,
+) -> pl.DataFrame:
+    """Keep all rows, or one row per (split, subject_id) with lowest censor_abspos."""
+    if policy == "all":
+        return outcomes
+    if policy != "first_lowest_censor_abspos":
+        raise ValueError(
+            "duplicate_subject_policy must be 'all' or 'first_lowest_censor_abspos', "
+            f"not {policy!r}"
+        )
+    if outcomes.is_empty():
+        return outcomes
+
+    group_cols = (
+        ["split", "subject_id"] if "split" in outcomes.columns else ["subject_id"]
+    )
+    has_dupes = (
+        outcomes.group_by(group_cols)
+        .len()
+        .filter(pl.col("len") > 1)
+        .height
+        > 0
+    )
+    if not has_dupes:
+        return outcomes
+
+    n_before = outcomes.height
+    deduped = (
+        outcomes.sort([*group_cols, "censor_abspos"], nulls_last=True)
+        .group_by(group_cols, maintain_order=True)
+        .first()
+    )
+    print(
+        f"duplicate_subject_policy={policy!r}: kept {deduped.height:_} of {n_before:_} "
+        f"outcome rows ({n_before - deduped.height:_} dropped; lowest censor_abspos per "
+        f"{'split and ' if 'split' in group_cols else ''}subject_id)",
+        flush=True,
+    )
+    return deduped
+
+
 def warn_duplicate_subject_outcomes(
-    outcomes: pd.DataFrame,
+    outcomes: pl.DataFrame,
     *,
     split_name: Optional[str] = None,
     max_examples: int = 5,
 ) -> None:
-    dup_mask = outcomes.duplicated(subset=["subject_id"], keep=False)
-    if not dup_mask.any():
+    dupes = outcomes.filter(pl.col("subject_id").is_duplicated())
+    if dupes.is_empty():
         return
 
-    n_rows = int(dup_mask.sum())
-    n_subjects = outcomes.loc[dup_mask, "subject_id"].nunique()
+    n_rows = dupes.height
+    n_subjects = dupes["subject_id"].n_unique()
     split_part = f" in split {split_name!r}" if split_name is not None else ""
 
     example_cols = [
@@ -105,10 +145,8 @@ def warn_duplicate_subject_outcomes(
         ]
         if c in outcomes.columns
     ]
-    examples = (
-        outcomes.loc[dup_mask, example_cols].sort_values("subject_id").head(max_examples)
-    )
-    example_lines = examples.to_string(index=False)
+    examples = dupes.select(example_cols).sort("subject_id").head(max_examples)
+    example_lines = str(examples)
     message = (
         f"WARNING: Found {n_rows} outcome rows for {n_subjects} subject_id(s) "
         f"with duplicates{split_part}. Each row will be used as a separate sample.\n"
@@ -126,43 +164,28 @@ def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
-<<<<<<< HEAD
-<<<<<<< HEAD
-) -> Dict[int, dict]:
-    time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
-    time_delta_hours = time_delta_datetime.dt.total_hours()
-=======
-=======
     split_name: Optional[str] = None,
->>>>>>> 22a3328 (warning on multiple outcomes)
 ) -> List[dict]:
     """One record per input row. Supports multiple outcomes per subject_id."""
-    if outcomes.empty:
+    if outcomes.is_empty():
         return []
 
-    outcomes = outcomes.copy()
-    time_delta_datetime = outcomes["outcome_date"] - outcomes["index_date"]
-    time_delta_hours = time_delta_datetime.dt.days * 24
->>>>>>> c046c73 (try xgb and multiple outcomes)
-
+    time_delta_hours = (pl.col("outcome_date") - pl.col("index_date")).dt.total_hours()
     outcomes_in_prediction_window = pl.lit(n_hours_start_include) <= time_delta_hours
     if n_hours_end_include is not None:
         outcomes_in_prediction_window = outcomes_in_prediction_window & (
             time_delta_hours <= pl.lit(n_hours_end_include)
         )
 
-<<<<<<< HEAD
-    outcomes = outcomes.with_columns(
+    labeled = outcomes.with_columns(
         label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
     )
-=======
-    outcomes["label"] = outcomes_in_prediction_window.astype(int)
-    warn_duplicate_subject_outcomes(outcomes, split_name=split_name)
-    return outcomes[["subject_id", "label", "censor_abspos"]].to_dict(orient="records")
+    warn_duplicate_subject_outcomes(labeled, split_name=split_name)
+    return labeled.select("subject_id", "label", "censor_abspos").to_dicts()
 
 
-def outcomes_to_frame(outcomes: List[dict]) -> pd.DataFrame:
-    return pd.DataFrame(outcomes)
+def outcomes_to_frame(outcomes: List[dict]) -> pl.DataFrame:
+    return pl.DataFrame(outcomes)
 
 
 def outcome_subject_ids(outcomes: List[dict]) -> Set[int]:
@@ -182,32 +205,17 @@ def expand_subjects_for_outcomes(
             expanded_subjects.append(subjects_by_id[subject_id])
             expanded_outcomes.append(outcome)
     return expanded_subjects, expanded_outcomes
->>>>>>> c046c73 (try xgb and multiple outcomes)
-
-    rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
-    return {
-        row["subject_id"]: {
-            "label": row["label"],
-            "censor_abspos": row["censor_abspos"],
-        }
-        for row in rows
-    }
 
 
 def split_and_binarize_outcomes(
-    outcomes,
+    outcomes: pl.DataFrame,
     train_key: str,
     val_key: str,
     test_key: str,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
-<<<<<<< HEAD
-) -> Tuple[Dict[int, dict], Dict[int, dict], Dict[int, dict]]:
-    train_outcomes = outcomes.filter(pl.col("split") == train_key)
-=======
 ) -> Tuple[List[dict], List[dict], List[dict]]:
-    train_outcomes = outcomes[outcomes["split"] == train_key]
->>>>>>> c046c73 (try xgb and multiple outcomes)
+    train_outcomes = outcomes.filter(pl.col("split") == train_key)
     train_outcomes = binarize_outcomes(
         train_outcomes,
         n_hours_start_include,

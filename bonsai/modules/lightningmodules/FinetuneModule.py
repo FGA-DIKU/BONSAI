@@ -28,7 +28,6 @@ class FinetuneModule(L.LightningModule):
         self.val_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
-<<<<<<< HEAD
         self.test_metrics = self.configure_metrics("test")
         hparams = model.config.to_dict()
         hparams.update(
@@ -40,8 +39,6 @@ class FinetuneModule(L.LightningModule):
             }
         )
         self.save_hyperparameters(hparams)
-=======
->>>>>>> b44e83d (run predict)
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(

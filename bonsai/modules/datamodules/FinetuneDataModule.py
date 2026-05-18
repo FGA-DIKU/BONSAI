@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Optional
+from typing import Any, List, Literal, Optional
 import polars as pl
 import lightning as L
 import torch
@@ -30,12 +30,8 @@ class FinetuneDataModule(L.LightningDataModule):
         super().__init__()
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
-<<<<<<< HEAD
-        self.population = pl.read_csv(path_population)
-=======
         self.path_test_data = path_test_data
-        self.population = pd.read_csv(path_population)
->>>>>>> b44e83d (run predict)
+        self.population = pl.read_csv(path_population)
 
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -105,7 +101,8 @@ class FinetuneDataModule(L.LightningDataModule):
         test_data = [
             sub for sub in test_data if sub["subject_id"] in test_subject_ids
         ]
-        test_data = filter_subject_data(test_data, self.population["subject_id"])
+        population_subject_ids = self.population["subject_id"].to_list()
+        test_data = filter_subject_data(test_data, population_subject_ids)
         test_subjects, test_outcome_rows = expand_subjects_for_outcomes(
             test_data, self.test_outcomes
         )

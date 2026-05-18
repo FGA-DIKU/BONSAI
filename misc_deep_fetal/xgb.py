@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import hydra
 import numpy as np
 import pandas as pd
+import polars as pl
 import torch
 import xgboost as xgb
 from dotenv import load_dotenv
@@ -18,7 +19,11 @@ from torchmetrics.classification import (
 )
 
 from bonsai.functional.features import compute_abspos
-from bonsai.functional.outcomes import outcomes_to_frame, split_and_binarize_outcomes
+from bonsai.functional.outcomes import (
+    outcomes_to_frame,
+    resolve_duplicate_subject_outcomes,
+    split_and_binarize_outcomes,
+)
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.paths import get_config_path
 
@@ -123,13 +128,13 @@ def censored_codes_for_subject(
 
 
 def multihot_encode_outcomes(
-    labels: pd.DataFrame,
+    labels: pl.DataFrame,
     events_by_subject: Dict[int, pd.DataFrame],
     n_features: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     rows = []
     subject_ids = []
-    for _, outcome in labels.iterrows():
+    for outcome in labels.to_dicts():
         subject_id = int(outcome["subject_id"])
         events = events_by_subject.get(subject_id)
         if events is None:
@@ -149,10 +154,10 @@ def multihot_encode_outcomes(
 
 def build_split_matrix(
     split_dir: Path,
-    labels: pd.DataFrame,
+    labels: pl.DataFrame,
     n_features: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    subject_ids = set(labels["subject_id"])
+    subject_ids = set(labels["subject_id"].to_list())
     events_by_subject = load_subject_events(split_dir, subject_ids)
     return multihot_encode_outcomes(
         labels, events_by_subject, n_features
@@ -305,8 +310,13 @@ def main(cfg: DictConfig) -> None:
     vocab = torch.load(cfg.paths.vocabulary)
     n_features = max(vocab.values()) + 1
 
-    outcomes = pd.read_parquet(cfg.paths.outcome)
-    outcomes["censor_abspos"] = compute_abspos(outcomes["censor_date"])
+    outcomes = pl.read_parquet(cfg.paths.outcome)
+    outcomes = outcomes.with_columns(
+        censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
+    outcomes = resolve_duplicate_subject_outcomes(
+        outcomes, cfg.outcomes.duplicate_subject_policy
+    )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key=split_key_from_pt(cfg.paths.train_split),

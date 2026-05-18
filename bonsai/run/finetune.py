@@ -13,7 +13,10 @@ from bonsai.paths import get_config_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
-from bonsai.functional.outcomes import split_and_binarize_outcomes
+from bonsai.functional.outcomes import (
+    resolve_duplicate_subject_outcomes,
+    split_and_binarize_outcomes,
+)
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
@@ -49,6 +52,9 @@ def main(cfg: DictConfig) -> None:
     outcomes = pl.read_parquet(cfg.paths.outcome)
     outcomes = outcomes.with_columns(
         censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
+    outcomes = resolve_duplicate_subject_outcomes(
+        outcomes, cfg.outcomes.duplicate_subject_policy
     )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,

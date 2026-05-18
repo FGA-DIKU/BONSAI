@@ -1,4 +1,6 @@
 import unittest
+import warnings
+
 import polars as pl
 from bonsai.functional.outcomes import (
     get_subject_first_row_for_conditions,
@@ -7,8 +9,9 @@ from bonsai.functional.outcomes import (
     get_date_from_exposure_date,
     fill_nans_with_sampled,
     binarize_outcomes,
-    split_and_binarize_outcomes,
     expand_subjects_for_outcomes,
+    resolve_duplicate_subject_outcomes,
+    split_and_binarize_outcomes,
     outcomes_to_frame,
 )
 from datetime import datetime
@@ -176,11 +179,11 @@ class TestBinizationOutcomes(unittest.TestCase):
         self.assertEqual(by_subject[3]["label"], 0)
 
     def test_binarize_outcomes_duplicate_subjects(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "subject_id": [1, 1],
-                "index_date": pd.to_datetime(["2020-01-01", "2020-01-01"]),
-                "outcome_date": pd.to_datetime(["2020-01-01", "2020-01-03"]),
+                "index_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
+                "outcome_date": [datetime(2020, 1, 1), datetime(2020, 1, 3)],
                 "censor_abspos": [10, 20],
             }
         )
@@ -254,3 +257,27 @@ class TestBinizationOutcomes(unittest.TestCase):
         self.assertEqual(len(expanded_subjects), 2)
         self.assertEqual(expanded_outcomes[0]["censor_abspos"], 10)
         self.assertEqual(expanded_outcomes[1]["censor_abspos"], 20)
+
+    def test_resolve_duplicate_subject_outcomes_all(self):
+        df = pl.DataFrame(
+            {
+                "split": ["train", "train"],
+                "subject_id": [1, 1],
+                "censor_abspos": [20.0, 10.0],
+            }
+        )
+        result = resolve_duplicate_subject_outcomes(df, "all")
+        self.assertEqual(result.height, 2)
+
+    def test_resolve_duplicate_subject_outcomes_first_lowest_censor(self):
+        df = pl.DataFrame(
+            {
+                "split": ["train", "train", "train"],
+                "subject_id": [1, 1, 2],
+                "censor_abspos": [20.0, 10.0, 5.0],
+            }
+        )
+        result = resolve_duplicate_subject_outcomes(df, "first_lowest_censor_abspos")
+        self.assertEqual(result.height, 2)
+        subject_one = result.filter(pl.col("subject_id") == 1).row(0, named=True)
+        self.assertEqual(subject_one["censor_abspos"], 10.0)

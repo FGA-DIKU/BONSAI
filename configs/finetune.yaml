@@ -26,6 +26,9 @@ labels:
   n_hours_start_include: 1 # start follow up (considering outcomes) time after index date (negative means before)
   n_hours_end_include: null
 
+outcomes:
+  duplicate_subject_policy: all
+
 training:
   max_len: 8192
   batch_size: 256

@@ -17,6 +17,11 @@ labels:
   n_hours_start_include: 1
   n_hours_end_include: null
 
+outcomes:
+  # all: keep every outcome row (multiple samples per subject_id allowed)
+  # first_lowest_censor_abspos: one row per subject_id per split (earliest censor)
+  duplicate_subject_policy: all
+
 tuning:
   enabled: true  # set false to train once with xgb.* below only
   cv_folds: 5

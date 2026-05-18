@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import polars as pl
 import hydra
 import lightning as L
@@ -13,7 +15,10 @@ from bonsai.paths import get_config_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
-from bonsai.functional.outcomes import split_and_binarize_outcomes
+from bonsai.functional.outcomes import (
+    resolve_duplicate_subject_outcomes,
+    split_and_binarize_outcomes,
+)
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.versioning import generate_unused_run_id
@@ -40,6 +45,9 @@ def main(cfg: DictConfig) -> None:
     outcomes = pl.read_parquet(cfg.paths.outcome)
     outcomes = outcomes.with_columns(
         censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
+    outcomes = resolve_duplicate_subject_outcomes(
+        outcomes, cfg.outcomes.duplicate_subject_policy
     )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
@@ -128,14 +136,14 @@ def main(cfg: DictConfig) -> None:
         logits = torch.cat([batch["logit"].detach().cpu() for batch in outputs])
         probs = torch.cat([batch["prob"].detach().cpu() for batch in outputs])
         labels = torch.cat([batch["label"].detach().cpu() for batch in outputs])
-        pd.DataFrame(
+        pl.DataFrame(
             {
                 "subject_id": subject_ids.numpy(),
                 "logit": logits.float().numpy(),
                 "prob": probs.float().numpy(),
                 "label": labels.numpy(),
             }
-        ).to_csv(predictions_path, index=False)
+        ).write_csv(predictions_path)
         print(f"Saved predictions to {predictions_path}")
 
 
