@@ -10,11 +10,7 @@ import operator
 from hydra.core.plugins import Plugins
 from bonsai.paths import get_config_path
 from bonsai.functional.outcomes import (
-    get_subject_first_row_for_conditions,
-    get_date_from_absolute_date,
     get_date_from_relative_date,
-    get_date_from_exposure_date,
-    fill_nans_with_sampled,
 )
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 
@@ -93,23 +89,25 @@ def main(cfg: DictConfig) -> None:
         )
     all_outcomes = all_outcomes.reset_index(drop=True)
 
-    if (dates := all_outcomes["index_date"]).isna().any():
+    n_before = len(all_outcomes)
+    missing_index = all_outcomes["index_date"].isna()
+    if missing_index.any():
         missing_subject_ids = (
-            all_outcomes.loc[dates.isna(), "subject_id"].dropna().drop_duplicates()
+            all_outcomes.loc[missing_index, "subject_id"].dropna().drop_duplicates()
         )
         logging.warning(
-            f"Subjects with missing index_date: {len(missing_subject_ids):_} "
-            f"(showing up to 20 patient_table rows below)"
+            f"Dropping {missing_index.sum():_} rows with missing index_date "
+            f"({len(missing_subject_ids):_} subjects; showing up to 20 below)"
         )
         print(
             patient_table.reindex(missing_subject_ids)[
                 ["m_cpr", "subject_id", outcome.date, index, "label"]
             ].head(20)
         )
-        logging.warning(
-            f"Found {dates.isna().sum()} NaN index dates -- Replacing them with randomly sampled {(~dates.isna()).sum()} non-NaNs"
+        all_outcomes = all_outcomes.loc[~missing_index].reset_index(drop=True)
+        logging.info(
+            f"Kept {len(all_outcomes):_} of {n_before:_} outcome rows after dropping NaN index_date"
         )
-        all_outcomes["index_date"] = fill_nans_with_sampled(dates)
 
     all_outcomes["censor_date"] = get_date_from_relative_date(
         relative_dates=all_outcomes["index_date"],  # Censoring is based on index_date
