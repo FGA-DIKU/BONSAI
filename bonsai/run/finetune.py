@@ -8,7 +8,7 @@ from transformers import ModernBertConfig
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 
-from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.functional.pathing import get_experiment_output_path, save_run_config
 from bonsai.paths import get_config_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
@@ -42,6 +42,8 @@ def main(cfg: DictConfig) -> None:
 
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
+    config_path = save_run_config(cfg, model_save_dir)
+    print(f"Saved run config to {config_path}")
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     model_cfg = merge_configs_and_drop_duplicate_keys(
