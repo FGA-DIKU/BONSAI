@@ -46,6 +46,12 @@ To use the old pre-lightning version use:
 git checkout tags/pre-lightning
 ```
 
+
+## Resume training
+To resume training supply the path to the checkpoint and the old run_id. Without the run_id training will continue with a new ID in a new directory.
+
+`python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data paths.ckpt_path=/path/to/run_id_1234/ckpt.last run_id=1234`
+
 ## Outcomes creation
 We provide a standardized script to generate outcomes in [create_outcome.py](/bonsai/run/create_outcome.py), however you can also provide your own, in case our script doesn't accommodate your needs. 
 

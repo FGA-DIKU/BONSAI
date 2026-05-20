@@ -7,6 +7,6 @@ defaults:
 training:
   max_len: 10
   batch_size: 2
-  epochs: 5
+  epochs: 10
   limit_val_batches: 10
   limit_train_batches: 10
