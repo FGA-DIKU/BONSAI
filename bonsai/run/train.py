@@ -3,7 +3,7 @@ import hydra
 import lightning as L
 import torch
 from dotenv import load_dotenv
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from transformers import ModernBertConfig
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
@@ -17,6 +17,11 @@ from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.sampling import get_sampler
 from bonsai.functional.features import compute_abspos
+from bonsai.functional.versioning import generate_unused_run_id
+
+OmegaConf.register_new_resolver(
+    "version", lambda: generate_unused_run_id(), use_cache=True
+)
 
 load_dotenv()
 

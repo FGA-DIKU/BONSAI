@@ -2,7 +2,9 @@ hydra:
   verbose: false
   output_subdir: hydra
   run:
-    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}
+    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}/run_id=${run_id}
   sweep:
     dir: ${oc.env:BONSAI_MODELS}/${dataset}
-    subdir: ${hydra:job.config_name}
+    subdir: ${hydra:job.config_name}/run_id_${run_id}
+
+run_id: ${version:}
