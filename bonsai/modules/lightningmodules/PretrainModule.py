@@ -36,7 +36,7 @@ class PretrainModule(L.LightningModule):
                 "scheduler_warmup_epochs": scheduler_warmup_epochs,
             }
         )
-        self.save_hyperparameters(hparams, ignore=["model"])
+        self.save_hyperparameters(hparams)
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
