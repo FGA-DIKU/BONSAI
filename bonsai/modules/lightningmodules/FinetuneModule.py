@@ -35,7 +35,7 @@ class FinetuneModule(L.LightningModule):
                 "learning_rate": learning_rate,
                 "optimizer_epsilon": optimizer_epsilon,
                 "scheduler_warmup_epochs": scheduler_warmup_epochs,
-                "pos_weight": pos_weight.item(),
+                "pos_weight": None if pos_weight is None else pos_weight.item(),
             }
         )
         self.save_hyperparameters(hparams)
