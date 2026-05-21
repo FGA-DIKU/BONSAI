@@ -2,16 +2,22 @@ import hydra
 import lightning as L
 from dotenv import load_dotenv
 from hydra.utils import get_class
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from transformers import ModernBertConfig
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
+from hydra.core.hydra_config import HydraConfig
+
+OmegaConf.register_new_resolver(
+    "version", lambda: generate_unused_run_id(), use_cache=True
+)
 
 load_dotenv()
 
@@ -22,7 +28,11 @@ load_dotenv()
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
-    logger = CSVLogger(get_experiment_output_path(), name="training_runs")
+    print(
+        f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
+    )
+
+    logger = CSVLogger(get_experiment_output_path(), name=None, version=0)
     model_save_dir = logger.log_dir
 
     data_module = PretrainDataModule(

@@ -21,7 +21,6 @@ class FinetuneModule(L.LightningModule):
         self.optimizer_epsilon = optimizer_epsilon
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
 
-        self.save_hyperparameters(ignore=["model"])
         self.model = model
         if compile_mode is not None:
             self.model.compile(mode=compile_mode)
@@ -30,6 +29,16 @@ class FinetuneModule(L.LightningModule):
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
         self.test_metrics = self.configure_metrics("test")
+        hparams = model.config.to_dict()
+        hparams.update(
+            {
+                "learning_rate": learning_rate,
+                "optimizer_epsilon": optimizer_epsilon,
+                "scheduler_warmup_epochs": scheduler_warmup_epochs,
+                "pos_weight": None if pos_weight is None else pos_weight.item(),
+            }
+        )
+        self.save_hyperparameters(hparams)
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(

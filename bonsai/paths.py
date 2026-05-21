@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def get_config_path():
     return os.getenv("BONSAI_CONFIG_PATH")
