@@ -25,11 +25,16 @@ from bonsai.functional.outcomes import (
     split_and_binarize_outcomes,
 )
 from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.paths import get_config_path
+from hydra.core.hydra_config import HydraConfig
 
 load_dotenv()
 
-RUNS_DIR = "training_runs"
+OmegaConf.register_new_resolver(
+    "version", lambda: generate_unused_run_id(), use_cache=True
+)
+
 METRICS_FILE = "metrics.csv"
 TEST_PREDICTIONS_FILE = "test_predictions.csv"
 TOP_FEATURES_FILE = "top_features.csv"
@@ -164,20 +169,6 @@ def build_split_matrix(
     )
 
 
-def get_versioned_run_dir(experiment_dir: Path, runs_dir_name: str) -> Path:
-    runs_root = experiment_dir / runs_dir_name
-    runs_root.mkdir(parents=True, exist_ok=True)
-    existing = [
-        int(path.name.split("_")[1])
-        for path in runs_root.iterdir()
-        if path.is_dir() and path.name.startswith("version_")
-    ]
-    version = max(existing, default=-1) + 1
-    run_dir = runs_root / f"version_{version}"
-    run_dir.mkdir(parents=True, exist_ok=False)
-    return run_dir
-
-
 def compute_split_metrics(y_true: np.ndarray, prob: np.ndarray) -> dict:
     y = torch.tensor(y_true, dtype=torch.int64)
     p = torch.tensor(prob, dtype=torch.float32)
@@ -307,6 +298,9 @@ def fit_classifier(
     version_base="1.2",
 )
 def main(cfg: DictConfig) -> None:
+    print(
+        f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
+    )
     vocab = torch.load(cfg.paths.vocabulary)
     n_features = max(vocab.values()) + 1
 
@@ -346,7 +340,10 @@ def main(cfg: DictConfig) -> None:
         n_features,
     )
 
-    run_dir = get_versioned_run_dir(Path(get_experiment_output_path()), RUNS_DIR)
+    # Match finetune's output layout:
+    # <hydra.run.dir>/training_runs/version_0/...
+    run_dir = Path(get_experiment_output_path()) / "training_runs" / "version_0"
+    run_dir.mkdir(parents=True, exist_ok=True)
 
     best_params: Dict[str, Any] = {}
     if cfg.tuning.enabled:
