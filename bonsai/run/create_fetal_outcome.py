@@ -4,7 +4,6 @@ import hydra
 import pandas as pd
 from dotenv import load_dotenv
 from omegaconf import DictConfig
-import pickle 
 import operator
 
 from hydra.core.plugins import Plugins
@@ -40,8 +39,8 @@ def main(cfg: DictConfig) -> None:
     input_dir = Path(cfg.paths.input_dir)
     patient_table = Path(cfg.paths.patient_table)
     mapping_file = Path(cfg.paths.mapping_file)
-    with open(mapping_file, "rb") as f:
-        mapping_dict = pickle.load(f)
+    mapping_df = pd.read_csv(mapping_file, usecols=["MOR_CPR", "mapping"])
+    mapping_dict = mapping_df.set_index("MOR_CPR")["mapping"].to_dict()
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
