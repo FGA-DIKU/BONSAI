@@ -136,8 +136,7 @@ class FinetuneModule(L.LightningModule):
             self.test_metrics.reset()
             metrics = self.test_metrics(logits, labels)
             metrics = {
-                key: float(value.detach().cpu())
-                for key, value in metrics.items()
+                key: float(value.detach().cpu()) for key, value in metrics.items()
             }
             self.test_metrics_path.parent.mkdir(parents=True, exist_ok=True)
             pl.DataFrame(metrics).write_csv(self.test_metrics_path)

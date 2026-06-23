@@ -1,4 +1,5 @@
 import polars as pl
+from pathlib import Path
 import hydra
 import lightning as L
 import torch
@@ -66,6 +67,7 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
         path_val_data=cfg.paths.val_split,
+        path_test_data=cfg.paths.test_split,
         path_population=cfg.paths.population,
         train_outcomes=train_outcomes,
         val_outcomes=val_outcomes,
@@ -128,6 +130,18 @@ def main(cfg: DictConfig) -> None:
         datamodule=data_module,
         ckpt_path=cfg.paths.ckpt_path,
     )
+    if cfg.paths.test_split is not None:
+        predictions_path = Path(model_save_dir) / "test_predictions.csv"
+        test_metrics_path = Path(model_save_dir) / "test_metrics.csv"
+        lightning_module.predictions_path = predictions_path
+        lightning_module.test_metrics_path = test_metrics_path
+        trainer.predict(
+            model=lightning_module,
+            datamodule=data_module,
+            ckpt_path="best",
+        )
+        print(f"Saved predictions to {predictions_path}")
+        print(f"Saved test metrics to {test_metrics_path}")
 
 
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.

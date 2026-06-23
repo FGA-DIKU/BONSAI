@@ -128,7 +128,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
-            drop_last=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )
