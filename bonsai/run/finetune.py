@@ -140,6 +140,7 @@ def main(cfg: DictConfig) -> None:
         )
         print(f"Saved predictions to {predictions_output_path}")
 
+
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.
 
 
