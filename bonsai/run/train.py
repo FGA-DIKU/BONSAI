@@ -43,7 +43,7 @@ def main(cfg: DictConfig) -> None:
     outcomes = outcomes.with_columns(
         censor_abspos=compute_abspos(pl.col("censor_date"))
     )
-    train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
+    train_outcomes, val_outcomes, predict_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
         val_key="tuning",
@@ -58,11 +58,11 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
         path_val_data=cfg.paths.val_split,
-        path_test_data=cfg.paths.test_split,
+        path_predict_data=cfg.paths.predict_split,
         path_population=cfg.paths.population,
         train_outcomes=train_outcomes,
         val_outcomes=val_outcomes,
-        test_outcomes=test_outcomes,
+        predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
         train_sampler=get_sampler(
@@ -120,18 +120,15 @@ def main(cfg: DictConfig) -> None:
         ckpt_path=cfg.paths.ckpt_path,
     )
 
-    if cfg.paths.test_split is not None:
-        predictions_path = Path(model_save_dir) / "test_predictions.csv"
-        test_metrics_path = Path(model_save_dir) / "test_metrics.csv"
-        lightning_module.predictions_path = predictions_path
-        lightning_module.test_metrics_path = test_metrics_path
+    if cfg.paths.predict_split is not None:
+        predictions_output_path = Path(model_save_dir) / "test_predictions"
+        lightning_module.predictions_output_path = predictions_output_path
         trainer.predict(
             model=lightning_module,
             datamodule=data_module,
             ckpt_path="best",
         )
-        print(f"Saved predictions to {predictions_path}")
-        print(f"Saved test metrics to {test_metrics_path}")
+        print(f"Saved predictions to {predictions_output_path}")
 
 
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.

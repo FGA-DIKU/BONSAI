@@ -13,7 +13,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self,
         path_train_data: str,
         path_val_data: str,
-        path_test_data: str,
+        path_predict_data: str,
         path_population: str,
         batch_size: int,
         num_workers: int,
@@ -21,13 +21,13 @@ class FinetuneDataModule(L.LightningDataModule):
         max_len: int,
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
-        test_outcomes: Dict[int, dict],
+        predict_outcomes: Dict[int, dict],
         train_sampler: Optional[WeightedRandomSampler] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
-        self.path_test_data = path_test_data
+        self.path_predict_data = path_predict_data
         self.population = pl.read_csv(path_population)
 
         self.batch_size = batch_size
@@ -37,7 +37,7 @@ class FinetuneDataModule(L.LightningDataModule):
 
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
-        self.test_outcomes = test_outcomes
+        self.predict_outcomes = predict_outcomes
         self.train_sampler = train_sampler
 
     def setup(self, stage: Literal["fit", "test", "predict"]):
@@ -80,18 +80,18 @@ class FinetuneDataModule(L.LightningDataModule):
         )
 
     def setup_predict(self):
-        if self.path_test_data is None:
-            raise ValueError("path_test_data must be set before running predict.")
-        test_data = torch.load(self.path_test_data)
-        test_data = [
-            sub for sub in test_data if sub["subject_id"] in self.test_outcomes
+        if self.path_predict_data is None:
+            raise ValueError("path_predict_data must be set before running predict.")
+        predict_data = torch.load(self.path_predict_data)
+        predict_data = [
+            sub for sub in predict_data if sub["subject_id"] in self.predict_outcomes
         ]
         population_subject_ids = self.population["subject_id"].to_list()
-        test_data = filter_subject_data(test_data, population_subject_ids)
-        background_length = (test_data[0]["segment"] == 0).sum()
+        predict_data = filter_subject_data(predict_data, population_subject_ids)
+        background_length = (predict_data[0]["segment"] == 0).sum()
         self.predict_dataset = FinetuneDataset(
-            test_data,
-            outcomes=self.test_outcomes,
+            predict_data,
+            outcomes=self.predict_outcomes,
             predict_token_id=self.predict_token_id,
             background_length=background_length,
             max_len=self.max_len,
