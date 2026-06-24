@@ -1,4 +1,9 @@
+from pathlib import Path
+from os.path import join
+from typing import Optional
+
 import lightning as L
+import polars as pl
 import torch
 from torch import nn
 from torch.optim import AdamW
@@ -15,11 +20,13 @@ class FinetuneModule(L.LightningModule):
         learning_rate: float = 5e-4,
         optimizer_epsilon: float = 1e-6,
         scheduler_warmup_epochs: int = 0,
+        predictions_output_path: Optional[Path] = None,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
+        self.predictions_output_path = predictions_output_path
 
         self.model = model
         if compile_mode is not None:
@@ -29,6 +36,7 @@ class FinetuneModule(L.LightningModule):
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
         self.test_metrics = self.configure_metrics("test")
+        self.predict_metrics = self.configure_metrics("predict")
         hparams = model.config.to_dict()
         hparams.update(
             {
@@ -79,6 +87,59 @@ class FinetuneModule(L.LightningModule):
         logits, _ = self.model(batch)
         self.test_metrics(logits, labels)
         self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
+
+    def on_predict_epoch_start(self) -> None:
+        self.predictions = []
+        self.labels = []
+        self.subject_ids = []
+        self.logits = []
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        labels = batch["target"]
+        logits = self.model(batch)
+        probs = torch.sigmoid(logits)
+        if self.predictions_output_path is not None:
+            self.logits.append(logits.squeeze(-1))
+            self.labels.append(labels.squeeze(-1))
+            self.subject_ids.append(batch["subject_id"])
+            self.predictions.append(probs.squeeze(-1))
+        return {
+            "subject_id": batch["subject_id"],
+            "logit": logits.squeeze(-1),
+            "prob": probs.squeeze(-1),
+            "label": labels.squeeze(-1),
+        }
+
+    def on_predict_epoch_end(self) -> None:
+        if self.predictions_output_path is None:
+            return
+
+        logits = torch.cat([x.detach().cpu().float() for x in self.logits])
+        labels = torch.cat([x.detach().cpu().long() for x in self.labels])
+
+        if self.predictions_output_path is not None:
+            self.predictions_output_path.mkdir(parents=True, exist_ok=True)
+            pl.DataFrame(
+                {
+                    "subject_id": torch.cat(
+                        [x.detach().cpu() for x in self.subject_ids]
+                    ),
+                    "logit": logits,
+                    "prob": torch.cat(
+                        [x.detach().cpu().float() for x in self.predictions]
+                    ),
+                    "label": labels,
+                }
+            ).write_csv(join(self.predictions_output_path, "predictions.csv"))
+
+            self.predict_metrics.reset()
+            metrics = self.predict_metrics(logits, labels)
+            metrics = {
+                key: float(value.detach().cpu()) for key, value in metrics.items()
+            }
+            pl.DataFrame(metrics).write_csv(
+                join(self.predictions_output_path, "predict_metrics.csv")
+            )
 
     def configure_optimizers(self):
         optimizer = AdamW(

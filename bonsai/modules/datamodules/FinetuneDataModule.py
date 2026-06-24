@@ -13,6 +13,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self,
         path_train_data: str,
         path_val_data: str,
+        path_predict_data: str,
         path_population: str,
         batch_size: int,
         num_workers: int,
@@ -20,12 +21,13 @@ class FinetuneDataModule(L.LightningDataModule):
         max_len: int,
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
-        test_outcomes: Dict[int, dict],
+        predict_outcomes: Dict[int, dict],
         train_sampler: Optional[WeightedRandomSampler] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
+        self.path_predict_data = path_predict_data
         self.population = pl.read_csv(path_population)
 
         self.batch_size = batch_size
@@ -35,7 +37,7 @@ class FinetuneDataModule(L.LightningDataModule):
 
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
-        self.test_outcomes = test_outcomes
+        self.predict_outcomes = predict_outcomes
         self.train_sampler = train_sampler
 
     def setup(self, stage: Literal["fit", "test", "predict"]):
@@ -44,7 +46,7 @@ class FinetuneDataModule(L.LightningDataModule):
         elif stage == "test":
             raise NotImplementedError("Test stage not supported for PretrainModule.")
         elif stage == "predict":
-            raise NotImplementedError("Predict stage not supported for PretrainModule.")
+            self.setup_predict()
 
     def setup_fit(self):
         train_data = torch.load(self.path_train_data)
@@ -77,6 +79,24 @@ class FinetuneDataModule(L.LightningDataModule):
             max_len=self.max_len,
         )
 
+    def setup_predict(self):
+        if self.path_predict_data is None:
+            raise ValueError("path_predict_data must be set before running predict.")
+        predict_data = torch.load(self.path_predict_data)
+        predict_data = [
+            sub for sub in predict_data if sub["subject_id"] in self.predict_outcomes
+        ]
+        population_subject_ids = self.population["subject_id"].to_list()
+        predict_data = filter_subject_data(predict_data, population_subject_ids)
+        background_length = (predict_data[0]["segment"] == 0).sum()
+        self.predict_dataset = FinetuneDataset(
+            predict_data,
+            outcomes=self.predict_outcomes,
+            predict_token_id=self.predict_token_id,
+            background_length=background_length,
+            max_len=self.max_len,
+        )
+
     def train_dataloader(self):
         return DataLoader(
             self.train_dataset,
@@ -97,6 +117,18 @@ class FinetuneDataModule(L.LightningDataModule):
             pin_memory=True,
             persistent_workers=True,
             drop_last=True,
+            shuffle=False,
+            collate_fn=dynamic_padding,
+        )
+
+    def predict_dataloader(self):
+        return DataLoader(
+            self.predict_dataset,
+            num_workers=self.num_workers,
+            batch_size=self.batch_size,
+            pin_memory=True,
+            persistent_workers=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )
