@@ -48,12 +48,17 @@ def main(cfg: DictConfig) -> None:
     patient_table["subject_id"] = patient_table["m_cpr"].map(mapping_dict)
     py_op = get_python_operator(cfg.outcome.outcome.conditions[0].operator)
     patient_table["label"] = py_op(patient_table[cfg.outcome.outcome.conditions[0].col], cfg.outcome.outcome.conditions[0].value)
-    # Index by subject_id so lookups from event shards are correct.
-    patient_table = patient_table.set_index("subject_id", drop=False)
+    n_before_map = len(patient_table)
+    patient_table = patient_table.dropna(subset=["subject_id"])
+    if len(patient_table) != n_before_map:
+        logging.warning(
+            f"Dropped {n_before_map - len(patient_table):_} patient rows with unmapped m_cpr"
+        )
     outcome = cfg.outcome.outcome
     index = cfg.outcome.index
     censor = cfg.outcome.censor
-    print(patient_table[["m_cpr", "subject_id", outcome.date, index, "label"]].head())
+    outcome_cols = ["subject_id", "m_cpr", outcome.date, index, "label"]
+    print(patient_table[outcome_cols].head())
 
     logging.info(f"Starting create_outcome for `{save_path.stem}`")
     logging.info(f"Outcome date assigned with {outcome}")
@@ -63,28 +68,26 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = pd.DataFrame()
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
+        split_subject_ids = set()
         for shard in shards:
             df = pd.read_parquet(shard, columns=["subject_id", "time", "code"])
             df = df.dropna(subset=["subject_id", "time", "code"])
+            split_subject_ids.update(df["subject_id"].unique())
 
-            subject_ids = df["subject_id"].drop_duplicates()
-
-            outcomes = (
-                patient_table.reindex(subject_ids)[[outcome.date, index, "label"]]
-                .rename(columns={outcome.date: "outcome_date", index: "index_date"})
-                .reset_index(drop=False)[["subject_id", "outcome_date", "index_date", "label"]]
-            )
-            outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
-            outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
-            outcomes["outcome_date"] = outcomes["outcome_date"].where(
-                outcomes["label"], pd.NaT
-            )
-
-            outcomes["split"] = split
-            all_outcomes = pd.concat((all_outcomes, outcomes))
+        outcomes = patient_table.loc[
+            patient_table["subject_id"].isin(split_subject_ids),
+            ["subject_id", outcome.date, index, "label"],
+        ].rename(columns={outcome.date: "outcome_date", index: "index_date"})
+        outcomes["outcome_date"] = pd.to_datetime(outcomes["outcome_date"])
+        outcomes["index_date"] = pd.to_datetime(outcomes["index_date"])
+        outcomes["outcome_date"] = outcomes["outcome_date"].where(
+            outcomes["label"], pd.NaT
+        )
+        outcomes["split"] = split
+        all_outcomes = pd.concat((all_outcomes, outcomes))
         logging.info(
-            f"Processed {all_outcomes.loc[all_outcomes['split'].eq(split), 'subject_id'].nunique():_} "
-            f"unique subjects in {split}"
+            f"Processed {outcomes['subject_id'].nunique():_} unique subjects "
+            f"({len(outcomes):_} outcome rows) in {split}"
         )
     all_outcomes = all_outcomes.reset_index(drop=True)
 
@@ -99,8 +102,8 @@ def main(cfg: DictConfig) -> None:
             f"({len(missing_subject_ids):_} subjects; showing up to 20 below)"
         )
         print(
-            patient_table.reindex(missing_subject_ids)[
-                ["m_cpr", "subject_id", outcome.date, index, "label"]
+            patient_table.loc[
+                patient_table["subject_id"].isin(missing_subject_ids), outcome_cols
             ].head(20)
         )
         all_outcomes = all_outcomes.loc[~missing_index].reset_index(drop=True)
@@ -116,7 +119,9 @@ def main(cfg: DictConfig) -> None:
     )
 
     logging.info(
-        f"Total number of subjects: {len(all_outcomes):_} ({(~all_outcomes['outcome_date'].isna()).sum():_} positives)"
+        f"Total outcome rows: {len(all_outcomes):_} "
+        f"({all_outcomes['subject_id'].nunique():_} unique subjects, "
+        f"{(~all_outcomes['outcome_date'].isna()).sum():_} positives)"
     )
     logging.info(f"Saving to {save_path}")
     all_outcomes.to_parquet(save_path)
