@@ -16,6 +16,7 @@ from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from bonsai.functional.outcomes import (
     resolve_duplicate_subject_outcomes,
     split_and_binarize_outcomes,
+    print_outcome_split_summary,
 )
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.features import compute_abspos
@@ -59,10 +60,17 @@ def main(cfg: DictConfig) -> None:
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
-        val_key="tuning",
-        test_key="held_out",
+        val_key="val",
+        test_key="test",
         n_hours_start_include=cfg.labels.n_hours_start_include,
         n_hours_end_include=cfg.labels.n_hours_end_include,
+    )
+    print_outcome_split_summary(
+        {
+            "train": train_outcomes,
+            "val": val_outcomes,
+            "test": test_outcomes,
+        }
     )
 
     train_labels = [outcome["label"] for outcome in train_outcomes]

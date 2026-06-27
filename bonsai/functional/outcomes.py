@@ -238,3 +238,15 @@ def split_and_binarize_outcomes(
     )
 
     return train_outcomes, val_outcomes, test_outcomes
+
+
+def print_outcome_split_summary(splits: dict[str, List[dict]]) -> None:
+    for split_name, outcomes in splits.items():
+        n_rows = len(outcomes)
+        n_subjects = len({outcome["subject_id"] for outcome in outcomes})
+        n_positives = sum(outcome["label"] for outcome in outcomes)
+        positive_pct = 100.0 * n_positives / n_rows if n_rows else 0.0
+        print(
+            f"{split_name}: {n_rows:_} outcome rows, {n_subjects:_} unique subjects, "
+            f"{n_positives:_} positives ({positive_pct:.2f}%)"
+        )
