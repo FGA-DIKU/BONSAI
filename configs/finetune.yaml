@@ -33,7 +33,7 @@ training:
   max_len: 8192
   batch_size: 256
   accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 10
+  epochs: 15
   learning_rate: 3e-5
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 

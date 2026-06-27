@@ -10,6 +10,8 @@ from transformers import ModernBertConfig
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 
+from bonsai.modules.callbacks.loss_plot import LossPlotCallback
+
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.paths import get_config_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
@@ -104,6 +106,11 @@ def main(cfg: DictConfig) -> None:
         enable_version_counter=False,
         save_last=True,
     )
+    loss_plot_path = Path(model_save_dir) / "loss.png"
+    loss_plot_callback = LossPlotCallback(
+        metrics_csv=Path(model_save_dir) / "metrics.csv",
+        save_path=loss_plot_path,
+    )
 
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
@@ -111,7 +118,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[ckpt_callback],
+        callbacks=[ckpt_callback, loss_plot_callback],
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,

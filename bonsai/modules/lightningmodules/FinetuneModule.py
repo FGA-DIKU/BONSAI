@@ -61,17 +61,17 @@ class FinetuneModule(L.LightningModule):
         logits = self.model(batch)
         loss = self.train_loss(logits, labels.float())
         self.train_metrics(logits, labels)
-        self.log("train/loss", loss, prog_bar=True)
-        self.log_dict(self.train_metrics)
+        self.log("train/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log_dict(self.train_metrics, on_step=False, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
         loss = self.val_loss(logits, labels.float())
-        self.log("val/loss", loss, prog_bar=True)
+        self.log("val/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         self.val_metrics(logits, labels)
-        self.log_dict(self.val_metrics)
+        self.log_dict(self.val_metrics, on_step=False, on_epoch=True)
         return loss
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
