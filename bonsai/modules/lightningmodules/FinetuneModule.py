@@ -4,10 +4,8 @@ from torch import nn
 from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
 from torchmetrics import MetricCollection, Accuracy, AUROC, AveragePrecision
-from torchmetrics.classification import (
-    BinarySensitivityAtSpecificity,
-    BinarySpecificityAtSensitivity,
-)
+
+from bonsai.modules.metrics.metrics import BinarySensAtSpec
 
 
 class FinetuneModule(L.LightningModule):
@@ -54,7 +52,7 @@ class FinetuneModule(L.LightningModule):
                 f"{prefix}/AUROC": AUROC(
                     task="binary",
                 ),
-                f"{prefix}/sens@spec85": BinarySensitivityAtSpecificity(
+                f"{prefix}/sens@spec85": BinarySensAtSpec(
                     min_specificity=0.85,
                 ),
                 f"{prefix}/AveragePrecision": AveragePrecision(

@@ -1,6 +1,28 @@
 from typing import Literal
 import torch
 from torchmetrics import Metric
+from torchmetrics.classification import BinarySensitivityAtSpecificity
+
+
+class BinarySensAtSpec(Metric):
+    """Sensitivity at minimum specificity; returns a single tensor for Lightning logging."""
+
+    full_state_update: bool = False
+
+    def __init__(self, min_specificity: float = 0.85, **kwargs):
+        super().__init__(**kwargs)
+        self.metric = BinarySensitivityAtSpecificity(min_specificity=min_specificity)
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        probs = torch.sigmoid(preds.squeeze(-1).float())
+        self.metric.update(probs, target.squeeze(-1).int())
+
+    def compute(self) -> torch.Tensor:
+        sens, _ = self.metric.compute()
+        return sens
+
+    def reset(self) -> None:
+        self.metric.reset()
 
 
 class SharedPrecisionAtK(Metric):
