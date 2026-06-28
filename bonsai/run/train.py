@@ -7,7 +7,7 @@ import torch
 from dotenv import load_dotenv
 from omegaconf import DictConfig, OmegaConf
 from transformers import ModernBertConfig
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 
 from bonsai.modules.callbacks.loss_plot import LossPlotCallback
@@ -98,6 +98,7 @@ def main(cfg: DictConfig) -> None:
         model=model,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
+        weight_decay=cfg.training.get("weight_decay", 0.0),
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=get_loss_weight(
             cfg.training.loss_weight_function,
@@ -105,20 +106,29 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
-        monitor=cfg.training.eval_monitor_metric,
-        mode="min",
-        save_top_k=1,
-        filename="best",
-        enable_version_counter=False,
-        save_last=True,
-    )
-    loss_plot_path = Path(model_save_dir) / "loss.png"
-    loss_plot_callback = LossPlotCallback(
-        metrics_csv=Path(model_save_dir) / "metrics.csv",
-        save_path=loss_plot_path,
-    )
+    callbacks = [
+        ModelCheckpoint(
+            dirpath=model_save_dir,
+            monitor=cfg.training.eval_monitor_metric,
+            mode="min",
+            save_top_k=1,
+            filename="best",
+            enable_version_counter=False,
+            save_last=True,
+        ),
+        LossPlotCallback(
+            metrics_csv=Path(model_save_dir) / "metrics.csv",
+            save_path=Path(model_save_dir) / "loss.png",
+        ),
+    ]
+    if cfg.training.get("early_stopping_patience") is not None:
+        callbacks.append(
+            EarlyStopping(
+                monitor=cfg.training.eval_monitor_metric,
+                mode="min",
+                patience=cfg.training.early_stopping_patience,
+            )
+        )
 
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
@@ -126,7 +136,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[ckpt_callback, loss_plot_callback],
+        callbacks=callbacks,
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
@@ -140,11 +150,18 @@ def main(cfg: DictConfig) -> None:
     )
 
     if cfg.paths.test_split is not None:
+        ckpt_callback = callbacks[0]
+        predict_ckpt_path = ckpt_callback.best_model_path or ckpt_callback.last_model_path
+        if predict_ckpt_path is None:
+            raise RuntimeError(
+                "No checkpoint was saved during training; cannot run predict."
+            )
+
         predictions_path = Path(model_save_dir) / "test_predictions.csv"
         outputs = trainer.predict(
             model=lightning_module,
             datamodule=data_module,
-            ckpt_path="best",
+            ckpt_path=predict_ckpt_path,
             return_predictions=True,
         )
         subject_ids = torch.cat([batch["subject_id"].detach().cpu() for batch in outputs])

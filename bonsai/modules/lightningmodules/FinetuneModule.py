@@ -16,11 +16,13 @@ class FinetuneModule(L.LightningModule):
         pos_weight: torch.Tensor = None,
         learning_rate: float = 5e-4,
         optimizer_epsilon: float = 1e-6,
+        weight_decay: float = 0.0,
         scheduler_warmup_epochs: int = 0,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
+        self.weight_decay = weight_decay
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
 
         self.model = model
@@ -36,6 +38,7 @@ class FinetuneModule(L.LightningModule):
             {
                 "learning_rate": learning_rate,
                 "optimizer_epsilon": optimizer_epsilon,
+                "weight_decay": weight_decay,
                 "scheduler_warmup_epochs": scheduler_warmup_epochs,
                 "pos_weight": None if pos_weight is None else pos_weight.item(),
             }
@@ -95,6 +98,7 @@ class FinetuneModule(L.LightningModule):
             self.model.parameters(),
             lr=self.learning_rate,
             eps=self.optimizer_epsilon,
+            weight_decay=self.weight_decay,
         )
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
