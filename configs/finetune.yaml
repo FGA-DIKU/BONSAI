@@ -27,14 +27,16 @@ labels:
   n_hours_end_include: null
 
 outcomes:
-  duplicate_subject_policy: all
+  duplicate_subject_policy: first_lowest_censor_abspos
 
 training:
-  max_len: 8192
+  max_len: 2048
   batch_size: 256
   accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 15
-  learning_rate: 3e-5
+  epochs: 20
+  learning_rate: 1e-5
+  weight_decay: 0.01
+  early_stopping_patience: 3
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
     _target_: bonsai.functional.sampling.effective_n_samples
@@ -42,16 +44,19 @@ training:
     _target_: bonsai.functional.loss.effective_n_samples
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
-  limit_val_batches: 50
-  limit_train_batches: 50
+  limit_val_batches: null
+  limit_train_batches: null
   eval_monitor_metric: val/loss
 
 model:
-  hidden_size: 64
-  num_hidden_layers: 3
+  hidden_size: 128
+  num_hidden_layers: 4
   num_attention_heads: 4
-  intermediate_size: 256
-  embedding_dropout: 0.1
+  intermediate_size: 512
+  embedding_dropout: 0.4
+  attention_dropout: 0.1
+  mlp_dropout: 0.1
+  classifier_dropout: 0.1
   max_position_embeddings: ${training.max_len}
-  is_causal: false
+  is_causal: true
 

@@ -1,0 +1,24 @@
+defaults:
+  - core/base_create@
+  - _self_
+  
+splits: 
+  - train
+  - tuning
+  - held_out
+
+dataset: 
+
+paths: 
+  input_dir: ../../data/MEDS/${dataset}/data
+  output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+
+exclude_regex: 
+
+tokenizer:
+  vocabulary:
+  cutoffs:
+    D: 5
+    M: 5
+    P: 5
+  sep_tokens: false
