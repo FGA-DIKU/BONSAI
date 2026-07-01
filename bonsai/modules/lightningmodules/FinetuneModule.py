@@ -1,5 +1,5 @@
-from pathlib import Path
 from os.path import join
+from pathlib import Path
 from typing import Optional
 
 import lightning as L
@@ -7,8 +7,8 @@ import polars as pl
 import torch
 from torch import nn
 from torch.optim import AdamW
+from torchmetrics import AUROC, Accuracy, AveragePrecision, MetricCollection
 from transformers import get_linear_schedule_with_warmup
-from torchmetrics import MetricCollection, Accuracy, AUROC, AveragePrecision
 
 
 class FinetuneModule(L.LightningModule):
@@ -37,15 +37,12 @@ class FinetuneModule(L.LightningModule):
         self.val_metrics = self.configure_metrics("val")
         self.test_metrics = self.configure_metrics("test")
         self.predict_metrics = self.configure_metrics("predict")
-        hparams = model.config.to_dict()
-        hparams.update(
-            {
-                "learning_rate": learning_rate,
-                "optimizer_epsilon": optimizer_epsilon,
-                "scheduler_warmup_epochs": scheduler_warmup_epochs,
-                "pos_weight": None if pos_weight is None else pos_weight.item(),
-            }
-        )
+        hparams = {
+            "learning_rate": learning_rate,
+            "optimizer_epsilon": optimizer_epsilon,
+            "scheduler_warmup_epochs": scheduler_warmup_epochs,
+            "pos_weight": None if pos_weight is None else pos_weight.item(),
+        }
         self.save_hyperparameters(hparams)
 
     def configure_metrics(self, prefix: str):

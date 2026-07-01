@@ -1,6 +1,7 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional
 
 
 class EhrEmbeddings(nn.Module):
@@ -8,18 +9,13 @@ class EhrEmbeddings(nn.Module):
         self,
         vocab_size: int,
         hidden_size: int,
-        max_seqlen: int = 8192,
-        pad_token_id: int = 0,
+        max_seqlen: int,
     ):
         super().__init__()
 
         # Initialize embeddings
-        self.code_embedding = nn.Embedding(
-            vocab_size, hidden_size, padding_idx=pad_token_id
-        )
-        self.segment_embedding = nn.Embedding(
-            max_seqlen, hidden_size, padding_idx=pad_token_id
-        )
+        self.code_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+        self.segment_embedding = nn.Embedding(max_seqlen, hidden_size, padding_idx=0)
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
 
@@ -39,7 +35,7 @@ class EhrEmbeddings(nn.Module):
         return embeddings
 
 
-class Time2Vec(torch.nn.Module):
+class Time2Vec(nn.Module):
     """Time2Vec embedding layer that combines linear and periodic components.
 
     This layer transforms temporal inputs using a combination of linear and periodic embeddings:

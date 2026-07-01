@@ -1,8 +1,9 @@
 import lightning as L
 from torch import nn
 from torch.optim import AdamW
-from transformers import get_linear_schedule_with_warmup
 from torchmetrics import MetricCollection
+from transformers import get_linear_schedule_with_warmup
+
 from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 
 
@@ -28,14 +29,11 @@ class PretrainModule(L.LightningModule):
         self.val_loss = nn.CrossEntropyLoss()
         self.val_metrics = self.configure_metrics("val")
 
-        hparams = model.config.to_dict()
-        hparams.update(
-            {
-                "learning_rate": learning_rate,
-                "optimizer_epsilon": optimizer_epsilon,
-                "scheduler_warmup_epochs": scheduler_warmup_epochs,
-            }
-        )
+        hparams = {
+            "learning_rate": learning_rate,
+            "optimizer_epsilon": optimizer_epsilon,
+            "scheduler_warmup_epochs": scheduler_warmup_epochs,
+        }
         self.save_hyperparameters(hparams)
 
     def configure_metrics(self, prefix: str):
@@ -62,17 +60,13 @@ class PretrainModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
-        loss = self.train_loss(
-            logits.view(-1, self.model.config.vocab_size), labels.view(-1)
-        )
+        loss = self.train_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
         self.log("train/loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         logits, labels = self.model(batch)
-        loss = self.val_loss(
-            logits.view(-1, self.model.config.vocab_size), labels.view(-1)
-        )
+        loss = self.val_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
         self.log("val/loss", loss, prog_bar=True)
         self.val_metrics.update(logits, labels)
         self.log_dict(self.val_metrics)

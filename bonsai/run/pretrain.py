@@ -1,19 +1,18 @@
 import hydra
 import lightning as L
 from dotenv import load_dotenv
+from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_class
-from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
-from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import CSVLogger
+from omegaconf import DictConfig, OmegaConf
 
-from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
+from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
-from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from hydra.core.hydra_config import HydraConfig
+from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
     "version", lambda: generate_unused_run_id(), use_cache=True
@@ -49,14 +48,14 @@ def main(cfg: DictConfig) -> None:
     )
 
     model = BonsaiPretrain(
-        ModernBertConfig(
-            **cfg.model,
-            vocab_size=len(data_module.vocabulary),
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-            sparse_prediction=True,
-        )
+        vocab_size=len(data_module.vocabulary),
+        max_seqlen=cfg.model.max_seqlen,
+        hidden_size=cfg.model.hidden_size,
+        num_layers=cfg.model.num_layers,
+        num_attention_heads=cfg.model.num_attention_heads,
+        bias=cfg.model.bias,
+        dropout=cfg.model.dropout,
+        causal=cfg.model.causal,
     )
 
     ckpt_callback = ModelCheckpoint(

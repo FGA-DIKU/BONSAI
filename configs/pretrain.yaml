@@ -37,13 +37,12 @@ training:
   #   masking_ignore_special_tokens: true
 
 model:
+  max_seqlen: ${training.max_len}
   hidden_size: 64
+  num_layers: 4
+  num_attention_heads: 4
   dropout: 0.1
   bias: false
-  num_hidden_layers: 3
-  num_attention_heads: 3
-  # intermediate_size: 256 # ALWAYS SET THIS TO x4 hidden_size
-  max_seqlen: 8192
   causal: false
 
 
