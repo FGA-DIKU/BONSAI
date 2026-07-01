@@ -40,10 +40,6 @@ dependencies = [
     "xgboost>=3.0.2",
     "ruff==0.15.1",
     "dotenv==0.9.9",
-    "packaging==25.0",
-    "psutil==7.2.0",
-    "ninja==1.13.0",
-    "flash-attn==2.8.3", # requires GCC version >=9
 ]
 
 [tool.setuptools.packages.find]
@@ -54,6 +50,12 @@ dev = [
     "ruff",
     "docstr-coverage",
     "coverage",
+]
+flash_attn = [
+    "packaging==25.0",
+    "psutil==7.2.0",
+    "ninja==1.13.0",
+    "flash-attn==2.8.3", # requires GCC version >=9
 ]
 
 [project.urls]

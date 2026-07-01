@@ -9,7 +9,6 @@ from hydra.core.hydra_config import HydraConfig
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
 
 from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
 from bonsai.functional.features import compute_abspos
@@ -82,13 +81,13 @@ def main(cfg: DictConfig) -> None:
 
     model = BonsaiFinetune(
         vocab_size=len(vocab),
-        max_seqlen=cfg.model.max_seqlen,
-        hidden_size=cfg.model.hidden_size,
-        num_layers=cfg.model.num_layers,
-        num_attention_heads=cfg.model.num_attention_heads,
-        bias=cfg.model.bias,
-        dropout=cfg.model.dropout,
-        causal=cfg.model.causal,
+        max_seqlen=model_cfg.max_seqlen,
+        hidden_size=model_cfg.hidden_size,
+        num_layers=model_cfg.num_layers,
+        num_attention_heads=model_cfg.num_attention_heads,
+        bias=model_cfg.bias,
+        dropout=model_cfg.dropout,
+        causal=model_cfg.causal,
         predict_token_id=vocab["[CLS]"],
     )
 

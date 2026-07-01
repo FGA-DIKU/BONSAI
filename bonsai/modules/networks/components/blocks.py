@@ -4,7 +4,7 @@ from flash_attn.modules.mha import FlashSelfAttention
 
 try:
     from flash_attn.modules.mlp import FusedMLP as Mlp
-except:
+except Exception:
     from flash_attn.modules.mlp import Mlp
 
 

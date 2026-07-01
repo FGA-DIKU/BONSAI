@@ -8,7 +8,7 @@ try:
     )
 
     _FLASH_ATTENTION_AVAILABLE = True
-except:
+except Exception:
     from bonsai.modules.networks.components.blocks_nofa import TransformerLayer
 
     _FLASH_ATTENTION_AVAILABLE = False

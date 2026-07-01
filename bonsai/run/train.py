@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
 
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.loss import get_loss_weight
@@ -36,8 +35,6 @@ load_dotenv()
 def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
-
-    model_cfg = cfg.model
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
