@@ -1,8 +1,8 @@
 import lightning as L
 from torch import nn
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import LinearLR
 from torchmetrics import MetricCollection
-from transformers import get_linear_schedule_with_warmup
 
 from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 
@@ -81,10 +81,10 @@ class PretrainModule(L.LightningModule):
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
         )
-        scheduler = get_linear_schedule_with_warmup(
+        scheduler = LinearLR(
             optimizer=optimizer,
-            num_warmup_steps=steps_per_epoch * self.scheduler_warmup_epochs,
-            num_training_steps=self.trainer.estimated_stepping_batches,
+            start_factor=1e-4,
+            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
         )
         scheduler_config = {
             "scheduler": scheduler,
