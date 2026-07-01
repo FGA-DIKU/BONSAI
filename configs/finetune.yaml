@@ -50,3 +50,4 @@ model:
   dropout: 0.1
   bias: false
   causal: false
+  attn_type: "sdpa"

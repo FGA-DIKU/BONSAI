@@ -1,17 +1,11 @@
+import importlib.util
+
 import torch.nn as nn
 
 from bonsai.modules.networks.components.embeddings import EhrEmbeddings
+from bonsai.modules.networks.components.layer import TransformerLayer
 
-try:
-    from bonsai.modules.networks.components.blocks import (
-        FlashTransformerLayer as TransformerLayer,
-    )
-
-    _FLASH_ATTENTION_AVAILABLE = True
-except Exception:
-    from bonsai.modules.networks.components.blocks_nofa import TransformerLayer
-
-    _FLASH_ATTENTION_AVAILABLE = False
+_FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
 
 class BonsaiBase(nn.Module):
@@ -28,10 +22,11 @@ class BonsaiBase(nn.Module):
         bias,
         dropout,
         causal,
+        attn_type,
     ):
-        if not _FLASH_ATTENTION_AVAILABLE:
-            print(
-                "WARNING: flash_attn is not available. Falling back to standard pytorch implementation."
+        if attn_type == "flash" and not _FLASH_ATTENTION_AVAILABLE:
+            raise ImportError(
+                "flash_attn is not available. Please install flash-attn or use `attn_type='sdpa'` instead."
             )
         super().__init__()
         self.embeddings = EhrEmbeddings(
@@ -39,25 +34,34 @@ class BonsaiBase(nn.Module):
             hidden_size=hidden_size,
             max_seqlen=max_seqlen,
         )
-        self.transformer = nn.ModuleDict(
-            dict(
-                drop=nn.Dropout(dropout),
-                layers=nn.ModuleList(
-                    [
-                        TransformerLayer(
-                            hidden_size=hidden_size,
-                            num_heads=num_attention_heads,
-                            dropout=dropout,
-                            bias=bias,
-                            max_seqlen=max_seqlen,
-                            causal=causal,
-                        )
-                        for _ in range(num_layers)
-                    ]
-                ),
-                layernorm=nn.LayerNorm(hidden_size, bias=bias),
-            )
+        self.drop = nn.Dropout(dropout)
+        self.layers = nn.ModuleList(
+            [
+                TransformerLayer(
+                    hidden_size=hidden_size,
+                    num_heads=num_attention_heads,
+                    dropout=dropout,
+                    bias=bias,
+                    max_seqlen=max_seqlen,
+                    causal=causal,
+                    attn_type=attn_type,
+                )
+                for _ in range(num_layers)
+            ]
         )
+        self.layernorm = nn.LayerNorm(hidden_size, bias=bias)
+
+        self.hparams = {
+            "vocab_size": vocab_size,
+            "max_seqlen": max_seqlen,
+            "hidden_size": hidden_size,
+            "num_layers": num_layers,
+            "num_attention_heads": num_attention_heads,
+            "bias": bias,
+            "dropout": dropout,
+            "causal": causal,
+            "attn_type": attn_type,
+        }
 
     def forward(self, batch):
         x = self.embeddings(
@@ -67,12 +71,12 @@ class BonsaiBase(nn.Module):
             segment=batch["segment"],
         )
 
-        x = self.transformer.drop(x)
-        for block in self.transformer.layers:
-            x = block(
+        x = self.drop(x)
+        for layer in self.layers:
+            x = layer(
                 x, attn_mask=batch.get("attn_mask"), cu_seqlens=batch.get("cu_seqlens")
             )
-        x = self.transformer.layernorm(x)
+        x = self.layernorm(x)
 
         return x
 
@@ -91,6 +95,7 @@ class BonsaiPretrain(BonsaiBase):
         bias,
         dropout,
         causal,
+        attn_type,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -101,6 +106,7 @@ class BonsaiPretrain(BonsaiBase):
             bias=bias,
             dropout=dropout,
             causal=causal,
+            attn_type=attn_type,
         )
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
 
@@ -134,6 +140,7 @@ class BonsaiFinetune(BonsaiBase):
         bias,
         dropout,
         causal,
+        attn_type,
         # Misc
         predict_token_id,
     ):
@@ -146,15 +153,16 @@ class BonsaiFinetune(BonsaiBase):
             bias=bias,
             dropout=dropout,
             causal=causal,
+            attn_type=attn_type,
         )
-        self.predict_token_id = predict_token_id
+        self.hparams["predict_token_id"] = predict_token_id
         self.finetune_head = nn.Linear(hidden_size, 1, bias=bias)
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)
 
         # Extracts the hidden states corresponding to the predict token for each subject
-        pred_tokens = batch["code"] == self.predict_token_id
+        pred_tokens = batch["code"] == self.hparams["predict_token_id"]
         last_hidden_state = last_hidden_state[pred_tokens]
 
         logits = self.finetune_head(last_hidden_state)

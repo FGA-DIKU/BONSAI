@@ -1,9 +1,9 @@
 hydra:
   run:
-    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}
+    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}/run_id_${run_id}
   sweep:
     dir: ${oc.env:BONSAI_MODELS}/${dataset}
-    subdir: ${hydra:job.config_name}
+    subdir: ${hydra:job.config_name}/run_id_${run_id}
   launcher:
     _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
   sweeper:
@@ -141,7 +141,7 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /Users/rjm707/Desktop/BONSAI/data/models/correlated_MEDS_data/examples/example_pretrain
+    output_dir: /Users/rjm707/Desktop/BONSAI/data/models/correlated_MEDS_data/examples/example_pretrain/run_id_511954
     choices:
       hydra/env: default
       hydra/callbacks: null

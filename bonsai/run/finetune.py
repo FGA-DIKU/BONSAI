@@ -10,7 +10,6 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
 
-from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.outcomes import split_and_binarize_outcomes
@@ -43,9 +42,7 @@ def main(cfg: DictConfig) -> None:
     model_save_dir = logger.log_dir
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
-    model_cfg = merge_configs_and_drop_duplicate_keys(
-        pretrain_cfg=ckpt["hyper_parameters"], finetune_cfg=cfg.model
-    )
+    pretrain_cfg = ckpt["hyper_parameters"]
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
@@ -81,13 +78,14 @@ def main(cfg: DictConfig) -> None:
 
     model = BonsaiFinetune(
         vocab_size=len(vocab),
-        max_seqlen=model_cfg.max_seqlen,
-        hidden_size=model_cfg.hidden_size,
-        num_layers=model_cfg.num_layers,
-        num_attention_heads=model_cfg.num_attention_heads,
-        bias=model_cfg.bias,
-        dropout=model_cfg.dropout,
-        causal=model_cfg.causal,
+        max_seqlen=pretrain_cfg["max_seqlen"],
+        hidden_size=pretrain_cfg["hidden_size"],
+        num_layers=pretrain_cfg["num_layers"],
+        num_attention_heads=pretrain_cfg["num_attention_heads"],
+        bias=pretrain_cfg["bias"],
+        dropout=cfg.model.dropout,
+        causal=cfg.model.causal,
+        attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
     )
 

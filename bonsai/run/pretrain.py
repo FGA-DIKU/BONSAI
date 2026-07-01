@@ -56,6 +56,7 @@ def main(cfg: DictConfig) -> None:
         bias=cfg.model.bias,
         dropout=cfg.model.dropout,
         causal=cfg.model.causal,
+        attn_type=cfg.model.attn_type,
     )
 
     ckpt_callback = ModelCheckpoint(

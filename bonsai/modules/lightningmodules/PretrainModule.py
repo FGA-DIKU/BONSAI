@@ -29,11 +29,14 @@ class PretrainModule(L.LightningModule):
         self.val_loss = nn.CrossEntropyLoss()
         self.val_metrics = self.configure_metrics("val")
 
-        hparams = {
-            "learning_rate": learning_rate,
-            "optimizer_epsilon": optimizer_epsilon,
-            "scheduler_warmup_epochs": scheduler_warmup_epochs,
-        }
+        hparams = self.model.hparams.copy()
+        hparams.update(
+            {
+                "learning_rate": learning_rate,
+                "optimizer_epsilon": optimizer_epsilon,
+                "scheduler_warmup_epochs": scheduler_warmup_epochs,
+            }
+        )
         self.save_hyperparameters(hparams)
 
     def configure_metrics(self, prefix: str):
