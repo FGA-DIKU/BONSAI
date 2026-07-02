@@ -21,6 +21,7 @@ class BonsaiBase(nn.Module):
         # Attention / behavior
         bias,
         dropout,
+        attention_dropout,
         causal,
         attn_type,
     ):
@@ -41,6 +42,7 @@ class BonsaiBase(nn.Module):
                     hidden_size=hidden_size,
                     num_heads=num_attention_heads,
                     dropout=dropout,
+                    attention_dropout=attention_dropout,
                     bias=bias,
                     max_seqlen=max_seqlen,
                     causal=causal,
@@ -94,6 +96,7 @@ class BonsaiPretrain(BonsaiBase):
         # Attention / behavior
         bias,
         dropout,
+        attention_dropout,
         causal,
         attn_type,
     ):
@@ -105,6 +108,7 @@ class BonsaiPretrain(BonsaiBase):
             num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
+            attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
         )
@@ -139,6 +143,7 @@ class BonsaiFinetune(BonsaiBase):
         # Attention / behavior
         bias,
         dropout,
+        attention_dropout,
         causal,
         attn_type,
         # Misc
@@ -152,6 +157,7 @@ class BonsaiFinetune(BonsaiBase):
             num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
+            attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
         )

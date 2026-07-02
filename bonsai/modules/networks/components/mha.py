@@ -5,10 +5,10 @@ from bonsai.modules.networks.components.rope import RotaryPositionalEmbeddings
 
 
 class SDPA(nn.Module):
-    def __init__(self, causal, dropout):
+    def __init__(self, causal, attention_dropout):
         super().__init__()
         self.causal = causal
-        self.dropout = dropout
+        self.attention_dropout = attention_dropout
 
     def forward(self, q, k, v, attn_mask=None):
         return F.scaled_dot_product_attention(
@@ -16,13 +16,15 @@ class SDPA(nn.Module):
             k,
             v,
             attn_mask=attn_mask,
-            dropout_p=self.dropout if self.training else 0.0,
+            dropout_p=self.attention_dropout if self.training else 0.0,
             is_causal=self.causal and attn_mask is None,
         )
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, hidden_size, num_heads, dropout, bias, max_seqlen, causal):
+    def __init__(
+        self, hidden_size, num_heads, attention_dropout, bias, max_seqlen, causal
+    ):
         super().__init__()
         assert hidden_size % num_heads == 0, (
             f"Hidden size {hidden_size} must be divisible by num_heads {num_heads} "
@@ -35,7 +37,7 @@ class MultiHeadAttention(nn.Module):
         self.rotary_embedding = RotaryPositionalEmbeddings(
             dim=self.head_dim, max_seq_len=max_seqlen
         )
-        self.self_attn = SDPA(causal=causal, dropout=dropout)
+        self.self_attn = SDPA(causal=causal, attention_dropout=attention_dropout)
         self.out_proj = nn.Linear(hidden_size, hidden_size, bias=bias)
 
     def forward(self, x, attn_mask=None, **kwargs):

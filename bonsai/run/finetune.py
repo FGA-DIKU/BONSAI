@@ -84,6 +84,7 @@ def main(cfg: DictConfig) -> None:
         num_attention_heads=pretrain_cfg["num_attention_heads"],
         bias=pretrain_cfg["bias"],
         dropout=cfg.model.dropout,
+        attention_dropout=cfg.model.attention_dropout,
         causal=cfg.model.causal,
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],

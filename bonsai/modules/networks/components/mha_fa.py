@@ -4,7 +4,9 @@ from flash_attn.modules.mha import FlashSelfAttention
 
 
 class FlashMultiHeadAttention(nn.Module):
-    def __init__(self, hidden_size, num_heads, dropout, bias, max_seqlen, causal):
+    def __init__(
+        self, hidden_size, num_heads, attention_dropout, bias, max_seqlen, causal
+    ):
         super().__init__()
         assert hidden_size % num_heads == 0, (
             f"Hidden size {hidden_size} must be divisible by num_heads {num_heads} "
@@ -15,7 +17,9 @@ class FlashMultiHeadAttention(nn.Module):
 
         self.Wqkv = nn.Linear(hidden_size, hidden_size * 3, bias=bias)
         self.rotary_embedding = RotaryEmbedding(dim=self.head_dim)
-        self.self_attn = FlashSelfAttention(causal=causal, attention_dropout=dropout)
+        self.self_attn = FlashSelfAttention(
+            causal=causal, attention_dropout=attention_dropout
+        )
         self.out_proj = nn.Linear(hidden_size, hidden_size, bias=bias)
 
     def forward(self, x, cu_seqlens=None, **kwargs):

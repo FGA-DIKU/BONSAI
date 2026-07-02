@@ -18,6 +18,7 @@ class TransformerLayer(nn.Module):
         hidden_size,
         num_heads,
         dropout,
+        attention_dropout,
         bias,
         max_seqlen,
         causal,
@@ -28,7 +29,7 @@ class TransformerLayer(nn.Module):
         self.mha = attn_types[attn_type](
             hidden_size=hidden_size,
             num_heads=num_heads,
-            dropout=dropout,
+            attention_dropout=attention_dropout,
             bias=bias,
             max_seqlen=max_seqlen,
             causal=causal,

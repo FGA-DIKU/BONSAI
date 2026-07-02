@@ -55,6 +55,7 @@ def main(cfg: DictConfig) -> None:
         num_attention_heads=cfg.model.num_attention_heads,
         bias=cfg.model.bias,
         dropout=cfg.model.dropout,
+        attention_dropout=cfg.model.attention_dropout,
         causal=cfg.model.causal,
         attn_type=cfg.model.attn_type,
     )
