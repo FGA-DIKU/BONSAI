@@ -1,118 +1,184 @@
-"""
-This module defines customized EHR-focused BERT models built on top of ModernBertModel:
+import importlib.util
 
-- BonsaiEncoder: replaces token embeddings with temporal EHR embeddings and causal encoder layers.
-- BonsaiForPretraining: extends the encoder for masked language model pretraining on EHR sequences.
-- BonsaiForFineTuning: extends the encoder for downstream classification/regression tasks on EHR data.
-"""
-
-from typing import Tuple
-import torch
 import torch.nn as nn
+
 from bonsai.modules.networks.components.embeddings import EhrEmbeddings
-from bonsai.modules.networks.components.heads import FineTuneHead
-from bonsai.modules.networks.components.utils import make_attention_causal
-from transformers import ModernBertModel
-from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
+from bonsai.modules.networks.components.layer import TransformerLayer
+
+_FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
 
-class BonsaiEncoder(ModernBertModel):
-    """
-    Encoder backbone for EHR data using ModernBert.
-
-    Attributes:
-        embeddings (EhrEmbeddings): custom embeddings for codes, segments, age, and absolute position.
-        layers (nn.ModuleList): list of causal encoder layers replacing standard BERT layers.
-    """
-
-    def __init__(self, config):
-        super().__init__(config)
+class BonsaiBase(nn.Module):
+    def __init__(
+        self,
+        # Embedding / vocab
+        vocab_size,
+        max_seqlen,
+        # Model dimensions
+        hidden_size,
+        num_layers,
+        num_attention_heads,
+        # Attention / behavior
+        bias,
+        dropout,
+        attention_dropout,
+        causal,
+        attn_type,
+    ):
+        if attn_type == "flash" and not _FLASH_ATTENTION_AVAILABLE:
+            raise ImportError(
+                "flash_attn is not available. Please install flash-attn or use `attn_type='sdpa'` instead."
+            )
+        super().__init__()
         self.embeddings = EhrEmbeddings(
-            vocab_size=config.vocab_size,
-            hidden_size=config.hidden_size,
-            max_position_embeddings=config.max_position_embeddings,
-            embedding_dropout=config.embedding_dropout,
-            pad_token_id=config.pad_token_id,
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            max_seqlen=max_seqlen,
         )
-        self.is_causal = config.is_causal
+        self.drop = nn.Dropout(dropout)
+        self.layers = nn.ModuleList(
+            [
+                TransformerLayer(
+                    hidden_size=hidden_size,
+                    num_heads=num_attention_heads,
+                    dropout=dropout,
+                    attention_dropout=attention_dropout,
+                    bias=bias,
+                    max_seqlen=max_seqlen,
+                    causal=causal,
+                    attn_type=attn_type,
+                )
+                for _ in range(num_layers)
+            ]
+        )
+        self.layernorm = nn.LayerNorm(hidden_size, bias=bias)
 
-    def forward(self, batch: dict, **kwargs):
-        """
-        Forward pass building embeddings and attention mask, then calling ModernBertModel.
+        self.hparams = {
+            "vocab_size": vocab_size,
+            "max_seqlen": max_seqlen,
+            "hidden_size": hidden_size,
+            "num_layers": num_layers,
+            "num_attention_heads": num_attention_heads,
+            "bias": bias,
+            "dropout": dropout,
+            "causal": causal,
+            "attn_type": attn_type,
+        }
 
-        Args:
-            batch (dict): must contain:
-                - "code": Tensor of token indices (B, L)
-                - "segment": Tensor of segment IDs (B, L)
-                - "age": Tensor of patient ages (B, L)
-                - "abspos": Tensor of absolute position values (B, L)
-                - "attention_mask":
-            **kwargs: Additional arguments to pass to the ModernBertModel forward method
-
-        Returns:
-            BaseModelOutput: output of ModernBertModel with last_hidden_state, etc.
-        """
-        inputs_embeds = self.embeddings(
-            input_ids=batch["code"],
-            segments=batch["segment"],
+    def forward(self, batch):
+        x = self.embeddings(
+            code=batch["code"],
             age=batch["age"],
             abspos=batch["abspos"],
+            segment=batch["segment"],
         )
 
-        return super().forward(
-            inputs_embeds=inputs_embeds,
-            attention_mask=batch["attention_mask"],
-            **kwargs,
+        # SDPA requires a broadcasted attention mask
+        if self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+            attn_mask = batch["attention_mask"][:, None, None, :]
+        else:
+            attn_mask = None
+
+        x = self.drop(x)
+        for layer in self.layers:
+            x = layer(
+                x,
+                attn_mask=attn_mask,
+                cu_seqlens=batch.get("cu_seqlens"),
+            )
+        x = self.layernorm(x)
+
+        return x
+
+
+class BonsaiPretrain(BonsaiBase):
+    def __init__(
+        self,
+        # Embedding / vocab
+        vocab_size,
+        max_seqlen,
+        # Model dimensions
+        hidden_size,
+        num_layers,
+        num_attention_heads,
+        # Attention / behavior
+        bias,
+        dropout,
+        attention_dropout,
+        causal,
+        attn_type,
+    ):
+        super().__init__(
+            vocab_size=vocab_size,
+            max_seqlen=max_seqlen,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            num_attention_heads=num_attention_heads,
+            bias=bias,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            causal=causal,
+            attn_type=attn_type,
         )
+        self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
 
-    # potentially deprecated
-    def _update_attention_mask(
-        self, attention_mask: torch.Tensor, output_attentions: bool
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        global_attention_mask, sliding_window_mask = super()._update_attention_mask(
-            attention_mask, output_attentions
-        )
-        if self.is_causal:
-            global_attention_mask = make_attention_causal(global_attention_mask)
-            sliding_window_mask = make_attention_causal(sliding_window_mask)
+        # Weight tying (shares weights from code embedding to pretrain head)
+        self.pretrain_head.weight = self.embeddings.code_embedding.weight
 
-        return global_attention_mask, sliding_window_mask
-
-
-class BonsaiPretrain(BonsaiEncoder):
-    def __init__(self, config):
-        super().__init__(config)
-        self.head = ModernBertPredictionHead(config)
-        self.decoder = nn.Linear(
-            config.hidden_size, config.vocab_size, bias=config.decoder_bias
-        )
-
-        self.sparse_prediction = self.config.sparse_prediction
-        self.sparse_pred_ignore_index = self.config.sparse_pred_ignore_index
-
-    def forward(self, batch: dict, **kwargs):
-        outputs = super().forward(batch, **kwargs)
+    def forward(self, batch: dict):
+        last_hidden_state = super().forward(batch)
         labels = batch["target"]
-        last_hidden_state = outputs[0]
 
-        if self.sparse_prediction:
-            labels = labels.view(-1)
-            last_hidden_state = last_hidden_state.view(labels.shape[0], -1)
+        # Predicts only on the non-masked tokens
+        mask = labels != -100
+        last_hidden_state = last_hidden_state[mask]
+        labels = labels[mask]
 
-            mask_tokens = labels != self.sparse_pred_ignore_index
-            last_hidden_state = last_hidden_state[mask_tokens]
-            labels = labels[mask_tokens]
-        logits = self.decoder(self.head(last_hidden_state))
+        logits = self.pretrain_head(last_hidden_state)
         return logits, labels
 
 
-class BonsaiFinetune(BonsaiEncoder):
-    def __init__(self, config):
-        super().__init__(config)
-        self.cls = FineTuneHead(hidden_size=config.hidden_size)
+class BonsaiFinetune(BonsaiBase):
+    def __init__(
+        self,
+        # Embedding / vocab
+        vocab_size,
+        max_seqlen,
+        # Model dimensions
+        hidden_size,
+        num_layers,
+        num_attention_heads,
+        # Attention / behavior
+        bias,
+        dropout,
+        attention_dropout,
+        causal,
+        attn_type,
+        # Misc
+        predict_token_id,
+    ):
+        super().__init__(
+            vocab_size=vocab_size,
+            max_seqlen=max_seqlen,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            num_attention_heads=num_attention_heads,
+            bias=bias,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            causal=causal,
+            attn_type=attn_type,
+        )
+        self.hparams["predict_token_id"] = predict_token_id
+        self.finetune_head = nn.Linear(hidden_size, 1, bias=bias)
 
-    def forward(self, batch: dict, **kwargs):
-        outputs = super().forward(batch, **kwargs)
-        sequence_output = outputs[0]  # Last hidden state
-        logits = self.cls(sequence_output, batch["attention_mask"])
+    def forward(self, batch: dict):
+        last_hidden_state = super().forward(batch)
+
+        # Extracts the hidden states corresponding to the predict token for each subject
+        pred_tokens = batch["code"] == self.hparams["predict_token_id"]
+        last_hidden_state = last_hidden_state[pred_tokens]
+
+        logits = self.finetune_head(last_hidden_state)
+
         return logits

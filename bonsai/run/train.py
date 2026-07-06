@@ -1,24 +1,24 @@
-import polars as pl
 from pathlib import Path
+
 import hydra
 import lightning as L
+import polars as pl
 import torch
 from dotenv import load_dotenv
-from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from omegaconf import DictConfig, OmegaConf
 
+from bonsai.functional.features import compute_abspos
+from bonsai.functional.loss import get_loss_weight
+from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.paths import get_config_path
+from bonsai.functional.sampling import get_sampler
+from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
-from bonsai.functional.outcomes import split_and_binarize_outcomes
-from bonsai.functional.loss import get_loss_weight
-from bonsai.functional.sampling import get_sampler
-from bonsai.functional.features import compute_abspos
-from bonsai.functional.versioning import generate_unused_run_id
+from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
     "version", lambda: generate_unused_run_id(), use_cache=True
@@ -35,8 +35,6 @@ load_dotenv()
 def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
-
-    model_cfg = cfg.model
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
@@ -71,13 +69,17 @@ def main(cfg: DictConfig) -> None:
     )
 
     model = BonsaiFinetune(
-        ModernBertConfig(
-            **model_cfg,
-            vocab_size=len(vocab),
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-        ),
+        vocab_size=len(vocab),
+        max_seqlen=cfg.model.max_seqlen,
+        hidden_size=cfg.model.hidden_size,
+        num_layers=cfg.model.num_layers,
+        num_attention_heads=cfg.model.num_attention_heads,
+        bias=cfg.model.bias,
+        dropout=cfg.model.dropout,
+        attention_dropout=cfg.model.attention_dropout,
+        causal=cfg.model.causal,
+        attn_type=cfg.model.attn_type,
+        predict_token_id=vocab["[CLS]"],
     )
 
     lightning_module = FinetuneModule(

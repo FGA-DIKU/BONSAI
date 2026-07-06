@@ -1,5 +1,5 @@
-from pathlib import Path
 from os.path import join
+from pathlib import Path
 from typing import Optional
 
 import lightning as L
@@ -7,8 +7,8 @@ import polars as pl
 import torch
 from torch import nn
 from torch.optim import AdamW
-from transformers import get_linear_schedule_with_warmup
-from torchmetrics import MetricCollection, Accuracy, AUROC, AveragePrecision
+from torch.optim.lr_scheduler import LinearLR
+from torchmetrics import AUROC, Accuracy, AveragePrecision, MetricCollection
 
 
 class FinetuneModule(L.LightningModule):
@@ -37,7 +37,8 @@ class FinetuneModule(L.LightningModule):
         self.val_metrics = self.configure_metrics("val")
         self.test_metrics = self.configure_metrics("test")
         self.predict_metrics = self.configure_metrics("predict")
-        hparams = model.config.to_dict()
+
+        hparams = self.model.hparams.copy()
         hparams.update(
             {
                 "learning_rate": learning_rate,
@@ -147,13 +148,16 @@ class FinetuneModule(L.LightningModule):
             lr=self.learning_rate,
             eps=self.optimizer_epsilon,
         )
+        if self.scheduler_warmup_epochs == 0:
+            return optimizer
+
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
         )
-        scheduler = get_linear_schedule_with_warmup(
+        scheduler = LinearLR(
             optimizer=optimizer,
-            num_warmup_steps=steps_per_epoch * self.scheduler_warmup_epochs,
-            num_training_steps=self.trainer.estimated_stepping_batches,
+            start_factor=1e-4,
+            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
         )
         scheduler_config = {
             "scheduler": scheduler,

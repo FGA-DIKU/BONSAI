@@ -1,10 +1,12 @@
-from typing import List, Dict
+from copy import deepcopy
+from typing import Dict, List
+
 import torch
 from torch.utils.data import Dataset
+
 from bonsai.functional.censoring import censor_subject
-from bonsai.functional.truncation import truncate_subject
 from bonsai.functional.normalization import normalize_segments
-from copy import deepcopy
+from bonsai.functional.truncation import truncate_subject
 
 
 class FinetuneDataset(Dataset):
@@ -39,7 +41,7 @@ class FinetuneDataset(Dataset):
         )
 
         subject["segment"] = normalize_segments(subject["segment"])
-        subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.long)
+        subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.bool)
 
         return subject
 

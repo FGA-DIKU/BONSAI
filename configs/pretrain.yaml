@@ -37,10 +37,29 @@ training:
   #   masking_ignore_special_tokens: true
 
 model:
+  max_seqlen: ${training.max_len}
   hidden_size: 64
-  num_hidden_layers: 3
+  num_layers: 4
   num_attention_heads: 4
-  intermediate_size: 256
-  embedding_dropout: 0.1
-  max_position_embeddings: ${training.max_len}
-  is_causal: false
+  dropout: 0.1
+  attention_dropout: 0.0
+  bias: false
+  causal: false
+  attn_type: sdpa
+
+
+#scheduler:
+  #_target_: transformers.get_linear_schedule_with_warmup
+  #num_warmup_epochs: 2
+  #num_training_epochs: 3
+
+metrics:
+  top1:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 1
+  top10:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 10
+  mlm_loss:
+    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
+    loss_name: loss
