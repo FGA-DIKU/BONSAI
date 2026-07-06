@@ -148,6 +148,9 @@ class FinetuneModule(L.LightningModule):
             lr=self.learning_rate,
             eps=self.optimizer_epsilon,
         )
+        if self.scheduler_warmup_epochs == 0:
+            return optimizer
+
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
         )

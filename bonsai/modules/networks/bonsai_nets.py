@@ -76,7 +76,9 @@ class BonsaiBase(nn.Module):
         x = self.drop(x)
         for layer in self.layers:
             x = layer(
-                x, attn_mask=batch.get("attn_mask"), cu_seqlens=batch.get("cu_seqlens")
+                x,
+                attn_mask=None if self.hparams["causal"] else batch["attention_mask"],
+                cu_seqlens=batch.get("cu_seqlens"),
             )
         x = self.layernorm(x)
 
