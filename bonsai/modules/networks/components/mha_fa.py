@@ -1,6 +1,7 @@
 import torch.nn as nn
-from flash_attn.layers.rotary import RotaryEmbedding
 from flash_attn.modules.mha import FlashSelfAttention
+
+from bonsai.modules.networks.components.rope_fa import FlashRotaryEmbedding
 
 
 class FlashMultiHeadAttention(nn.Module):
@@ -16,7 +17,7 @@ class FlashMultiHeadAttention(nn.Module):
         self.max_seqlen = max_seqlen
 
         self.Wqkv = nn.Linear(hidden_size, hidden_size * 3, bias=bias)
-        self.rotary_embedding = RotaryEmbedding(dim=self.head_dim)
+        self.rotary_embedding = FlashRotaryEmbedding(dim=self.head_dim)
         self.self_attn = FlashSelfAttention(
             causal=causal, attention_dropout=attention_dropout
         )
@@ -30,7 +31,9 @@ class FlashMultiHeadAttention(nn.Module):
             bs, seqlen, 3, self.num_heads, self.head_dim
         )  # (bs, seqlen, dim) -> (bs, seqlen, 3, nh, hd)
 
-        qkv = self.rotary_embedding(qkv, max_seqlen=self.max_seqlen)
+        qkv = self.rotary_embedding(
+            qkv, cu_seqlens=cu_seqlens, max_seqlen=self.max_seqlen
+        )
 
         y = self.self_attn(qkv, cu_seqlens=cu_seqlens, max_seqlen=self.max_seqlen)
         y = y.reshape(bs, seqlen, -1)
