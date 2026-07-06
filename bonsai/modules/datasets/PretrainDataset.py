@@ -1,12 +1,14 @@
+from copy import deepcopy
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
 import torch
 from torch.utils.data import Dataset
-from bonsai.functional.truncation import truncate_subject
+
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.normalization import normalize_segments
-from copy import deepcopy
+from bonsai.functional.truncation import truncate_subject
 
 
 class PretrainDataset(Dataset):
@@ -32,7 +34,7 @@ class PretrainDataset(Dataset):
             subject, self.max_len, self.background_length
         )
         truncated_subject["attention_mask"] = torch.ones(
-            len(truncated_subject["code"]), dtype=torch.long
+            len(truncated_subject["code"]), dtype=torch.bool
         )
         truncated_subject["segment"] = normalize_segments(truncated_subject["segment"])
         return truncated_subject

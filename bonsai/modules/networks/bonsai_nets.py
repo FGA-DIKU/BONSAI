@@ -73,11 +73,17 @@ class BonsaiBase(nn.Module):
             segment=batch["segment"],
         )
 
+        # SDPA requires a broadcasted attention mask
+        if self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+            attn_mask = batch["attention_mask"][:, None, None, :]
+        else:
+            attn_mask = None
+
         x = self.drop(x)
         for layer in self.layers:
             x = layer(
                 x,
-                attn_mask=None if self.hparams["causal"] else batch["attention_mask"],
+                attn_mask=attn_mask,
                 cu_seqlens=batch.get("cu_seqlens"),
             )
         x = self.layernorm(x)
