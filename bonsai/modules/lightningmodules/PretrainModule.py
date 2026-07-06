@@ -6,6 +6,14 @@ from torchmetrics import MetricCollection
 
 from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 
+loss_types = {"sdpa": nn.CrossEntropyLoss}
+try:
+    from flash_attn.losses.cross_entropy import CrossEntropyLoss as FACrossEntropyLoss
+
+    loss_types["flash"] = FACrossEntropyLoss
+except Exception:
+    pass
+
 
 class PretrainModule(L.LightningModule):
     def __init__(
@@ -25,7 +33,7 @@ class PretrainModule(L.LightningModule):
         if compile_mode is not None:
             self.model.compile(mode=compile_mode)
 
-        self.train_loss = nn.CrossEntropyLoss()
+        self.train_loss = loss_types[self.model.hparams["attn_type"]]()
         self.val_loss = nn.CrossEntropyLoss()
         self.val_metrics = self.configure_metrics("val")
 
