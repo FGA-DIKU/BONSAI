@@ -115,7 +115,7 @@ class BonsaiPretrain(BonsaiBase):
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
 
         # Weight tying (shares weights from code embedding to pretrain head)
-        self.embeddings.code_embedding.weight = self.pretrain_head.weight
+        self.pretrain_head.weight = self.embeddings.code_embedding.weight
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)
