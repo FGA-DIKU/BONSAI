@@ -20,6 +20,7 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
                     "abspos": group["abspos"].to_torch(),
                     "segment": group["segment"].to_torch(),
                     "age": group["age"].to_torch(),
+                    "numeric_value": group["numeric_value"].to_torch(),
                 }
             )
 

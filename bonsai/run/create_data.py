@@ -51,6 +51,7 @@ def main(cfg: DictConfig) -> None:
             path_output_dir=path_output_dir,
             tokenizer=tokenizer,
             exclude_regex=cfg.exclude_regex,
+            numeric_column=cfg.numeric_column,
         )
         ids.extend(split_ids)
         tokenizer.freeze_vocabulary()  # freeze after first split (train) to prevent data leakage

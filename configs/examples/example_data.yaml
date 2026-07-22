@@ -8,13 +8,15 @@ splits:
   - tuning
   - held_out
 
-dataset: correlated_MEDS_data
+dataset: #correlated_MEDS_data
 
 paths: 
   input_dir: example_data/${dataset}
   output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
 
-exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
+exclude_regex: ^(?:D//).* # example regex to exclude all features that start with 'D'
+
+numeric_column: "numeric_value_normalized"
 
 tokenizer:
   vocabulary:

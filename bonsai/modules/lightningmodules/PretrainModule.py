@@ -1,4 +1,5 @@
 import lightning as L
+import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
@@ -23,11 +24,13 @@ class PretrainModule(L.LightningModule):
         learning_rate: float = 5e-4,
         optimizer_epsilon: float = 1e-6,
         scheduler_warmup_epochs: int = 0,
+        value_loss_weight: float = 1.0,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
+        self.value_loss_weight = value_loss_weight
 
         self.model = model
         if compile_mode is not None:
@@ -35,6 +38,7 @@ class PretrainModule(L.LightningModule):
 
         self.train_loss = loss_types[self.model.hparams["attn_type"]]()
         self.val_loss = nn.CrossEntropyLoss()
+        self.value_loss_fn = nn.MSELoss()
         self.val_metrics = self.configure_metrics("val")
 
         hparams = self.model.hparams.copy()
@@ -43,6 +47,7 @@ class PretrainModule(L.LightningModule):
                 "learning_rate": learning_rate,
                 "optimizer_epsilon": optimizer_epsilon,
                 "scheduler_warmup_epochs": scheduler_warmup_epochs,
+                "value_loss_weight": value_loss_weight,
             }
         )
         self.save_hyperparameters(hparams)
@@ -69,16 +74,36 @@ class PretrainModule(L.LightningModule):
             ],
         )
 
+    def compute_combined_loss(self, batch, concept_loss_fn):
+        logits, labels, val_logits, val_labels = self.model(batch)
+        concept_loss = concept_loss_fn(
+            logits.view(-1, logits.size(-1)), labels.view(-1)
+        )
+
+        if val_logits is not None and val_labels is not None:
+            value_loss = self.value_loss_fn(val_logits, val_labels)
+        else:
+            value_loss = torch.zeros((), device=logits.device, dtype=logits.dtype)
+
+        loss = concept_loss + self.value_loss_weight * value_loss
+        return loss, concept_loss, value_loss, logits, labels
+
     def training_step(self, batch, batch_idx):
-        logits, labels = self.model(batch)
-        loss = self.train_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
+        loss, concept_loss, value_loss, _, _ = self.compute_combined_loss(
+            batch, self.train_loss
+        )
         self.log("train/loss", loss, prog_bar=True)
+        self.log("train/concept_loss", concept_loss, prog_bar=True)
+        self.log("train/value_loss", value_loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        logits, labels = self.model(batch)
-        loss = self.val_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
+        loss, concept_loss, value_loss, logits, labels = self.compute_combined_loss(
+            batch, self.val_loss
+        )
         self.log("val/loss", loss, prog_bar=True)
+        self.log("val/concept_loss", concept_loss, prog_bar=True)
+        self.log("val/value_loss", value_loss, prog_bar=True)
         self.val_metrics.update(logits, labels)
         self.log_dict(self.val_metrics)
         return loss

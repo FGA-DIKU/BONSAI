@@ -70,14 +70,28 @@ class MLMPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        masked_codes, target = self.mask_patient_codes(subject["code"])
-        subject["concept"] = masked_codes
+        numeric_values = subject.get("numeric_value")
+        masked_codes, masked_numeric_values, target, numeric_target = (
+            self.mask_patient_codes(subject["code"], numeric_values)
+        )
+        # Collate / model read "code"; mask_patient_codes returns the masked sequence.
+        subject["code"] = masked_codes
         subject["target"] = target
+        if numeric_target is not None:
+            subject["numeric_value"] = masked_numeric_values
+            subject["numeric_target"] = numeric_target
         return subject
 
     def mask_patient_codes(
-        self, codes: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self,
+        codes: torch.Tensor,
+        numeric_values: Optional[torch.Tensor] = None,
+    ) -> Tuple[
+        torch.Tensor,
+        Optional[torch.Tensor],
+        torch.Tensor,
+        Optional[torch.Tensor],
+    ]:
         target = codes.clone()
         probability_vector = torch.full(target.shape, self.masking_select_ratio)
 
@@ -94,7 +108,18 @@ class MLMPretrainDataset(PretrainDataset):
             torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
             & selected_indices
         )
+        codes = codes.clone()
         codes[indices_mask] = self.vocabulary["[MASK]"]
+
+        if numeric_values is not None:
+            numeric_values = numeric_values.clone()
+            numeric_target = numeric_values.clone()
+            # Hide values only where the code is [MASK] and a real value existed.
+            numeric_value_masked = indices_mask & ~torch.isnan(numeric_values)
+            numeric_values[numeric_value_masked] = float("nan")
+            numeric_target[~numeric_value_masked] = float("nan")
+        else:
+            numeric_target = None
 
         # Replace with random word and Account for already masked tokens
         random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
@@ -110,7 +135,7 @@ class MLMPretrainDataset(PretrainDataset):
             dtype=codes.dtype,
         )
         codes[indicies_random] = random_words[indicies_random]
-        return codes, target
+        return codes, numeric_values, target, numeric_target
 
 
 class ARPretrainDataset(PretrainDataset):
@@ -131,4 +156,6 @@ class ARPretrainDataset(PretrainDataset):
         subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
+        if "numeric_value" in subject:
+            subject["numeric_value"] = subject["numeric_value"][:-1]
         return subject

@@ -76,6 +76,7 @@ def main(cfg: DictConfig) -> None:
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        value_loss_weight=cfg.training.get("value_loss_weight", 1.0),
     )
 
     trainer = L.Trainer(

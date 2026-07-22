@@ -10,6 +10,7 @@ class EhrEmbeddings(nn.Module):
         vocab_size: int,
         hidden_size: int,
         max_seqlen: int,
+        value_embedding_mode: str = None,
     ):
         super().__init__()
 
@@ -18,6 +19,10 @@ class EhrEmbeddings(nn.Module):
         self.segment_embedding = nn.Embedding(max_seqlen, hidden_size, padding_idx=0)
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
+        
+        self.value_embedding_mode = value_embedding_mode
+        if self.value_embedding_mode is not None:
+            self.numeric_value_embedding = ContinuousEmbedding(hidden_size, self.value_embedding_mode)
 
     def forward(
         self,
@@ -25,8 +30,12 @@ class EhrEmbeddings(nn.Module):
         age: torch.Tensor,
         abspos: torch.Tensor,
         segment: torch.LongTensor,
+        numeric_value: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+
         embeddings = self.code_embedding(code)
+        if self.value_embedding_mode is not None and numeric_value is not None:
+            embeddings = self.numeric_value_embedding(numeric_value, embeddings)
 
         embeddings += self.age_embedding(age)
         embeddings += self.abspos_embedding(abspos)
@@ -96,3 +105,35 @@ class Time2Vec(nn.Module):
         periodic = self.f(linear_2 + self.phi)
 
         return torch.cat((linear_1, periodic), dim=-1)
+
+class ContinuousEmbedding(nn.Module):
+    def __init__(self, hidden_size: int, value_embedding_mode: str = None):
+        super().__init__()
+        self.value_embedding_mode = value_embedding_mode
+        self.hidden_size = hidden_size
+
+        self.value_proj = nn.Sequential(
+            nn.Linear(1, hidden_size), nn.ReLU(), nn.Linear(hidden_size, hidden_size)
+        )
+
+        if self.value_embedding_mode == "film":
+            self.gamma_layer = nn.Linear(hidden_size, hidden_size)
+            self.beta_layer = nn.Linear(hidden_size, hidden_size)
+
+    def forward(
+        self, values: torch.Tensor, concept_embeds: torch.Tensor
+    ) -> torch.Tensor:
+        mask = (~torch.isnan(values)).float().unsqueeze(-1)
+        # Replace NaN with 0 before projection to avoid NaN propagation
+        values_safe = torch.where(torch.isnan(values), torch.zeros_like(values), values)
+        value_embed = self.value_proj(values_safe.unsqueeze(-1)) * mask  # (B, T, H)
+
+        if self.value_embedding_mode == "film":
+            gamma = self.gamma_layer(concept_embeds)
+            beta = self.beta_layer(concept_embeds)
+            return (gamma * value_embed + beta) * mask + concept_embeds * (1 - mask)
+
+        else:
+            raise ValueError(
+                f"Unknown value_embedding_mode: {self.value_embedding_mode}"
+            )

@@ -1,6 +1,7 @@
 import importlib.util
 
 import torch.nn as nn
+import torch
 
 from bonsai.modules.networks.components.embeddings import EhrEmbeddings
 from bonsai.modules.networks.components.layer import TransformerLayer
@@ -71,6 +72,7 @@ class BonsaiBase(nn.Module):
             age=batch["age"],
             abspos=batch["abspos"],
             segment=batch["segment"],
+            numeric_value=batch.get("numeric_value"),
         )
 
         # SDPA requires a broadcasted attention mask
@@ -121,6 +123,7 @@ class BonsaiPretrain(BonsaiBase):
             attn_type=attn_type,
         )
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
+        self.pretrain_head_value = nn.Linear(hidden_size, 1, bias=bias)
 
         # Weight tying (shares weights from code embedding to pretrain head)
         self.pretrain_head.weight = self.embeddings.code_embedding.weight
@@ -133,9 +136,19 @@ class BonsaiPretrain(BonsaiBase):
         mask = labels != -100
         last_hidden_state = last_hidden_state[mask]
         labels = labels[mask]
-
         logits = self.pretrain_head(last_hidden_state)
-        return logits, labels
+
+        val_labels = batch.get("numeric_target")
+        val_logits = None
+        if val_labels is not None:
+            val_labels = val_labels[mask]
+            val_mask = ~torch.isnan(val_labels)
+            if val_mask.any():
+                val_logits = self.pretrain_head_value(last_hidden_state[val_mask]).squeeze(-1)
+                val_labels = val_labels[val_mask]
+            else:
+                val_labels = None
+        return logits, labels, val_logits, val_labels
 
 
 class BonsaiFinetune(BonsaiBase):
