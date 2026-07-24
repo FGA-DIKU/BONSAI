@@ -88,6 +88,7 @@ def main(cfg: DictConfig) -> None:
         causal=cfg.model.causal,
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
+        value_embedding_mode=cfg.model.value_embedding_mode,
     )
 
     lightning_module = FinetuneModule.load_from_checkpoint(

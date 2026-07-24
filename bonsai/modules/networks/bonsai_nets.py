@@ -25,6 +25,7 @@ class BonsaiBase(nn.Module):
         attention_dropout,
         causal,
         attn_type,
+        value_embedding_mode,
     ):
         if attn_type == "flash" and not _FLASH_ATTENTION_AVAILABLE:
             raise ImportError(
@@ -35,6 +36,7 @@ class BonsaiBase(nn.Module):
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             max_seqlen=max_seqlen,
+            value_embedding_mode=value_embedding_mode,
         )
         self.drop = nn.Dropout(dropout)
         self.layers = nn.ModuleList(
@@ -109,6 +111,7 @@ class BonsaiPretrain(BonsaiBase):
         attention_dropout,
         causal,
         attn_type,
+        value_embedding_mode,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -121,6 +124,7 @@ class BonsaiPretrain(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            value_embedding_mode=value_embedding_mode,
         )
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
         self.pretrain_head_value = nn.Linear(hidden_size, 1, bias=bias)
@@ -169,6 +173,7 @@ class BonsaiFinetune(BonsaiBase):
         attn_type,
         # Misc
         predict_token_id,
+        value_embedding_mode,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -181,6 +186,7 @@ class BonsaiFinetune(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            value_embedding_mode=value_embedding_mode,
         )
         self.hparams["predict_token_id"] = predict_token_id
         self.finetune_head = nn.Linear(hidden_size, 1, bias=bias)
