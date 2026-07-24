@@ -154,8 +154,16 @@ class ARPretrainDataset(PretrainDataset):
         subject = super().__getitem__(index)
         subject["target"] = subject["code"][1:]
         subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
+
+        if "numeric_value" in subject:
+            values = subject["numeric_value"]
+            subject["numeric_target"] = values[1:].clone()
+            subject["numeric_value"] = values[:-1]
+
+            subject["numeric_target"] = subject["numeric_target"].masked_fill(
+                subject["target"] == -100, float("nan")
+            )
+
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
-        if "numeric_value" in subject:
-            subject["numeric_value"] = subject["numeric_value"][:-1]
         return subject
