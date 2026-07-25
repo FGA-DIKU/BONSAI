@@ -6,9 +6,10 @@ defaults:
 
 training:
   max_len: 512  # must match (or be ≤) pretrained max_seqlen
-  batch_size: 32  # val has ~150 subjects; 256 + drop_last left 0 val batches
-  epochs: 50
+  batch_size: 64  # val has ~150 subjects; 256 + drop_last left 0 val batches
+  epochs: 5
   limit_val_batches: 1.0
   limit_train_batches: 1.0
-  learning_rate: 1e-2
+  learning_rate: 1e-3
+  scheduler_warmup_epochs: 1
  

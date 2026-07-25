@@ -148,7 +148,9 @@ class BonsaiPretrain(BonsaiBase):
             val_labels = val_labels[mask]
             val_mask = ~torch.isnan(val_labels)
             if val_mask.any():
-                val_logits = self.pretrain_head_value(last_hidden_state[val_mask]).squeeze(-1)
+                val_logits = self.pretrain_head_value(
+                    last_hidden_state[val_mask]
+                ).squeeze(-1)
                 val_labels = val_labels[val_mask]
             else:
                 val_labels = None

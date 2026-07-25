@@ -19,10 +19,12 @@ class EhrEmbeddings(nn.Module):
         self.segment_embedding = nn.Embedding(max_seqlen, hidden_size, padding_idx=0)
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
-        
+
         self.value_embedding_mode = value_embedding_mode
         if self.value_embedding_mode is not None:
-            self.numeric_value_embedding = ContinuousEmbedding(hidden_size, self.value_embedding_mode)
+            self.numeric_value_embedding = ContinuousEmbedding(
+                hidden_size, self.value_embedding_mode
+            )
 
     def forward(
         self,
@@ -105,6 +107,7 @@ class Time2Vec(nn.Module):
         periodic = self.f(linear_2 + self.phi)
 
         return torch.cat((linear_1, periodic), dim=-1)
+
 
 class ContinuousEmbedding(nn.Module):
     def __init__(self, hidden_size: int, value_embedding_mode: str = None):

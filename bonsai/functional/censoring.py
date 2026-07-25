@@ -58,7 +58,7 @@ def append_predict_token(
                 torch.tensor([float("nan")], dtype=subject["numeric_value"].dtype),
             )
         )
-        
+
     age_in_years = float((censor_date_abspos - subject["abspos"][0]) / (365.25 * 24))
     subject["age"] = torch.cat(
         (

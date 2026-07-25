@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import Tuple, Union, Optional
 
 
-def create_features(df: pl.DataFrame, numeric_column: Optional[str] = None) -> pl.DataFrame:
+def create_features(
+    df: pl.DataFrame, numeric_column: Optional[str] = None
+) -> pl.DataFrame:
     """
     Create background, age, absolute position, and segment features.
     TODO: Death?
