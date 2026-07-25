@@ -7,10 +7,13 @@ from bonsai.functional.features import create_features
 
 def drop_duplicates(df: pl.DataFrame) -> pl.DataFrame:
     pre = len(df)
-    df = df.unique(subset=["subject_id", "code", "time"], maintain_order=True)
+    dup_cols = ["subject_id", "code", "time"]
+    if "numeric_value" in df.columns:
+        dup_cols.append("numeric_value")
+    df = df.unique(subset=dup_cols, maintain_order=True)
     if pre != len(df):
         logging.info(
-            f"Dropped {pre - len(df)} duplicate rows based on subject_id, code, and time"
+            f"Dropped {pre - len(df)} duplicate rows based on {dup_cols}"
         )
     return df
 
