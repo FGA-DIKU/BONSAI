@@ -12,9 +12,7 @@ def drop_duplicates(df: pl.DataFrame) -> pl.DataFrame:
         dup_cols.append("numeric_value")
     df = df.unique(subset=dup_cols, maintain_order=True)
     if pre != len(df):
-        logging.info(
-            f"Dropped {pre - len(df)} duplicate rows based on {dup_cols}"
-        )
+        logging.info(f"Dropped {pre - len(df)} duplicate rows based on {dup_cols}")
     return df
 
 
