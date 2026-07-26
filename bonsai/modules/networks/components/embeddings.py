@@ -115,14 +115,13 @@ class ContinuousEmbedding(nn.Module):
         self.value_embedding_mode = value_embedding_mode
         self.hidden_size = hidden_size
 
-        # Shared value MLP used by all modes
         self.value_proj = nn.Sequential(
             nn.Linear(1, hidden_size), nn.ReLU(), nn.Linear(hidden_size, hidden_size)
         )
 
         if self.value_embedding_mode == "film":
-            self.gamma_layer = nn.Linear(hidden_size, hidden_size)
-            self.beta_layer = nn.Linear(hidden_size, hidden_size)
+            self.gamma_layer = nn.Linear(hidden_size, 1)
+            self.beta_layer = nn.Linear(hidden_size, 1)
         else:
             raise ValueError(
                 f"Unknown value_embedding_mode: {self.value_embedding_mode}"
@@ -131,20 +130,16 @@ class ContinuousEmbedding(nn.Module):
     def forward(
         self, values: torch.Tensor, concept_embeds: torch.Tensor
     ) -> torch.Tensor:
-        lab = ~torch.isnan(values)
-        if not lab.any():
-            return concept_embeds
-
-        out = concept_embeds.clone()
-        value_embed = self.value_proj(values[lab].unsqueeze(-1))
-        concept_lab = concept_embeds[lab]
+        mask = (~torch.isnan(values)).float().unsqueeze(-1)
+        values_safe = torch.where(torch.isnan(values), torch.zeros_like(values), values)
+        value_embed = self.value_proj(values_safe.unsqueeze(-1)) * mask
 
         if self.value_embedding_mode == "film":
-            gamma = self.gamma_layer(concept_lab)
-            beta = self.beta_layer(concept_lab)
-            out[lab] = (gamma * value_embed + beta).to(dtype=out.dtype)
-        else:
-            raise ValueError(
-                f"Unknown value_embedding_mode: {self.value_embedding_mode}"
-            )
-        return out
+            gamma = self.gamma_layer(concept_embeds)
+            beta = self.beta_layer(concept_embeds)
+            fused = (gamma * value_embed + beta).to(dtype=concept_embeds.dtype)
+            return fused * mask + concept_embeds * (1 - mask)
+
+        raise ValueError(
+            f"Unknown value_embedding_mode: {self.value_embedding_mode}"
+        )
