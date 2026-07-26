@@ -115,6 +115,7 @@ class ContinuousEmbedding(nn.Module):
         self.value_embedding_mode = value_embedding_mode
         self.hidden_size = hidden_size
 
+        # Shared value MLP used by all modes
         self.value_proj = nn.Sequential(
             nn.Linear(1, hidden_size), nn.ReLU(), nn.Linear(hidden_size, hidden_size)
         )
@@ -122,21 +123,28 @@ class ContinuousEmbedding(nn.Module):
         if self.value_embedding_mode == "film":
             self.gamma_layer = nn.Linear(hidden_size, hidden_size)
             self.beta_layer = nn.Linear(hidden_size, hidden_size)
-
-    def forward(
-        self, values: torch.Tensor, concept_embeds: torch.Tensor
-    ) -> torch.Tensor:
-        mask = (~torch.isnan(values)).float().unsqueeze(-1)
-        # Replace NaN with 0 before projection to avoid NaN propagation
-        values_safe = torch.where(torch.isnan(values), torch.zeros_like(values), values)
-        value_embed = self.value_proj(values_safe.unsqueeze(-1)) * mask  # (B, T, H)
-
-        if self.value_embedding_mode == "film":
-            gamma = self.gamma_layer(concept_embeds)
-            beta = self.beta_layer(concept_embeds)
-            return (gamma * value_embed + beta) * mask + concept_embeds * (1 - mask)
-
         else:
             raise ValueError(
                 f"Unknown value_embedding_mode: {self.value_embedding_mode}"
             )
+
+    def forward(
+        self, values: torch.Tensor, concept_embeds: torch.Tensor
+    ) -> torch.Tensor:
+        lab = ~torch.isnan(values)
+        if not lab.any():
+            return concept_embeds
+
+        out = concept_embeds.clone()
+        value_embed = self.value_proj(values[lab].unsqueeze(-1))
+        concept_lab = concept_embeds[lab]
+
+        if self.value_embedding_mode == "film":
+            gamma = self.gamma_layer(concept_lab)
+            beta = self.beta_layer(concept_lab)
+            out[lab] = (gamma * value_embed + beta).to(dtype=out.dtype)
+        else:
+            raise ValueError(
+                f"Unknown value_embedding_mode: {self.value_embedding_mode}"
+            )
+        return out
