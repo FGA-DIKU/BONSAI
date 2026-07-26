@@ -140,6 +140,4 @@ class ContinuousEmbedding(nn.Module):
             fused = (gamma * value_embed + beta).to(dtype=concept_embeds.dtype)
             return fused * mask + concept_embeds * (1 - mask)
 
-        raise ValueError(
-            f"Unknown value_embedding_mode: {self.value_embedding_mode}"
-        )
+        raise ValueError(f"Unknown value_embedding_mode: {self.value_embedding_mode}")

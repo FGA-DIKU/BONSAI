@@ -5,11 +5,13 @@ import polars as pl
 from bonsai.functional.features import create_features
 
 
-def drop_duplicates(df: pl.DataFrame) -> pl.DataFrame:
+def drop_duplicates(
+    df: pl.DataFrame, numeric_column: Optional[str] = None
+) -> pl.DataFrame:
     pre = len(df)
     dup_cols = ["subject_id", "code", "time"]
-    if "numeric_value" in df.columns:
-        dup_cols.append("numeric_value")
+    if numeric_column is not None:
+        dup_cols.append(numeric_column)
     df = df.unique(subset=dup_cols, maintain_order=True)
     if pre != len(df):
         logging.info(f"Dropped {pre - len(df)} duplicate rows based on {dup_cols}")
@@ -44,7 +46,7 @@ def process_split(
         data_counts["loaded"] += len(shard_df)
 
         # Drop duplicates
-        shard_df = drop_duplicates(shard_df)
+        shard_df = drop_duplicates(shard_df, numeric_column=numeric_column)
         data_counts["after_duplicates"] += len(shard_df)
 
         # Optional: Exclude codes based on regex
