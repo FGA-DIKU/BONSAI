@@ -66,6 +66,7 @@ class BonsaiBase(nn.Module):
             "dropout": dropout,
             "causal": causal,
             "attn_type": attn_type,
+            "value_embedding_mode": value_embedding_mode,
         }
 
     def forward(self, batch):

@@ -42,7 +42,11 @@ def process_split(
         logging.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
 
         # Load
-        shard_df = pl.read_parquet(shard)
+        load_cols = ["subject_id", "code", "time"]
+        if numeric_column is not None:
+            load_cols.append(numeric_column)
+        shard_df = pl.read_parquet(shard, columns=load_cols)
+
         data_counts["loaded"] += len(shard_df)
 
         # Drop duplicates

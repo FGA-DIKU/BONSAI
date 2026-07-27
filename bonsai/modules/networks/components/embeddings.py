@@ -120,8 +120,8 @@ class ContinuousEmbedding(nn.Module):
         )
 
         if self.value_embedding_mode == "film":
-            self.gamma_layer = nn.Linear(hidden_size, 1)
-            self.beta_layer = nn.Linear(hidden_size, 1)
+            self.gamma_layer = nn.Linear(hidden_size, hidden_size)
+            self.beta_layer = nn.Linear(hidden_size, hidden_size)
         else:
             raise ValueError(
                 f"Unknown value_embedding_mode: {self.value_embedding_mode}"
