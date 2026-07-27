@@ -47,7 +47,7 @@ model:
   bias: false
   causal: true 
   attn_type: sdpa
-  value_embedding_mode: "film"
+  value_embedding_mode: #"film"
 
 
 #scheduler:
