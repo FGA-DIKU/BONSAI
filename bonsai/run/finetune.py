@@ -29,8 +29,8 @@ load_dotenv()
 
 
 def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> str | None:
-    ckpt_mode = pretrain_hparams["value_embedding_mode"]
-    if config_mode is not None and config_mode != ckpt_mode:
+    ckpt_mode = pretrain_hparams.get("value_embedding_mode", config_mode)
+    if config_mode is not None and ckpt_mode != config_mode:
         raise ValueError(
             f"value_embedding_mode mismatch: checkpoint={ckpt_mode!r}, config={config_mode!r}"
         )
