@@ -14,5 +14,5 @@ training:
   scheduler_warmup_epochs: 1
 
 model:
-  _target_: bonsai.modules.networks.bonsai_nets.BonsaiValueFinetune
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
   value_embedding_mode: film

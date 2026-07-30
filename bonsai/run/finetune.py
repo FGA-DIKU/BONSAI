@@ -28,20 +28,6 @@ OmegaConf.register_new_resolver(
 load_dotenv()
 
 
-def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> None:
-    """Allow adding value embeddings at finetune; forbid dropping or changing mode."""
-    ckpt_mode = pretrain_hparams.get("value_embedding_mode")
-    if ckpt_mode is not None and config_mode is None:
-        raise ValueError(
-            f"Pretrain checkpoint uses value_embedding_mode={ckpt_mode!r}, but "
-            "finetune config has none. Set model.value_embedding_mode to match the checkpoint."
-        )
-    if ckpt_mode is not None and config_mode is not None and ckpt_mode != config_mode:
-        raise ValueError(
-            f"value_embedding_mode mismatch: checkpoint={ckpt_mode!r}, config={config_mode!r}"
-        )
-
-
 @hydra.main(
     config_path=get_config_path(),
     config_name="finetune",
@@ -57,9 +43,6 @@ def main(cfg: DictConfig) -> None:
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
-    resolve_value_embedding_mode(
-        pretrain_cfg, cfg.model.get("value_embedding_mode")
-    )
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
