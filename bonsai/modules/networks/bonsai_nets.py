@@ -139,7 +139,7 @@ class BonsaiValueBase(BonsaiBase):
             age=batch["age"],
             abspos=batch["abspos"],
             segment=batch["segment"],
-            numeric_value=batch.get("numeric_value"),
+            numeric_value=batch["numeric_value"],
         )
 
 

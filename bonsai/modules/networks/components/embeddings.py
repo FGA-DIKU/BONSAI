@@ -58,8 +58,7 @@ class EhrValueEmbeddings(EhrEmbeddings):
         numeric_value: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         embeddings = self.code_embedding(code)
-        if numeric_value is not None:
-            embeddings = self.numeric_value_embedding(numeric_value, embeddings)
+        embeddings = self.numeric_value_embedding(numeric_value, embeddings)
         embeddings += self.age_embedding(age)
         embeddings += self.abspos_embedding(abspos)
         embeddings += self.segment_embedding(segment)
