@@ -10,7 +10,6 @@ class EhrEmbeddings(nn.Module):
         vocab_size: int,
         hidden_size: int,
         max_seqlen: int,
-        value_embedding_mode: str = None,
     ):
         super().__init__()
 
@@ -20,11 +19,35 @@ class EhrEmbeddings(nn.Module):
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
 
+
+    def forward(
+        self,
+        code: torch.LongTensor,
+        age: torch.Tensor,
+        abspos: torch.Tensor,
+        segment: torch.LongTensor,
+    ) -> torch.Tensor:
+
+        embeddings = self.code_embedding(code)
+        embeddings += self.age_embedding(age)
+        embeddings += self.abspos_embedding(abspos)
+        embeddings += self.segment_embedding(segment)
+
+        return embeddings
+
+class EhrValueEmbeddings(EhrEmbeddings):
+    def __init__(
+        self,
+        vocab_size: int,
+        hidden_size: int,
+        max_seqlen: int,
+        value_embedding_mode: str,
+    ):
+        super().__init__(vocab_size, hidden_size, max_seqlen)
         self.value_embedding_mode = value_embedding_mode
-        if self.value_embedding_mode is not None:
-            self.numeric_value_embedding = ContinuousEmbedding(
-                hidden_size, self.value_embedding_mode
-            )
+        self.numeric_value_embedding = ContinuousEmbedding(
+            hidden_size, value_embedding_mode
+        )
 
     def forward(
         self,
@@ -34,17 +57,13 @@ class EhrEmbeddings(nn.Module):
         segment: torch.LongTensor,
         numeric_value: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         embeddings = self.code_embedding(code)
-        if self.value_embedding_mode is not None and numeric_value is not None:
+        if numeric_value is not None:
             embeddings = self.numeric_value_embedding(numeric_value, embeddings)
-
         embeddings += self.age_embedding(age)
         embeddings += self.abspos_embedding(abspos)
         embeddings += self.segment_embedding(segment)
-
         return embeddings
-
 
 class Time2Vec(nn.Module):
     """Time2Vec embedding layer that combines linear and periodic components.

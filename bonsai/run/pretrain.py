@@ -11,7 +11,7 @@ from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
+from bonsai.modules.networks.bonsai_nets import BonsaiPretrain, BonsaiValuePretrain
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -47,7 +47,7 @@ def main(cfg: DictConfig) -> None:
         max_len=cfg.training.max_len,
     )
 
-    model = BonsaiPretrain(
+    model_kwargs = dict(
         vocab_size=len(data_module.vocabulary),
         max_seqlen=cfg.model.max_seqlen,
         hidden_size=cfg.model.hidden_size,
@@ -58,8 +58,14 @@ def main(cfg: DictConfig) -> None:
         attention_dropout=cfg.model.attention_dropout,
         causal=cfg.model.causal,
         attn_type=cfg.model.attn_type,
-        value_embedding_mode=cfg.model.value_embedding_mode,
     )
+    value_embedding_mode = cfg.model.get("value_embedding_mode")
+    if value_embedding_mode is not None:
+        model = BonsaiValuePretrain(
+            **model_kwargs, value_embedding_mode=value_embedding_mode
+        )
+    else:
+        model = BonsaiPretrain(**model_kwargs)
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,

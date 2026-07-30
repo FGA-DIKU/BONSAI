@@ -17,7 +17,7 @@ from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
+from bonsai.modules.networks.bonsai_nets import BonsaiFinetune, BonsaiValueFinetune
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -68,7 +68,7 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    model = BonsaiFinetune(
+    model_kwargs = dict(
         vocab_size=len(vocab),
         max_seqlen=cfg.model.max_seqlen,
         hidden_size=cfg.model.hidden_size,
@@ -80,8 +80,14 @@ def main(cfg: DictConfig) -> None:
         causal=cfg.model.causal,
         attn_type=cfg.model.attn_type,
         predict_token_id=vocab["[CLS]"],
-        value_embedding_mode=cfg.model.value_embedding_mode,
     )
+    value_embedding_mode = cfg.model.get("value_embedding_mode")
+    if value_embedding_mode is not None:
+        model = BonsaiValueFinetune(
+            **model_kwargs, value_embedding_mode=value_embedding_mode
+        )
+    else:
+        model = BonsaiFinetune(**model_kwargs)
 
     lightning_module = FinetuneModule(
         model=model,

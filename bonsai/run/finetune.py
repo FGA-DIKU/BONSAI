@@ -18,7 +18,7 @@ from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
+from bonsai.modules.networks.bonsai_nets import BonsaiFinetune, BonsaiValueFinetune
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -29,12 +29,18 @@ load_dotenv()
 
 
 def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> str | None:
-    ckpt_mode = pretrain_hparams.get("value_embedding_mode", config_mode)
-    if config_mode is not None and ckpt_mode != config_mode:
+    """Allow adding value embeddings at finetune; forbid dropping or changing mode."""
+    ckpt_mode = pretrain_hparams.get("value_embedding_mode")
+    if ckpt_mode is not None and config_mode is None:
+        raise ValueError(
+            f"Pretrain checkpoint uses value_embedding_mode={ckpt_mode!r}, but "
+            "finetune config has none. Set model.value_embedding_mode to match the checkpoint."
+        )
+    if ckpt_mode is not None and config_mode is not None and ckpt_mode != config_mode:
         raise ValueError(
             f"value_embedding_mode mismatch: checkpoint={ckpt_mode!r}, config={config_mode!r}"
         )
-    return ckpt_mode
+    return config_mode if config_mode is not None else ckpt_mode
 
 
 @hydra.main(
@@ -88,7 +94,7 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    model = BonsaiFinetune(
+    model_kwargs = dict(
         vocab_size=len(vocab),
         max_seqlen=pretrain_cfg["max_seqlen"],
         hidden_size=pretrain_cfg["hidden_size"],
@@ -100,8 +106,13 @@ def main(cfg: DictConfig) -> None:
         causal=cfg.model.causal,
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
-        value_embedding_mode=value_embedding_mode,
     )
+    if value_embedding_mode is not None:
+        model = BonsaiValueFinetune(
+            **model_kwargs, value_embedding_mode=value_embedding_mode
+        )
+    else:
+        model = BonsaiFinetune(**model_kwargs)
 
     lightning_module = FinetuneModule.load_from_checkpoint(
         cfg.pretrain_path,
