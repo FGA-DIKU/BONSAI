@@ -1,5 +1,4 @@
 import lightning as L
-import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
