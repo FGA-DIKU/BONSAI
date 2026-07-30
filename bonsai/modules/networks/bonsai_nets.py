@@ -7,6 +7,9 @@ from bonsai.modules.networks.components.layer import TransformerLayer
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
+if _FLASH_ATTENTION_AVAILABLE:
+    from flash_attn.bert_padding import pad_input, unpad_input
+
 
 class BonsaiBase(nn.Module):
     def __init__(
@@ -73,19 +76,62 @@ class BonsaiBase(nn.Module):
             segment=batch["segment"],
         )
 
-        # SDPA requires a broadcasted attention mask
-        if self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+        x = self.drop(x)
+
+        attn_type = self.hparams["attn_type"]
+        causal = self.hparams["causal"]
+
+        if attn_type == "flash":
+            # unpad_input expects shape (batch, seqlen) with
+            # 1/True for real tokens and 0/False for padding.
+            attention_mask = batch["attention_mask"].bool()
+
+            batch_size, padded_seqlen = x.shape[:2]
+
+            # x:
+            # (batch, padded_seqlen, hidden_size)
+            # -> (total_valid_tokens, hidden_size)
+            (
+                x,
+                indices,
+                cu_seqlens,
+                max_seqlen,
+                _,
+            ) = unpad_input(x, attention_mask)
+
+            for layer in self.layers:
+                x = layer(
+                    x,
+                    cu_seqlens=cu_seqlens,
+                    max_seqlen=max_seqlen,
+                )
+
+            x = self.layernorm(x)
+
+            # x:
+            # (total_valid_tokens, hidden_size)
+            # -> (batch, padded_seqlen, hidden_size)
+            x = pad_input(
+                x,
+                indices,
+                batch_size,
+                padded_seqlen,
+            )
+
+            return x
+
+        # Existing SDPA path.
+        if attn_type == "sdpa" and not causal:
             attn_mask = batch["attention_mask"][:, None, None, :]
         else:
             attn_mask = None
 
-        x = self.drop(x)
         for layer in self.layers:
             x = layer(
                 x,
                 attn_mask=attn_mask,
-                cu_seqlens=batch.get("cu_seqlens"),
             )
+
         x = self.layernorm(x)
 
         return x

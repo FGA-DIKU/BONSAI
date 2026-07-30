@@ -23,19 +23,66 @@ class FlashMultiHeadAttention(nn.Module):
         )
         self.out_proj = nn.Linear(hidden_size, hidden_size, bias=bias)
 
-    def forward(self, x, cu_seqlens=None, **kwargs):
-        bs, seqlen, hidden_dim = x.shape
+    def forward(
+        self,
+        x,
+        cu_seqlens=None,
+        max_seqlen=None,
+        **kwargs,
+    ):
+        if cu_seqlens is not None:
+            # Unpadded / variable-length path.
+            #
+            # x shape:
+            # (total_valid_tokens, hidden_size)
+            total_tokens, hidden_dim = x.shape
+
+            qkv = self.Wqkv(x)
+            qkv = qkv.view(
+                total_tokens,
+                3,
+                self.num_heads,
+                self.head_dim,
+            )
+
+            # Prefer the actual longest sequence in this batch.
+            if max_seqlen is None:
+                max_seqlen = self.max_seqlen
+
+            qkv = self.rotary_embedding(
+                qkv,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
+
+            y = self.self_attn(
+                qkv,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
+
+            y = y.reshape(total_tokens, hidden_dim)
+            return self.out_proj(y)
+
+        # Existing padded path.
+        batch_size, seqlen, hidden_dim = x.shape
 
         qkv = self.Wqkv(x)
         qkv = qkv.view(
-            bs, seqlen, 3, self.num_heads, self.head_dim
-        )  # (bs, seqlen, dim) -> (bs, seqlen, 3, nh, hd)
-
-        qkv = self.rotary_embedding(
-            qkv, cu_seqlens=cu_seqlens, max_seqlen=self.max_seqlen
+            batch_size,
+            seqlen,
+            3,
+            self.num_heads,
+            self.head_dim,
         )
 
-        y = self.self_attn(qkv, cu_seqlens=cu_seqlens, max_seqlen=self.max_seqlen)
-        y = y.reshape(bs, seqlen, -1)
-        y = self.out_proj(y)
-        return y
+        qkv = self.rotary_embedding(
+            qkv,
+            cu_seqlens=None,
+            max_seqlen=seqlen,
+        )
+
+        y = self.self_attn(qkv)
+
+        y = y.reshape(batch_size, seqlen, hidden_dim)
+        return self.out_proj(y)
