@@ -114,10 +114,9 @@ class MLMPretrainDataset(PretrainDataset):
         if numeric_values is not None:
             numeric_values = numeric_values.clone()
             numeric_target = numeric_values.clone()
-            # Hide values only where the code is [MASK] and a real value existed.
-            numeric_value_masked = indices_mask & ~torch.isnan(numeric_values)
-            numeric_values[numeric_value_masked] = float("nan")
-            numeric_target[~numeric_value_masked] = float("nan")
+            # Hide input values at [MASK]; keep targets only at those positions.
+            numeric_values[indices_mask] = float("nan")
+            numeric_target[~indices_mask] = float("nan")
         else:
             numeric_target = None
 

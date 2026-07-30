@@ -3,7 +3,10 @@ import importlib.util
 import torch
 import torch.nn as nn
 
-from bonsai.modules.networks.components.embeddings import EhrEmbeddings, EhrValueEmbeddings
+from bonsai.modules.networks.components.embeddings import (
+    EhrEmbeddings,
+    EhrValueEmbeddings,
+)
 from bonsai.modules.networks.components.layer import TransformerLayer
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
@@ -178,8 +181,7 @@ class BonsaiPretrain(BonsaiBase):
         last_hidden_state = last_hidden_state[mask]
         labels = labels[mask]
         logits = self.pretrain_head(last_hidden_state)
-        # Keep PretrainModule unpack shape: logits, labels, val_logits, val_labels
-        return logits, labels, None, None
+        return logits, labels
 
 
 class BonsaiValuePretrain(BonsaiValueBase):
@@ -223,18 +225,10 @@ class BonsaiValuePretrain(BonsaiValueBase):
         labels = labels[mask]
         logits = self.pretrain_head(last_hidden_state)
 
-        val_labels = batch.get("numeric_target")
-        val_logits = None
-        if val_labels is not None:
-            val_labels = val_labels[mask]
-            val_mask = ~torch.isnan(val_labels)
-            if val_mask.any():
-                val_logits = self.pretrain_head_value(
-                    last_hidden_state[val_mask]
-                ).squeeze(-1)
-                val_labels = val_labels[val_mask]
-            else:
-                val_labels = None
+        val_labels = batch["numeric_target"][mask]
+        val_mask = ~torch.isnan(val_labels)
+        val_logits = self.pretrain_head_value(last_hidden_state[val_mask]).squeeze(-1)
+        val_labels = val_labels[val_mask]
         return logits, labels, val_logits, val_labels
 
 
@@ -312,4 +306,3 @@ class BonsaiValueFinetune(BonsaiValueBase):
         pred_tokens = batch["code"] == self.hparams["predict_token_id"]
         last_hidden_state = last_hidden_state[pred_tokens]
         return self.finetune_head(last_hidden_state)
-

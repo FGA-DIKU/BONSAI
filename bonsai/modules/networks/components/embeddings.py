@@ -19,7 +19,6 @@ class EhrEmbeddings(nn.Module):
         self.age_embedding = Time2Vec(hidden_size, clip_range=100)
         self.abspos_embedding = Time2Vec(hidden_size, clip_range=100)
 
-
     def forward(
         self,
         code: torch.LongTensor,
@@ -34,6 +33,7 @@ class EhrEmbeddings(nn.Module):
         embeddings += self.segment_embedding(segment)
 
         return embeddings
+
 
 class EhrValueEmbeddings(EhrEmbeddings):
     def __init__(
@@ -64,6 +64,7 @@ class EhrValueEmbeddings(EhrEmbeddings):
         embeddings += self.abspos_embedding(abspos)
         embeddings += self.segment_embedding(segment)
         return embeddings
+
 
 class Time2Vec(nn.Module):
     """Time2Vec embedding layer that combines linear and periodic components.

@@ -10,7 +10,10 @@ from omegaconf import DictConfig, OmegaConf
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
+from bonsai.modules.lightningmodules.PretrainModule import (
+    PretrainModule,
+    ValuePretrainModule,
+)
 from bonsai.modules.networks.bonsai_nets import BonsaiPretrain, BonsaiValuePretrain
 from bonsai.paths import get_config_path
 
@@ -64,8 +67,23 @@ def main(cfg: DictConfig) -> None:
         model = BonsaiValuePretrain(
             **model_kwargs, value_embedding_mode=value_embedding_mode
         )
+        lightning_module = ValuePretrainModule(
+            model=model,
+            compile_mode=cfg.hardware.compile_mode,
+            learning_rate=cfg.training.learning_rate,
+            optimizer_epsilon=cfg.training.optimizer_epsilon,
+            scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+            value_loss_weight=cfg.training.get("value_loss_weight", 1.0),
+        )
     else:
         model = BonsaiPretrain(**model_kwargs)
+        lightning_module = PretrainModule(
+            model=model,
+            compile_mode=cfg.hardware.compile_mode,
+            learning_rate=cfg.training.learning_rate,
+            optimizer_epsilon=cfg.training.optimizer_epsilon,
+            scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        )
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
@@ -75,15 +93,6 @@ def main(cfg: DictConfig) -> None:
         filename="best",
         enable_version_counter=False,
         save_last=True,
-    )
-
-    lightning_module = PretrainModule(
-        model=model,
-        compile_mode=cfg.hardware.compile_mode,
-        learning_rate=cfg.training.learning_rate,
-        optimizer_epsilon=cfg.training.optimizer_epsilon,
-        scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
-        value_loss_weight=cfg.training.get("value_loss_weight", 1.0),
     )
 
     trainer = L.Trainer(
