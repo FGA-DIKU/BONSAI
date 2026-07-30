@@ -38,6 +38,8 @@ training:
   #   masking_ignore_special_tokens: true
 
 model:
+  # For numeric values, switch to BonsaiValuePretrain and set value_embedding_mode.
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiPretrain
   max_seqlen: ${training.max_len}
   hidden_size: 64
   num_layers: 4
@@ -47,7 +49,6 @@ model:
   bias: false
   causal: true 
   attn_type: sdpa
-  value_embedding_mode: # film
 
 
 #scheduler:

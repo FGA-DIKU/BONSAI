@@ -14,5 +14,5 @@ training:
   scheduler_warmup_epochs: 1
 
 model:
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiValueFinetune
   value_embedding_mode: film
-  value_loss_weight: 1.0

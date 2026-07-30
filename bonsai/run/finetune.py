@@ -6,6 +6,7 @@ import polars as pl
 import torch
 from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
+from hydra.utils import instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
@@ -18,7 +19,6 @@ from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune, BonsaiValueFinetune
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -28,7 +28,7 @@ OmegaConf.register_new_resolver(
 load_dotenv()
 
 
-def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> str | None:
+def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> None:
     """Allow adding value embeddings at finetune; forbid dropping or changing mode."""
     ckpt_mode = pretrain_hparams.get("value_embedding_mode")
     if ckpt_mode is not None and config_mode is None:
@@ -40,7 +40,6 @@ def resolve_value_embedding_mode(pretrain_hparams: dict, config_mode) -> str | N
         raise ValueError(
             f"value_embedding_mode mismatch: checkpoint={ckpt_mode!r}, config={config_mode!r}"
         )
-    return config_mode if config_mode is not None else ckpt_mode
 
 
 @hydra.main(
@@ -58,7 +57,7 @@ def main(cfg: DictConfig) -> None:
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
-    value_embedding_mode = resolve_value_embedding_mode(
+    resolve_value_embedding_mode(
         pretrain_cfg, cfg.model.get("value_embedding_mode")
     )
 
@@ -94,25 +93,17 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    model_kwargs = dict(
+    model = instantiate(
+        cfg.model,
         vocab_size=len(vocab),
         max_seqlen=pretrain_cfg["max_seqlen"],
         hidden_size=pretrain_cfg["hidden_size"],
         num_layers=pretrain_cfg["num_layers"],
         num_attention_heads=pretrain_cfg["num_attention_heads"],
         bias=pretrain_cfg["bias"],
-        dropout=cfg.model.dropout,
-        attention_dropout=cfg.model.attention_dropout,
-        causal=cfg.model.causal,
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
     )
-    if value_embedding_mode is not None:
-        model = BonsaiValueFinetune(
-            **model_kwargs, value_embedding_mode=value_embedding_mode
-        )
-    else:
-        model = BonsaiFinetune(**model_kwargs)
 
     lightning_module = FinetuneModule.load_from_checkpoint(
         cfg.pretrain_path,

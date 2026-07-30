@@ -5,6 +5,7 @@ import lightning as L
 import polars as pl
 import torch
 from dotenv import load_dotenv
+from hydra.utils import instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
@@ -17,7 +18,6 @@ from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune, BonsaiValueFinetune
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -68,26 +68,11 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    model_kwargs = dict(
+    model = instantiate(
+        cfg.model,
         vocab_size=len(vocab),
-        max_seqlen=cfg.model.max_seqlen,
-        hidden_size=cfg.model.hidden_size,
-        num_layers=cfg.model.num_layers,
-        num_attention_heads=cfg.model.num_attention_heads,
-        bias=cfg.model.bias,
-        dropout=cfg.model.dropout,
-        attention_dropout=cfg.model.attention_dropout,
-        causal=cfg.model.causal,
-        attn_type=cfg.model.attn_type,
         predict_token_id=vocab["[CLS]"],
     )
-    value_embedding_mode = cfg.model.get("value_embedding_mode")
-    if value_embedding_mode is not None:
-        model = BonsaiValueFinetune(
-            **model_kwargs, value_embedding_mode=value_embedding_mode
-        )
-    else:
-        model = BonsaiFinetune(**model_kwargs)
 
     lightning_module = FinetuneModule(
         model=model,
