@@ -15,3 +15,4 @@ training:
 
 model:
   value_embedding_mode: film
+  value_loss_weight: 1.0

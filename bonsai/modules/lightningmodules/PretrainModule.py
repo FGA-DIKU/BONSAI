@@ -15,6 +15,28 @@ except Exception:
     pass
 
 
+class ConceptValueLoss(nn.Module):
+    """Concept CE + weighted value MSE; empty value batches contribute 0 value loss."""
+
+    def __init__(self, concept_loss_fn: nn.Module, value_loss_weight: float = 1.0):
+        super().__init__()
+        self.concept_loss_fn = concept_loss_fn
+        self.value_loss_fn = nn.MSELoss()
+        self.value_loss_weight = value_loss_weight
+
+    def forward(self, logits, labels, val_logits, val_labels):
+        concept_loss = self.concept_loss_fn(
+            logits.view(-1, logits.size(-1)), labels.view(-1)
+        )
+        # MLM may mask no numeric tokens in a batch → empty tensors → NaN mean MSE
+        if val_logits.numel() == 0:
+            value_loss = concept_loss.new_zeros(())
+        else:
+            value_loss = self.value_loss_fn(val_logits, val_labels)
+        loss = concept_loss + self.value_loss_weight * value_loss
+        return loss, concept_loss, value_loss
+
+
 class PretrainModule(L.LightningModule):
     def __init__(
         self,
@@ -45,11 +67,7 @@ class PretrainModule(L.LightningModule):
                 "scheduler_warmup_epochs": scheduler_warmup_epochs,
             }
         )
-        hparams.update(self.add_hparams())
         self.save_hyperparameters(hparams)
-
-    def add_hparams(self) -> dict:
-        return {}
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
@@ -73,18 +91,15 @@ class PretrainModule(L.LightningModule):
             ],
         )
 
-    def compute_loss(self, batch, concept_loss_fn):
-        logits, labels = self.model(batch)
-        loss = concept_loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
-        return loss, logits, labels
-
     def training_step(self, batch, batch_idx):
-        loss, _, _ = self.compute_loss(batch, self.train_loss)
+        logits, labels = self.model(batch)
+        loss = self.train_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
         self.log("train/loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, logits, labels = self.compute_loss(batch, self.val_loss)
+        logits, labels = self.model(batch)
+        loss = self.val_loss(logits.view(-1, logits.size(-1)), labels.view(-1))
         self.log("val/loss", loss, prog_bar=True)
         self.val_metrics.update(logits, labels)
         self.log_dict(self.val_metrics)
@@ -125,7 +140,6 @@ class ValuePretrainModule(PretrainModule):
         scheduler_warmup_epochs: int = 0,
         value_loss_weight: float = 1.0,
     ):
-        self.value_loss_weight = value_loss_weight
         super().__init__(
             model=model,
             compile_mode=compile_mode,
@@ -133,34 +147,24 @@ class ValuePretrainModule(PretrainModule):
             optimizer_epsilon=optimizer_epsilon,
             scheduler_warmup_epochs=scheduler_warmup_epochs,
         )
-        self.value_loss_fn = nn.MSELoss()
-
-    def add_hparams(self) -> dict:
-        return {"value_loss_weight": self.value_loss_weight}
-
-    def compute_loss(self, batch, concept_loss_fn):
-        logits, labels, val_logits, val_labels = self.model(batch)
-        concept_loss = concept_loss_fn(
-            logits.view(-1, logits.size(-1)), labels.view(-1)
-        )
-        # MLM may mask no numeric tokens in a batch → empty tensors → NaN mean MSE
-        if val_logits.numel() == 0:
-            value_loss = concept_loss.new_zeros(())
-        else:
-            value_loss = self.value_loss_fn(val_logits, val_labels)
-        loss = concept_loss + self.value_loss_weight * value_loss
-        return loss, concept_loss, value_loss, logits, labels
+        self.train_loss = ConceptValueLoss(self.train_loss, value_loss_weight)
+        self.val_loss = ConceptValueLoss(self.val_loss, value_loss_weight)
+        self.save_hyperparameters({"value_loss_weight": value_loss_weight})
 
     def training_step(self, batch, batch_idx):
-        loss, concept_loss, value_loss, _, _ = self.compute_loss(batch, self.train_loss)
+        logits, labels, val_logits, val_labels = self.model(batch)
+        loss, concept_loss, value_loss = self.train_loss(
+            logits, labels, val_logits, val_labels
+        )
         self.log("train/loss", loss, prog_bar=True)
         self.log("train/concept_loss", concept_loss, prog_bar=True)
         self.log("train/value_loss", value_loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, concept_loss, value_loss, logits, labels = self.compute_loss(
-            batch, self.val_loss
+        logits, labels, val_logits, val_labels = self.model(batch)
+        loss, concept_loss, value_loss = self.val_loss(
+            logits, labels, val_logits, val_labels
         )
         self.log("val/loss", loss, prog_bar=True)
         self.log("val/concept_loss", concept_loss, prog_bar=True)
