@@ -54,8 +54,6 @@ class TransformerLayer(nn.Module):
             )
         )
 
-        x = x + self.resid_dropout(
-            self.mlp(self.ln2(x))
-        )
+        x = x + self.resid_dropout(self.mlp(self.ln2(x)))
 
         return x
