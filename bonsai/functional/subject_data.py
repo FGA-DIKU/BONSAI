@@ -22,7 +22,7 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
                 "age": group["age"].to_torch(),
             }
             if has_numeric:
-                subject["numeric_value"] = group["numeric_value"].to_torch()
+                subject["numeric_value"] = group["numeric_value"].to_torch().float()
             all_tokenized.append(subject)
 
     return all_tokenized

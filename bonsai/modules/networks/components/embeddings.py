@@ -55,7 +55,7 @@ class EhrValueEmbeddings(EhrEmbeddings):
         age: torch.Tensor,
         abspos: torch.Tensor,
         segment: torch.LongTensor,
-        numeric_value: Optional[torch.Tensor] = None,
+        numeric_value: torch.Tensor,
     ) -> torch.Tensor:
         embeddings = self.code_embedding(code)
         embeddings = self.numeric_value_embedding(numeric_value, embeddings)
@@ -129,7 +129,7 @@ class Time2Vec(nn.Module):
 
 
 class ContinuousEmbedding(nn.Module):
-    def __init__(self, hidden_size: int, value_embedding_mode: str = None):
+    def __init__(self, hidden_size: int, value_embedding_mode: str):
         super().__init__()
         self.value_embedding_mode = value_embedding_mode
         self.hidden_size = hidden_size

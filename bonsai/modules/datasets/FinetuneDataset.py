@@ -42,8 +42,6 @@ class FinetuneDataset(Dataset):
 
         subject["segment"] = normalize_segments(subject["segment"])
         subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.bool)
-        if "numeric_value" in subject:
-            subject["numeric_value"] = subject["numeric_value"].float()
 
         return subject
 
