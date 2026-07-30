@@ -12,6 +12,9 @@ training:
   limit_train_batches: 10
   value_loss_weight: 1.0
 
+paths:
+  dataset_class: bonsai.modules.datasets.PretrainDataset.ValueARPretrainDataset
+
 model:
   _target_: bonsai.modules.networks.bonsai_nets.BonsaiValuePretrain
   value_embedding_mode: film

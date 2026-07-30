@@ -70,40 +70,23 @@ class MLMPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        numeric_values = subject.get("numeric_value")
-        masked_codes, masked_numeric_values, target, numeric_target = (
-            self.mask_patient_codes(subject["code"], numeric_values)
-        )
-        # Collate / model read "code"; mask_patient_codes returns the masked sequence.
+        masked_codes, target = self.mask_patient_codes(subject["code"])
         subject["code"] = masked_codes
         subject["target"] = target
-        if numeric_target is not None:
-            subject["numeric_value"] = masked_numeric_values
-            subject["numeric_target"] = numeric_target
         return subject
 
     def mask_patient_codes(
-        self,
-        codes: torch.Tensor,
-        numeric_values: Optional[torch.Tensor] = None,
-    ) -> Tuple[
-        torch.Tensor,
-        Optional[torch.Tensor],
-        torch.Tensor,
-        Optional[torch.Tensor],
-    ]:
+        self, codes: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         target = codes.clone()
         probability_vector = torch.full(target.shape, self.masking_select_ratio)
 
-        # Ignore special tokens
         special_token_mask = codes < self.masking_n_special_tokens
         probability_vector.masked_fill_(special_token_mask, value=0.0)
 
-        # Get MLM mask
         selected_indices = torch.bernoulli(probability_vector).bool()
         target[~selected_indices] = -100
 
-        # Replace with [MASK]
         indices_mask = (
             torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
             & selected_indices
@@ -111,16 +94,61 @@ class MLMPretrainDataset(PretrainDataset):
         codes = codes.clone()
         codes[indices_mask] = self.vocabulary["[MASK]"]
 
-        if numeric_values is not None:
-            numeric_values = numeric_values.clone()
-            numeric_target = numeric_values.clone()
-            # Hide input values at [MASK]; keep targets only at those positions.
-            numeric_values[indices_mask] = float("nan")
-            numeric_target[~indices_mask] = float("nan")
-        else:
-            numeric_target = None
+        random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
+        indicies_random = (
+            torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
+            & selected_indices
+            & ~indices_mask
+        )
+        random_words = torch.randint(
+            self.masking_n_special_tokens,
+            len(self.vocabulary),
+            target.shape,
+            dtype=codes.dtype,
+        )
+        codes[indicies_random] = random_words[indicies_random]
+        return codes, target
 
-        # Replace with random word and Account for already masked tokens
+
+class ValueMLMPretrainDataset(MLMPretrainDataset):
+    def __getitem__(self, index: int) -> dict:
+        subject = super(MLMPretrainDataset, self).__getitem__(index)
+        masked_codes, masked_numeric_values, target, numeric_target = (
+            self.mask_patient_codes(subject["code"], subject["numeric_value"])
+        )
+        subject["code"] = masked_codes
+        subject["target"] = target
+        subject["numeric_value"] = masked_numeric_values
+        subject["numeric_target"] = numeric_target
+        return subject
+
+    def mask_patient_codes(
+        self,
+        codes: torch.Tensor,
+        numeric_values: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        target = codes.clone()
+        probability_vector = torch.full(target.shape, self.masking_select_ratio)
+
+        special_token_mask = codes < self.masking_n_special_tokens
+        probability_vector.masked_fill_(special_token_mask, value=0.0)
+
+        selected_indices = torch.bernoulli(probability_vector).bool()
+        target[~selected_indices] = -100
+
+        indices_mask = (
+            torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
+            & selected_indices
+        )
+        codes = codes.clone()
+        codes[indices_mask] = self.vocabulary["[MASK]"]
+
+        numeric_values = numeric_values.clone()
+        numeric_target = numeric_values.clone()
+        # Hide input values at [MASK]; keep targets only at those positions.
+        numeric_values[indices_mask] = float("nan")
+        numeric_target[~indices_mask] = float("nan")
+
         random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
         indicies_random = (
             torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
@@ -154,14 +182,23 @@ class ARPretrainDataset(PretrainDataset):
         subject["target"] = subject["code"][1:]
         subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
 
-        if "numeric_value" in subject:
-            values = subject["numeric_value"]
-            subject["numeric_target"] = values[1:].clone()
-            subject["numeric_value"] = values[:-1]
+        for key in ["code", "abspos", "segment", "age", "attention_mask"]:
+            subject[key] = subject[key][:-1]
+        return subject
 
-            subject["numeric_target"] = subject["numeric_target"].masked_fill(
-                subject["target"] == -100, float("nan")
-            )
+
+class ValueARPretrainDataset(ARPretrainDataset):
+    def __getitem__(self, index: int) -> dict:
+        subject = super(ARPretrainDataset, self).__getitem__(index)
+        subject["target"] = subject["code"][1:]
+        subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
+
+        values = subject["numeric_value"]
+        subject["numeric_target"] = values[1:].clone()
+        subject["numeric_value"] = values[:-1]
+        subject["numeric_target"] = subject["numeric_target"].masked_fill(
+            subject["target"] == -100, float("nan")
+        )
 
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]

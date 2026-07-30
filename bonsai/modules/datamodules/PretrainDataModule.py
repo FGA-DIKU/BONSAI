@@ -6,8 +6,8 @@ import lightning as L
 from bonsai.functional.collate import dynamic_padding
 from bonsai.functional.subject_data import filter_subject_data
 from bonsai.modules.datasets.PretrainDataset import (
-    MLMPretrainDataset,
     ARPretrainDataset,
+    MLMPretrainDataset,
 )
 
 
