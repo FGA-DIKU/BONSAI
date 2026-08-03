@@ -45,6 +45,7 @@ class TransformerLayer(nn.Module):
         cu_seqlens=None,
         max_seqlen=None,
     ):
+        # LN -> MHA -> Dropout -> Add -> LN -> MLP -> Dropout -> Add
         x = x + self.resid_dropout(
             self.mha(
                 self.ln1(x),
