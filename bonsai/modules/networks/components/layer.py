@@ -38,13 +38,7 @@ class TransformerLayer(nn.Module):
         self.ln2 = nn.LayerNorm(hidden_size, bias=bias)
         self.mlp = Mlp(hidden_size, bias1=bias, bias2=bias)
 
-    def forward(
-        self,
-        x,
-        attn_mask=None,
-        cu_seqlens=None,
-        max_seqlen=None,
-    ):
+    def forward(self, x, attn_mask=None, cu_seqlens=None, max_seqlen=None):
         # LN -> MHA -> Dropout -> Add -> LN -> MLP -> Dropout -> Add
         x = x + self.resid_dropout(
             self.mha(

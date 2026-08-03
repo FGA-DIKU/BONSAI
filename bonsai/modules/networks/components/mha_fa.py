@@ -34,17 +34,9 @@ class FlashMultiHeadAttention(nn.Module):
         qkv = self.Wqkv(x)
         qkv = qkv.view(total_tokens, 3, self.num_heads, self.head_dim)
 
-        qkv = self.rotary_embedding(
-            qkv,
-            cu_seqlens=cu_seqlens,
-            max_seqlen=max_seqlen,
-        )
+        qkv = self.rotary_embedding(qkv, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
 
-        y = self.self_attn(
-            qkv,
-            cu_seqlens=cu_seqlens,
-            max_seqlen=max_seqlen,
-        )
+        y = self.self_attn(qkv, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
 
         y = y.reshape(total_tokens, hidden_dim)
         return self.out_proj(y)
