@@ -44,7 +44,6 @@ class EhrValueEmbeddings(EhrEmbeddings):
         value_embedding_mode: str,
     ):
         super().__init__(vocab_size, hidden_size, max_seqlen)
-        self.value_embedding_mode = value_embedding_mode
         self.numeric_value_embedding = ContinuousEmbedding(
             hidden_size, value_embedding_mode
         )
