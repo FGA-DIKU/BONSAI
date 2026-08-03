@@ -70,30 +70,33 @@ class MLMPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        masked_codes, target = self.mask_patient_codes(subject["code"])
+        masked_codes, target, _ = self.mask_patient_codes(subject["code"])
         subject["code"] = masked_codes
         subject["target"] = target
         return subject
 
     def mask_patient_codes(
         self, codes: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         target = codes.clone()
         probability_vector = torch.full(target.shape, self.masking_select_ratio)
 
+        # Ignore special tokens
         special_token_mask = codes < self.masking_n_special_tokens
         probability_vector.masked_fill_(special_token_mask, value=0.0)
 
+        # Get MLM mask
         selected_indices = torch.bernoulli(probability_vector).bool()
         target[~selected_indices] = -100
 
+        # Replace with [MASK]
         indices_mask = (
             torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
             & selected_indices
         )
-        codes = codes.clone()
         codes[indices_mask] = self.vocabulary["[MASK]"]
 
+        # Replace with random word and Account for already masked tokens
         random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
         indicies_random = (
             torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
@@ -107,7 +110,7 @@ class MLMPretrainDataset(PretrainDataset):
             dtype=codes.dtype,
         )
         codes[indicies_random] = random_words[indicies_random]
-        return codes, target
+        return codes, target, indices_mask
 
 
 class ValueMLMPretrainDataset(MLMPretrainDataset):
@@ -127,41 +130,11 @@ class ValueMLMPretrainDataset(MLMPretrainDataset):
         codes: torch.Tensor,
         numeric_values: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        target = codes.clone()
-        probability_vector = torch.full(target.shape, self.masking_select_ratio)
-
-        special_token_mask = codes < self.masking_n_special_tokens
-        probability_vector.masked_fill_(special_token_mask, value=0.0)
-
-        selected_indices = torch.bernoulli(probability_vector).bool()
-        target[~selected_indices] = -100
-
-        indices_mask = (
-            torch.bernoulli(torch.full(target.shape, self.masking_mask_ratio)).bool()
-            & selected_indices
-        )
-        codes = codes.clone()
-        codes[indices_mask] = self.vocabulary["[MASK]"]
-
-        numeric_values = numeric_values.clone()
+        codes, target, indices_mask = super().mask_patient_codes(codes)
         numeric_target = numeric_values.clone()
         # Hide input values at [MASK]; keep targets only at those positions.
         numeric_values[indices_mask] = float("nan")
         numeric_target[~indices_mask] = float("nan")
-
-        random_ratio = self.masking_random_ratio / (1 - self.masking_mask_ratio)
-        indicies_random = (
-            torch.bernoulli(torch.full(target.shape, random_ratio)).bool()
-            & selected_indices
-            & ~indices_mask
-        )
-        random_words = torch.randint(
-            self.masking_n_special_tokens,
-            len(self.vocabulary),
-            target.shape,
-            dtype=codes.dtype,
-        )
-        codes[indicies_random] = random_words[indicies_random]
         return codes, numeric_values, target, numeric_target
 
 
@@ -189,17 +162,12 @@ class ARPretrainDataset(PretrainDataset):
 
 class ValueARPretrainDataset(ARPretrainDataset):
     def __getitem__(self, index: int) -> dict:
-        subject = super(ARPretrainDataset, self).__getitem__(index)
-        subject["target"] = subject["code"][1:]
-        subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
-
+        subject = super().__getitem__(index)
+        # AR already shifted code/target; numeric_value is still full-length from deepcopy.
         values = subject["numeric_value"]
         subject["numeric_target"] = values[1:].clone()
         subject["numeric_value"] = values[:-1]
         subject["numeric_target"] = subject["numeric_target"].masked_fill(
             subject["target"] == -100, float("nan")
         )
-
-        for key in ["code", "abspos", "segment", "age", "attention_mask"]:
-            subject[key] = subject[key][:-1]
         return subject

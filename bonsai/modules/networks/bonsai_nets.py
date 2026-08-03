@@ -177,6 +177,7 @@ class BonsaiPretrain(BonsaiBase):
         last_hidden_state = super().forward(batch)
         labels = batch["target"]
 
+        # Predicts only on the non-masked tokens
         mask = labels != -100
         last_hidden_state = last_hidden_state[mask]
         labels = labels[mask]
@@ -264,6 +265,7 @@ class BonsaiFinetune(BonsaiBase):
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)
+        # Extracts the hidden states corresponding to the predict token for each subject
         pred_tokens = batch["code"] == self.hparams["predict_token_id"]
         last_hidden_state = last_hidden_state[pred_tokens]
         return self.finetune_head(last_hidden_state)
