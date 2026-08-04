@@ -78,61 +78,37 @@ class BonsaiBase(nn.Module):
 
         x = self.drop(x)
 
-        attn_type = self.hparams["attn_type"]
-        causal = self.hparams["causal"]
-
-        if attn_type == "flash":
-            # unpad_input expects shape (batch, seqlen) with
-            # 1/True for real tokens and 0/False for padding.
-            attention_mask = batch["attention_mask"].bool()
-
+        # FlashAttention requires unpadded input and cu_seqlens for variable-length sequences
+        if self.hparams["attn_type"] == "flash":
             batch_size, padded_seqlen = x.shape[:2]
-
-            # x:
-            # (batch, padded_seqlen, hidden_size)
-            # -> (total_valid_tokens, hidden_size)
-            (
-                x,
-                indices,
-                cu_seqlens,
-                max_seqlen,
-                _,
-            ) = unpad_input(x, attention_mask)
-
-            for layer in self.layers:
-                x = layer(
-                    x,
-                    cu_seqlens=cu_seqlens,
-                    max_seqlen=max_seqlen,
-                )
-
-            x = self.layernorm(x)
-
-            # x:
-            # (total_valid_tokens, hidden_size)
-            # -> (batch, padded_seqlen, hidden_size)
-            x = pad_input(
-                x,
-                indices,
-                batch_size,
-                padded_seqlen,
-            )
-
-            return x
-
-        # Existing SDPA path.
-        if attn_type == "sdpa" and not causal:
+            (x, indices, cu_seqlens, max_seqlen, _) = unpad_input(
+                x, batch["attention_mask"]
+            )  # x: (batch, padded_seqlen, hidden_size) -> (total_valid_tokens, hidden_size)
+            attn_mask = None  # Flash attention does not require an attention mask
+        # SDPA requires a broadcasted attention mask
+        elif self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
             attn_mask = batch["attention_mask"][:, None, None, :]
+            cu_seqlens, max_seqlen = None, None
+
         else:
-            attn_mask = None
+            raise ValueError(
+                "Invalid attention setup. Only non-causal SDPA and FlashAttention are supported."
+            )
 
         for layer in self.layers:
             x = layer(
                 x,
                 attn_mask=attn_mask,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
             )
 
         x = self.layernorm(x)
+
+        if self.hparams["attn_type"] == "flash":
+            x = pad_input(
+                x, indices, batch_size, padded_seqlen
+            )  # x: (total_valid_tokens, hidden_size) -> (batch, padded_seqlen, hidden_size)
 
         return x
 
