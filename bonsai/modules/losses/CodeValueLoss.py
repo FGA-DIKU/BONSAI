@@ -1,5 +1,6 @@
 from torch import nn
 
+
 class CodeValueLoss(nn.Module):
     """Code CE + weighted value MSE; empty value batches contribute 0 value loss."""
 
@@ -10,9 +11,7 @@ class CodeValueLoss(nn.Module):
         self.value_loss_weight = value_loss_weight
 
     def forward(self, logits, labels, val_logits, val_labels):
-        code_loss = self.code_loss_fn(
-            logits.view(-1, logits.size(-1)), labels.view(-1)
-        )
+        code_loss = self.code_loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
         # MLM may mask no numeric tokens in a batch → empty tensors → NaN mean MSE
         if val_logits.numel() == 0:
             value_loss = code_loss.new_zeros(())
