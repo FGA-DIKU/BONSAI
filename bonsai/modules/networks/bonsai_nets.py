@@ -69,16 +69,6 @@ class BonsaiBase(nn.Module):
         }
 
     def forward(self, batch):
-        if self.hparams["attn_type"] == "flash":
-            return self.forward_flash(batch)
-        elif self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
-            return self.forward_sdpa(batch)
-        else:
-            raise ValueError(
-                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and non-causal 'sdpa' are supported."
-            )
-
-    def forward_sdpa(self, batch):
         x = self.embeddings(
             code=batch["code"],
             age=batch["age"],
@@ -88,7 +78,17 @@ class BonsaiBase(nn.Module):
 
         x = self.drop(x)
 
-        attn_mask = batch["attention_mask"][:, None, None, :]
+        if self.hparams["attn_type"] == "flash":
+            return self.forward_flash(x, batch["attention_mask"])
+        elif self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+            return self.forward_sdpa(x, batch["attention_mask"])
+        else:
+            raise ValueError(
+                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and non-causal 'sdpa' are supported."
+            )
+
+    def forward_sdpa(self, x, attn_mask):
+        attn_mask = attn_mask[:, None, None, :]
 
         for layer in self.layers:
             x = layer(x, attn_mask=attn_mask)
@@ -97,19 +97,10 @@ class BonsaiBase(nn.Module):
 
         return x
 
-    def forward_flash(self, batch):
-        x = self.embeddings(
-            code=batch["code"],
-            age=batch["age"],
-            abspos=batch["abspos"],
-            segment=batch["segment"],
-        )
-
-        x = self.drop(x)
-
+    def forward_flash(self, x, attn_mask):
         batch_size, padded_seqlen = x.shape[:2]
         (x, indices, cu_seqlens, max_seqlen, _) = unpad_input(
-            x, batch["attention_mask"]
+            x, attn_mask
         )  # x: (batch, padded_seqlen, hidden_size) -> (total_valid_tokens, hidden_size)
 
         for layer in self.layers:
