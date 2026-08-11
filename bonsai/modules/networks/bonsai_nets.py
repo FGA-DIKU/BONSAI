@@ -13,16 +13,28 @@ _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
 
 class BonsaiBase(nn.Module):
+    """Transformer backbone for EHR sequences.
+
+    Args:
+        vocab_size: Size of the code vocabulary.
+        max_seqlen: Maximum sequence length (also sizes segment embeddings).
+        hidden_size: Model hidden dimension.
+        num_layers: Number of transformer layers.
+        num_attention_heads: Attention heads per layer.
+        bias: Whether Linear and LayerNorm modules use bias.
+        dropout: Residual / MLP dropout.
+        attention_dropout: Dropout inside attention.
+        causal: If True, use causal (autoregressive) attention.
+        attn_type: Attention backend, ``"sdpa"`` or ``"flash"``.
+    """
+
     def __init__(
         self,
-        # Embedding / vocab
         vocab_size,
         max_seqlen,
-        # Model dimensions
         hidden_size,
         num_layers,
         num_attention_heads,
-        # Attention / behavior
         bias,
         dropout,
         attention_dropout,
