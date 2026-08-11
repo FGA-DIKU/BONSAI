@@ -1,8 +1,4 @@
-"""Rotary embedding supporting both padded and packed-varlen qkv
-
-Padded mode (cu_seqlens=None):
-            qkv (batch, seqlen, 3, nheads, headdim), cu_seqlens=None
-            -> parent RotaryEmbedding.forward
+"""Rotary embedding supporting packed-varlen qkv
 
 Varlen mode (cu_seqlens is not None):
             qkv (total_tokens, 3, nheads, headdim) + cu_seqlens (batch+1,)
@@ -17,14 +13,9 @@ class FlashRotaryEmbedding(RotaryEmbedding):
     def forward(
         self, qkv: torch.Tensor, cu_seqlens: torch.Tensor, max_seqlen: int
     ) -> torch.Tensor:
-        if cu_seqlens is None:
-            assert qkv.dim() == 5, (
-                f"padded qkv must be (batch, seqlen, 3, nheads, headdim), got {tuple(qkv.shape)}"
-            )
-            return super().forward(qkv, max_seqlen=max_seqlen)
-
+        """Apply rotary embedding to qkv in varlen mode."""
         assert qkv.dim() == 4, (
-            f"varlen qkv must be (total_tokens, 3, nheads, headdim), got {tuple(qkv.shape)}"
+            f"varlen qkv must be (total_tokens, 3, nheads, headdim), got {qkv.shape}"
         )
         assert max_seqlen is not None, "varlen mode requires max_seqlen"
         self._update_cos_sin_cache(max_seqlen, device=qkv.device, dtype=qkv.dtype)

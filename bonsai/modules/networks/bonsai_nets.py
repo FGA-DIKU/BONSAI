@@ -7,6 +7,9 @@ from bonsai.modules.networks.components.layer import TransformerLayer
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
+if _FLASH_ATTENTION_AVAILABLE:
+    from flash_attn.bert_padding import pad_input, unpad_input
+
 
 class BonsaiBase(nn.Module):
     def __init__(
@@ -73,20 +76,41 @@ class BonsaiBase(nn.Module):
             segment=batch["segment"],
         )
 
-        # SDPA requires a broadcasted attention mask
-        if self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
-            attn_mask = batch["attention_mask"][:, None, None, :]
-        else:
-            attn_mask = None
-
         x = self.drop(x)
-        for layer in self.layers:
-            x = layer(
-                x,
-                attn_mask=attn_mask,
-                cu_seqlens=batch.get("cu_seqlens"),
+
+        if self.hparams["attn_type"] == "flash":
+            return self.forward_flash(x, batch["attention_mask"])
+        elif self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+            return self.forward_sdpa(x, batch["attention_mask"])
+        else:
+            raise ValueError(
+                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and non-causal 'sdpa' are supported."
             )
+
+    def forward_sdpa(self, x, attn_mask):
+        attn_mask = attn_mask[:, None, None, :]
+
+        for layer in self.layers:
+            x = layer(x, attn_mask=attn_mask)
+
         x = self.layernorm(x)
+
+        return x
+
+    def forward_flash(self, x, attn_mask):
+        batch_size, padded_seqlen = x.shape[:2]
+        (x, indices, cu_seqlens, max_seqlen, _) = unpad_input(
+            x, attn_mask
+        )  # x: (batch, padded_seqlen, hidden_size) -> (total_valid_tokens, hidden_size)
+
+        for layer in self.layers:
+            x = layer(x, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+
+        x = self.layernorm(x)
+
+        x = pad_input(
+            x, indices, batch_size, padded_seqlen
+        )  # x: (total_valid_tokens, hidden_size) -> (batch, padded_seqlen, hidden_size)
 
         return x
 
