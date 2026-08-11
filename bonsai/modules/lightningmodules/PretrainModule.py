@@ -5,6 +5,7 @@ from torch.optim.lr_scheduler import LinearLR
 from torchmetrics import MetricCollection
 
 from bonsai.modules.metrics.metrics import SharedPrecisionAtK
+from bonsai.modules.losses.CodeValueLoss import CodeValueLoss
 
 loss_types = {"sdpa": nn.CrossEntropyLoss}
 try:
@@ -13,28 +14,6 @@ try:
     loss_types["flash"] = FACrossEntropyLoss
 except Exception:
     pass
-
-
-class ConceptValueLoss(nn.Module):
-    """Concept CE + weighted value MSE; empty value batches contribute 0 value loss."""
-
-    def __init__(self, concept_loss_fn: nn.Module, value_loss_weight: float = 1.0):
-        super().__init__()
-        self.concept_loss_fn = concept_loss_fn
-        self.value_loss_fn = nn.MSELoss()
-        self.value_loss_weight = value_loss_weight
-
-    def forward(self, logits, labels, val_logits, val_labels):
-        concept_loss = self.concept_loss_fn(
-            logits.view(-1, logits.size(-1)), labels.view(-1)
-        )
-        # MLM may mask no numeric tokens in a batch → empty tensors → NaN mean MSE
-        if val_logits.numel() == 0:
-            value_loss = concept_loss.new_zeros(())
-        else:
-            value_loss = self.value_loss_fn(val_logits, val_labels)
-        loss = concept_loss + self.value_loss_weight * value_loss
-        return loss, concept_loss, value_loss
 
 
 class PretrainModule(L.LightningModule):
@@ -147,8 +126,8 @@ class ValuePretrainModule(PretrainModule):
             optimizer_epsilon=optimizer_epsilon,
             scheduler_warmup_epochs=scheduler_warmup_epochs,
         )
-        self.train_loss = ConceptValueLoss(self.train_loss, value_loss_weight)
-        self.val_loss = ConceptValueLoss(self.val_loss, value_loss_weight)
+        self.train_loss = CodeValueLoss(self.train_loss, value_loss_weight)
+        self.val_loss = CodeValueLoss(self.val_loss, value_loss_weight)
         self.save_hyperparameters({"value_loss_weight": value_loss_weight})
 
     def training_step(self, batch, batch_idx):

@@ -98,51 +98,6 @@ class BonsaiBase(nn.Module):
         return x
 
 
-class BonsaiValueBase(BonsaiBase):
-    def __init__(
-        self,
-        vocab_size,
-        max_seqlen,
-        hidden_size,
-        num_layers,
-        num_attention_heads,
-        bias,
-        dropout,
-        attention_dropout,
-        causal,
-        attn_type,
-        value_embedding_mode,
-    ):
-        super().__init__(
-            vocab_size=vocab_size,
-            max_seqlen=max_seqlen,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
-            bias=bias,
-            dropout=dropout,
-            attention_dropout=attention_dropout,
-            causal=causal,
-            attn_type=attn_type,
-        )
-        self.embeddings = EhrValueEmbeddings(
-            vocab_size=vocab_size,
-            hidden_size=hidden_size,
-            max_seqlen=max_seqlen,
-            value_embedding_mode=value_embedding_mode,
-        )
-        self.hparams["value_embedding_mode"] = value_embedding_mode
-
-    def embed(self, batch: dict) -> torch.Tensor:
-        return self.embeddings(
-            code=batch["code"],
-            age=batch["age"],
-            abspos=batch["abspos"],
-            segment=batch["segment"],
-            numeric_value=batch["numeric_value"],
-        )
-
-
 class BonsaiPretrain(BonsaiBase):
     def __init__(
         self,
@@ -185,7 +140,7 @@ class BonsaiPretrain(BonsaiBase):
         return logits, labels
 
 
-class BonsaiValuePretrain(BonsaiValueBase):
+class BonsaiValuePretrain(BonsaiBase):
     def __init__(
         self,
         vocab_size,
@@ -211,11 +166,26 @@ class BonsaiValuePretrain(BonsaiValueBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+        )
+        self.embeddings = EhrValueEmbeddings(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            max_seqlen=max_seqlen,
             value_embedding_mode=value_embedding_mode,
         )
+        self.hparams["value_embedding_mode"] = value_embedding_mode
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
         self.pretrain_head.weight = self.embeddings.code_embedding.weight
         self.pretrain_head_value = nn.Linear(hidden_size, 1, bias=bias)
+
+    def embed(self, batch: dict) -> torch.Tensor:
+        return self.embeddings(
+            code=batch["code"],
+            age=batch["age"],
+            abspos=batch["abspos"],
+            segment=batch["segment"],
+            numeric_value=batch["numeric_value"],
+        )
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)
@@ -271,7 +241,7 @@ class BonsaiFinetune(BonsaiBase):
         return self.finetune_head(last_hidden_state)
 
 
-class BonsaiValueFinetune(BonsaiValueBase):
+class BonsaiValueFinetune(BonsaiBase):
     def __init__(
         self,
         vocab_size,
@@ -298,10 +268,25 @@ class BonsaiValueFinetune(BonsaiValueBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+        )
+        self.embeddings = EhrValueEmbeddings(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            max_seqlen=max_seqlen,
             value_embedding_mode=value_embedding_mode,
         )
+        self.hparams["value_embedding_mode"] = value_embedding_mode
         self.hparams["predict_token_id"] = predict_token_id
         self.finetune_head = nn.Linear(hidden_size, 1, bias=bias)
+
+    def embed(self, batch: dict) -> torch.Tensor:
+        return self.embeddings(
+            code=batch["code"],
+            age=batch["age"],
+            abspos=batch["abspos"],
+            segment=batch["segment"],
+            numeric_value=batch["numeric_value"],
+        )
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)
