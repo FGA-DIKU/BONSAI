@@ -85,11 +85,14 @@ class BonsaiBase(nn.Module):
         if self.hparams["attn_type"] == "flash":
             return self.forward_flash(x, batch["attention_mask"])
         elif self.hparams["attn_type"] == "sdpa":
-            return self.forward_sdpa(x, batch["attention_mask"])
+            return self.forward_sdpa(
+                x,
+                attn_mask=batch["attention_mask"][:, None, None, :]
+                if not self.hparams["causal"]
+                else None,  # Causal SDPA needs attn_mask to be None
+            )
 
     def forward_sdpa(self, x, attn_mask):
-        attn_mask = attn_mask[:, None, None, :]
-
         for layer in self.layers:
             x = layer(x, attn_mask=attn_mask)
 
