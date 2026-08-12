@@ -12,7 +12,6 @@ from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.modules.lightningmodules.PretrainModule import (
     PretrainModule,
-    ValuePretrainModule,
 )
 from bonsai.paths import get_config_path
 
