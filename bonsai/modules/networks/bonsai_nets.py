@@ -80,11 +80,11 @@ class BonsaiBase(nn.Module):
 
         if self.hparams["attn_type"] == "flash":
             return self.forward_flash(x, batch["attention_mask"])
-        elif self.hparams["attn_type"] == "sdpa" and not self.hparams["causal"]:
+        elif self.hparams["attn_type"] == "sdpa":
             return self.forward_sdpa(x, batch["attention_mask"])
         else:
             raise ValueError(
-                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and non-causal 'sdpa' are supported."
+                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and 'sdpa' are supported."
             )
 
     def forward_sdpa(self, x, attn_mask):

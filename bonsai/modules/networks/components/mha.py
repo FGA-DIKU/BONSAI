@@ -11,6 +11,8 @@ class SDPA(nn.Module):
         self.attention_dropout = attention_dropout
 
     def forward(self, q, k, v, attn_mask=None):
+        if self.causal:
+            attn_mask = None
         return F.scaled_dot_product_attention(
             q,
             k,
