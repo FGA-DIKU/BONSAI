@@ -18,4 +18,4 @@ class CodeValueLoss(nn.Module):
         else:
             value_loss = self.value_loss_fn(val_logits, val_labels)
         loss = code_loss + self.value_loss_weight * value_loss
-        return loss, code_loss, value_loss
+        return loss

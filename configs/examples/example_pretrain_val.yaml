@@ -8,6 +8,9 @@ training:
   max_len: 512
   batch_size: 2
   epochs: 10
+  loss_fn: CodeValue
+  loss_params:
+    value_loss_weight: 1.0
   limit_val_batches: 10
   limit_train_batches: 10
   value_loss_weight: 1.0

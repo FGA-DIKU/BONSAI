@@ -51,20 +51,16 @@ def main(cfg: DictConfig) -> None:
     )
 
     model = instantiate(cfg.model, vocab_size=len(data_module.vocabulary))
-    module_kwargs = dict(
+
+    lightning_module = PretrainModule(
         model=model,
         compile_mode=cfg.hardware.compile_mode,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        loss_fn=cfg.training.loss_fn,
+        loss_params=cfg.training.get("loss_params", {}),
     )
-    if isinstance(model, BonsaiValuePretrain):
-        lightning_module = ValuePretrainModule(
-            **module_kwargs,
-            value_loss_weight=cfg.training.get("value_loss_weight", 1.0),
-        )
-    else:
-        lightning_module = PretrainModule(**module_kwargs)
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,

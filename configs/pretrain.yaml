@@ -19,6 +19,7 @@ training:
   batch_size: 128
   accumulate_grad_batches: 1
   epochs: 10
+  loss_fn: CE
   learning_rate: 3e-4
   optimizer_epsilon: 1e-6
   scheduler_warmup_epochs: 1
