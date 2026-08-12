@@ -32,6 +32,10 @@ class BonsaiBase(nn.Module):
             raise ImportError(
                 "flash_attn is not available. Please install flash-attn or use `attn_type='sdpa'` instead."
             )
+        if attn_type not in ["flash", "sdpa"]:
+            raise ValueError(
+                f"Invalid attn_type '{attn_type}'. Must be one of ['flash', 'sdpa']."
+            )
         super().__init__()
         self.embeddings = EhrEmbeddings(
             vocab_size=vocab_size,
@@ -82,10 +86,6 @@ class BonsaiBase(nn.Module):
             return self.forward_flash(x, batch["attention_mask"])
         elif self.hparams["attn_type"] == "sdpa":
             return self.forward_sdpa(x, batch["attention_mask"])
-        else:
-            raise ValueError(
-                f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and 'sdpa' are supported."
-            )
 
     def forward_sdpa(self, x, attn_mask):
         attn_mask = attn_mask[:, None, None, :]
