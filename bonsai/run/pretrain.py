@@ -14,7 +14,6 @@ from bonsai.modules.lightningmodules.PretrainModule import (
     PretrainModule,
     ValuePretrainModule,
 )
-from bonsai.modules.networks.bonsai_nets import BonsaiValuePretrain
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
