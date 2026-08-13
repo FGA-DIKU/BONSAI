@@ -243,7 +243,7 @@ class BonsaiValuePretrain(BonsaiBase):
         val_mask = ~torch.isnan(val_labels)
         val_logits = self.pretrain_head_value(last_hidden_state[val_mask]).squeeze(-1)
         val_labels = val_labels[val_mask]
-        return logits, labels, val_logits, val_labels
+        return logits, val_logits, labels, val_labels
 
 
 class BonsaiFinetune(BonsaiBase):

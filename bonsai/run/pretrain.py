@@ -50,7 +50,8 @@ def main(cfg: DictConfig) -> None:
 
     model = instantiate(cfg.model, vocab_size=len(data_module.vocabulary))
 
-    lightning_module = PretrainModule(
+    lightning_module = instantiate(
+        cfg.lightning_module,
         model=model,
         compile_mode=cfg.hardware.compile_mode,
         learning_rate=cfg.training.learning_rate,
