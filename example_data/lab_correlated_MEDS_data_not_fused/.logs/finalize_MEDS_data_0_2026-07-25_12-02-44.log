@@ -1,0 +1,17 @@
+[2026-07-25 12:02:44,736][MEDS_transforms.mapreduce.shard_iteration][INFO] - Mapping computation over a maximum of 3 shards
+[2026-07-25 12:02:44,737][MEDS_transforms.mapreduce.mapper][INFO] - Processing /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/held_out/0.parquet into /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/held_out/0.parquet
+[2026-07-25 12:02:44,737][MEDS_transforms.mapreduce.rwlock][INFO] - Reading input dataframe from /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/held_out/0.parquet
+[2026-07-25 12:02:44,737][MEDS_transforms.mapreduce.rwlock][INFO] - Read dataset
+[2026-07-25 12:02:44,847][MEDS_transforms.mapreduce.rwlock][INFO] - Writing final output to /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/held_out/0.parquet
+[2026-07-25 12:02:44,952][MEDS_transforms.mapreduce.rwlock][INFO] - Succeeded in 0:00:00.214758
+[2026-07-25 12:02:44,953][MEDS_transforms.mapreduce.mapper][INFO] - Processing /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/tuning/0.parquet into /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/tuning/0.parquet
+[2026-07-25 12:02:44,956][MEDS_transforms.mapreduce.rwlock][INFO] - Reading input dataframe from /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/tuning/0.parquet
+[2026-07-25 12:02:44,956][MEDS_transforms.mapreduce.rwlock][INFO] - Read dataset
+[2026-07-25 12:02:45,116][MEDS_transforms.mapreduce.rwlock][INFO] - Writing final output to /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/tuning/0.parquet
+[2026-07-25 12:02:45,251][MEDS_transforms.mapreduce.rwlock][INFO] - Succeeded in 0:00:00.294818
+[2026-07-25 12:02:45,253][MEDS_transforms.mapreduce.mapper][INFO] - Processing /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/train/0.parquet into /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/train/0.parquet
+[2026-07-25 12:02:45,253][MEDS_transforms.mapreduce.rwlock][INFO] - Reading input dataframe from /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/annotate_numeric_values/train/0.parquet
+[2026-07-25 12:02:45,253][MEDS_transforms.mapreduce.rwlock][INFO] - Read dataset
+[2026-07-25 12:02:46,064][MEDS_transforms.mapreduce.rwlock][INFO] - Writing final output to /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/train/0.parquet
+[2026-07-25 12:02:47,554][MEDS_transforms.mapreduce.rwlock][INFO] - Succeeded in 0:00:02.300456
+[2026-07-25 12:02:47,573][MEDS_transforms.mapreduce.stage][INFO] - Finished mapping in 0:00:02.837837
