@@ -147,13 +147,13 @@ class ValuePretrainModule(PretrainModule):
         self.value_val_metrics = MetricCollection({"val/MSE": MeanSquaredError()})
 
     def training_step(self, batch, batch_idx):
-        logits, val_logits, labels, val_labels = self.model(batch)
+        logits, labels, val_logits, val_labels = self.model(batch)
         loss = self.train_loss(logits, val_logits, labels, val_labels)
         self.log("train/loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        logits, val_logits, labels, val_labels = self.model(batch)
+        logits, labels, val_logits, val_labels = self.model(batch)
         loss = self.val_loss(logits, val_logits, labels, val_labels)
         self.log("val/loss", loss, prog_bar=True)
         self.val_metrics.update(logits, labels)
