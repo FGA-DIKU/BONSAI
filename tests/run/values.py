@@ -1,5 +1,5 @@
-import subprocess
 import os
+import subprocess
 
 os.environ["BONSAI_CONFIG_PATH"] = "../../configs"
 os.environ["BONSAI_MODELS"] = "../../example_data/models"
@@ -42,16 +42,16 @@ correct = subprocess.run(
     text=True,
 )
 
-# correct = subprocess.run(
-#    [
-#        "python",
-#        "bonsai/run/finetune.py",
-#        "--config-name",
-#        "examples/example_finetune_val",
-#        "dataset=lab_correlated_MEDS_data_not_fused",
-#        "pretrain_path=/Users/zcr545/Desktop/Projects/repos/bonsai_data/models/lab_correlated_MEDS_data_not_fused/examples/example_pretrain_val/run_id_723506/version_0/best.ckpt",
-#        "outcome=examples/example_outcome_val",
-#    ],
-#    check=True,
-#    text=True,
-# )
+correct = subprocess.run(
+    [
+        "python",
+        "bonsai/run/finetune.py",
+        "--config-name",
+        "examples/example_finetune_val",
+        "dataset=lab_correlated_MEDS_data_not_fused",
+        "pretrain_path=/Users/zcr545/Desktop/Projects/repos/bonsai_data/models/lab_correlated_MEDS_data_not_fused/examples/example_pretrain_val/run_id_723506/version_0/best.ckpt",
+        "outcome=examples/example_outcome_val",
+    ],
+    check=True,
+    text=True,
+)
