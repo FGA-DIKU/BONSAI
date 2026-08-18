@@ -37,6 +37,9 @@ def process_split(
     }
     ids = []
     shards = [shard for shard in (path_input_dir / split).glob("*.parquet")]
+    assert len(shards) > 0, (
+        f"No shards found in {path_input_dir / split}. Remove the shard from the config if this is expected"
+    )
     logging.info(f"Found {len(shards)} shards to process in {split}")
     for shard_idx, shard in enumerate(shards, 1):
         logging.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
