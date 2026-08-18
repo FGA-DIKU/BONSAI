@@ -10,9 +10,6 @@ from omegaconf import DictConfig, OmegaConf
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from bonsai.modules.lightningmodules.PretrainModule import (
-    PretrainModule,
-)
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
