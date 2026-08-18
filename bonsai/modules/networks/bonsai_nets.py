@@ -110,16 +110,15 @@ class BonsaiBase(nn.Module):
                 attn_mask=batch["attention_mask"][:, None, None, :]
                 if not self.hparams["causal"]
                 else None,  # Causal SDPA needs attn_mask to be None
-                cu_seqlens=batch.get("cu_seqlens", None),
             )
         else:
             raise ValueError(
                 f"Invalid attention type: {self.hparams['attn_type']}. Only 'flash' and 'sdpa' are supported."
             )
 
-    def forward_sdpa(self, x, attn_mask, cu_seqlens):
+    def forward_sdpa(self, x, attn_mask):
         for layer in self.layers:
-            x = layer(x, attn_mask=attn_mask, cu_seqlens=cu_seqlens)
+            x = layer(x, attn_mask=attn_mask)
 
         x = self.layernorm(x)
         return x
