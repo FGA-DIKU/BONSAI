@@ -55,15 +55,15 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
         (pl.col("code") == "DOB") & pl.col("time").is_not_null()
     ).select("subject_id", "time")
 
-    if (dob_rows.height != dob_rows["subject_id"].n_unique()) or (
-        dob_rows.height != df["subject_id"].n_unique()
-    ):
-        raise ValueError(
-            f"Expected exactly one non-null DOB entry per subject_id. "
-            f"Found {dob_rows.height} non-null DOB rows for "
-            f"{dob_rows['subject_id'].n_unique()} unique subjects in DOB rows "
-            f"and {df['subject_id'].n_unique()} unique subjects in the full DataFrame."
+    all_subject_ids = df["subject_id"].unique()
+    dob_subject_ids = dob_rows["subject_id"].unique()
+    missing_dob = all_subject_ids.filter(~all_subject_ids.is_in(dob_subject_ids))
+    if missing_dob.len() > 0:
+        logging.warning(
+            f"Dropping {missing_dob.len()} subjects without a valid DOB: "
+            f"{missing_dob.to_list()}"
         )
+        df = df.filter(pl.col("subject_id").is_in(dob_subject_ids))
 
     df = df.join(
         dob_rows.rename({"time": "dob_time"}),

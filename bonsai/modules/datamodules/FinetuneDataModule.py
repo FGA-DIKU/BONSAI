@@ -97,15 +97,19 @@ class FinetuneDataModule(L.LightningDataModule):
         if self.path_predict_data is None:
             raise ValueError("path_predict_data must be set before running predict.")
         predict_data = torch.load(self.path_predict_data)
+        predict_subject_ids = outcome_subject_ids(self.predict_outcomes)
         predict_data = [
-            sub for sub in predict_data if sub["subject_id"] in self.predict_outcomes
+            sub for sub in predict_data if sub["subject_id"] in predict_subject_ids
         ]
         population_subject_ids = self.population["subject_id"].to_list()
         predict_data = filter_subject_data(predict_data, population_subject_ids)
-        background_length = (predict_data[0]["segment"] == 0).sum()
+        predict_subjects, predict_outcome_rows = expand_subjects_for_outcomes(
+            predict_data, self.predict_outcomes
+        )
+        background_length = (predict_subjects[0]["segment"] == 0).sum()
         self.predict_dataset = FinetuneDataset(
-            predict_data,
-            outcomes=self.predict_outcomes,
+            predict_subjects,
+            outcome_rows=predict_outcome_rows,
             predict_token_id=self.predict_token_id,
             background_length=background_length,
             max_len=self.max_len,
