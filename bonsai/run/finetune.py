@@ -22,10 +22,6 @@ from bonsai.functional.outcomes import (
     split_and_binarize_outcomes,
     print_outcome_split_summary,
 )
-from bonsai.functional.loss import get_loss_weight
-from bonsai.functional.features import compute_abspos
-from bonsai.functional.versioning import generate_unused_run_id
-from hydra.core.hydra_config import HydraConfig
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
