@@ -10,13 +10,12 @@ pretrain_path:
 paths:
   dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
   train_split: ${paths.dir}/subject_data_train.pt
-  val_split: ${paths.dir}/subject_data_val.pt
+  val_split: ${paths.dir}/subject_data_tuning.pt
+  predict_split: ${paths.dir}/subject_data_held_out.pt
   outcome: ${paths.dir}/outcomes/${outcome}.parquet
   vocabulary: ${paths.dir}/vocabulary.pt
   population: ${paths.dir}/population_full.csv
   ckpt_path: 
-  test_split: ${paths.dir}/subject_data_test.pt
-
 
 data:
   shuffle: true
@@ -49,14 +48,15 @@ training:
   eval_monitor_metric: val/loss
 
 model:
+  # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
+  max_seqlen: ${training.max_len}
   hidden_size: 128
-  num_hidden_layers: 4
+  num_layers: 4
   num_attention_heads: 4
-  intermediate_size: 512
-  embedding_dropout: 0.4
-  attention_dropout: 0.1
+  embedding_dropout: 0.1
+  attention_dropout: 0.0
   mlp_dropout: 0.1
   classifier_dropout: 0.1
-  max_position_embeddings: ${training.max_len}
-  is_causal: true
+  is_causal: false
 

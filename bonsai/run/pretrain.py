@@ -1,19 +1,21 @@
 import hydra
 import lightning as L
 from dotenv import load_dotenv
-from hydra.utils import get_class
-from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
-from lightning.pytorch.loggers import CSVLogger
+from hydra.core.hydra_config import HydraConfig
+from hydra.utils import get_class, instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import CSVLogger
+from omegaconf import DictConfig, OmegaConf
 
-from bonsai.paths import get_config_path
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
-from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from hydra.core.hydra_config import HydraConfig
+from bonsai.modules.lightningmodules.PretrainModule import (
+    PretrainModule,
+    ValuePretrainModule,
+)
+from bonsai.modules.networks.bonsai_nets import BonsaiValuePretrain
+from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
     "version", lambda: generate_unused_run_id(), use_cache=True
@@ -48,16 +50,21 @@ def main(cfg: DictConfig) -> None:
         max_len=cfg.training.max_len,
     )
 
-    model = BonsaiPretrain(
-        ModernBertConfig(
-            **cfg.model,
-            vocab_size=len(data_module.vocabulary),
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-            sparse_prediction=True,
-        )
+    model = instantiate(cfg.model, vocab_size=len(data_module.vocabulary))
+    module_kwargs = dict(
+        model=model,
+        compile_mode=cfg.hardware.compile_mode,
+        learning_rate=cfg.training.learning_rate,
+        optimizer_epsilon=cfg.training.optimizer_epsilon,
+        scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
     )
+    if isinstance(model, BonsaiValuePretrain):
+        lightning_module = ValuePretrainModule(
+            **module_kwargs,
+            value_loss_weight=cfg.training.get("value_loss_weight", 1.0),
+        )
+    else:
+        lightning_module = PretrainModule(**module_kwargs)
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
@@ -67,14 +74,6 @@ def main(cfg: DictConfig) -> None:
         filename="best",
         enable_version_counter=False,
         save_last=True,
-    )
-
-    lightning_module = PretrainModule(
-        model=model,
-        compile_mode=cfg.hardware.compile_mode,
-        learning_rate=cfg.training.learning_rate,
-        optimizer_epsilon=cfg.training.optimizer_epsilon,
-        scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
     )
 
     trainer = L.Trainer(

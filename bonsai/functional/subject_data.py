@@ -10,18 +10,20 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     all_tokenized = []
     for shard in split_path.glob("*.parquet"):
         tokenized_data = pl.read_parquet(shard)
+        has_numeric = "numeric_value" in tokenized_data.columns
 
         # Convert to training format
         for subject_id, group in tokenized_data.group_by("subject_id"):
-            all_tokenized.append(
-                {
-                    "subject_id": subject_id[0],
-                    "code": group["code"].to_torch(),
-                    "abspos": group["abspos"].to_torch(),
-                    "segment": group["segment"].to_torch(),
-                    "age": group["age"].to_torch(),
-                }
-            )
+            subject = {
+                "subject_id": subject_id[0],
+                "code": group["code"].to_torch(),
+                "abspos": group["abspos"].to_torch(),
+                "segment": group["segment"].to_torch(),
+                "age": group["age"].to_torch(),
+            }
+            if has_numeric:
+                subject["numeric_value"] = group["numeric_value"].to_torch()
+            all_tokenized.append(subject)
 
     return all_tokenized
 

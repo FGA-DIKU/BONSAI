@@ -1,9 +1,9 @@
 hydra:
   run:
-    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}/run_id_${run_id}
+    dir: ${log_dir}
   sweep:
-    dir: ${oc.env:BONSAI_MODELS}/${dataset}
-    subdir: ${hydra:job.config_name}/run_id_${run_id}
+    dir: ${log_dir}
+    subdir: ${hydra.job.num}
   launcher:
     _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
   sweeper:
@@ -11,7 +11,7 @@ hydra:
     max_batch_size: null
     params: null
   help:
-    app_name: ${hydra.job.name}
+    app_name: MEDS/${stage}
     header: '${hydra.help.app_name} is powered by Hydra.
 
       '
@@ -20,27 +20,20 @@ hydra:
       Use --hydra-help to view Hydra specific help
 
       '
-    template: '${hydra.help.header}
+    template: '== ${hydra.help.app_name} ==
 
-      == Configuration groups ==
-
-      Compose your configuration from those groups (group=option)
-
-
-      $APP_CONFIG_GROUPS
+      ${hydra.help.app_name} is a command line tool that provides an interface for
+      running MEDS pipelines.
 
 
-      == Config ==
+      **Pipeline description:**
 
-      Override anything in the config (foo.bar=value)
-
-
-      $CONFIG
+      ${oc.select:description, ${_default_description}}
 
 
-      ${hydra.help.footer}
+      **Stage description:**
 
-      '
+      ${oc.select:stage_configs.${stage}.description, ${stage_docstring:}}'
   hydra_help:
     template: 'Hydra (${hydra.runtime.version})
 
@@ -107,19 +100,19 @@ hydra:
   mode: RUN
   searchpath: []
   callbacks: {}
-  output_subdir: hydra
+  output_subdir: .hydra
   overrides:
     hydra:
     - hydra.mode=RUN
     task:
-    - dataset=correlated_MEDS_data
+    - stage=finalize_MEDS_data
   job:
-    name: pretrain
+    name: ${stage}_${worker}_${now:%Y-%m-%d_%H-%M-%S}
     chdir: null
-    override_dirname: dataset=correlated_MEDS_data
+    override_dirname: stage=finalize_MEDS_data
     id: ???
     num: ???
-    config_name: examples/example_pretrain
+    config_name: _main
     env_set: {}
     env_copy: []
     config:
@@ -128,21 +121,22 @@ hydra:
         item_sep: ','
         exclude_keys: []
   runtime:
-    version: 1.3.2
-    version_base: '1.2'
-    cwd: /Users/rjm707/Desktop/BONSAI
+    version: 1.3.4
+    version_base: '1.3'
+    cwd: /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds
     config_sources:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: /Users/rjm707/Desktop/BONSAI/configs
-      schema: file
+    - path: MEDS_extract.finalize_MEDS_data
+      schema: pkg
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /Users/rjm707/Desktop/BONSAI/data/models/correlated_MEDS_data/examples/example_pretrain/run_id_511954
+    output_dir: /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/ehr2meds/data/MEDS/DeepFetal/synthetic_data/data/.logs
     choices:
+      dataset: _base_dataset
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default

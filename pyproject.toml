@@ -38,7 +38,6 @@ dependencies = [
     "scikit-learn>=1.8.0",
     "torch==2.10.0",
     "tqdm==4.67.3",
-    "transformers>=4.48.2",
     "xgboost>=3.0.2",
     "ruff==0.15.1",
     "dotenv==0.9.9",
@@ -52,6 +51,12 @@ dev = [
     "ruff",
     "docstr-coverage",
     "coverage",
+]
+flash_attn = [
+    "packaging==25.0",
+    "psutil==7.2.0",
+    "ninja==1.13.0",
+    "flash-attn==2.8.3", # requires GCC version >=9
 ]
 
 [project.urls]

@@ -1,3 +1,4 @@
+run_id: ${version:}
 hardware:
   accelerator: auto
   num_nodes: 1
@@ -14,12 +15,12 @@ paths:
   vocab: ${paths.dir}/vocabulary.pt
   dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset
   population: ${paths.dir}/population_full.csv
-  ckpt_path: last
+  ckpt_path: null
 training:
   max_len: 10
   batch_size: 2
   accumulate_grad_batches: 1
-  epochs: 5
+  epochs: 10
   learning_rate: 0.0003
   optimizer_epsilon: 1.0e-06
   scheduler_warmup_epochs: 1
@@ -28,10 +29,21 @@ training:
   ckpt_every_n_epoch: 1
   cutoff_date: null
 model:
+  max_seqlen: ${training.max_len}
   hidden_size: 64
-  num_hidden_layers: 3
+  num_layers: 4
   num_attention_heads: 4
-  intermediate_size: 256
-  embedding_dropout: 0.1
-  max_position_embeddings: ${training.max_len}
-  is_causal: false
+  dropout: 0.1
+  bias: false
+  causal: false
+  attn_type: sdpa
+metrics:
+  top1:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 1
+  top10:
+    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
+    topk: 10
+  mlm_loss:
+    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
+    loss_name: loss

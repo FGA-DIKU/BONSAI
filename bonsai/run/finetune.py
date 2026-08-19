@@ -1,18 +1,22 @@
-import polars as pl
+from pathlib import Path
+
 import hydra
 import lightning as L
+import polars as pl
 import torch
 from dotenv import load_dotenv
-from omegaconf import DictConfig, OmegaConf
-from transformers import ModernBertConfig
+from hydra.core.hydra_config import HydraConfig
+from hydra.utils import instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from omegaconf import DictConfig, OmegaConf
 
+from bonsai.functional.features import compute_abspos
+from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.paths import get_config_path
+from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from bonsai.functional.outcomes import (
     resolve_duplicate_subject_outcomes,
     split_and_binarize_outcomes,
@@ -20,9 +24,9 @@ from bonsai.functional.outcomes import (
 )
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.features import compute_abspos
-from bonsai.functional.config_manipulation import merge_configs_and_drop_duplicate_keys
 from bonsai.functional.versioning import generate_unused_run_id
 from hydra.core.hydra_config import HydraConfig
+from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
     "version", lambda: generate_unused_run_id(), use_cache=True
@@ -45,9 +49,7 @@ def main(cfg: DictConfig) -> None:
     model_save_dir = logger.log_dir
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
-    model_cfg = merge_configs_and_drop_duplicate_keys(
-        pretrain_cfg=ckpt["hyper_parameters"], finetune_cfg=cfg.model
-    )
+    pretrain_cfg = ckpt["hyper_parameters"]
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
@@ -57,7 +59,7 @@ def main(cfg: DictConfig) -> None:
     outcomes = resolve_duplicate_subject_outcomes(
         outcomes, cfg.outcomes.duplicate_subject_policy
     )
-    train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
+    train_outcomes, val_outcomes, predict_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
         val_key="val",
@@ -69,7 +71,7 @@ def main(cfg: DictConfig) -> None:
         {
             "train": train_outcomes,
             "val": val_outcomes,
-            "test": test_outcomes,
+            "test": predict_outcomes,
         }
     )
 
@@ -79,23 +81,26 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
         path_val_data=cfg.paths.val_split,
+        path_predict_data=cfg.paths.predict_split,
         path_population=cfg.paths.population,
         train_outcomes=train_outcomes,
         val_outcomes=val_outcomes,
-        test_outcomes=test_outcomes,
+        predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
         sampling_weight_fn=cfg.training.sampling_weight_fn,
     )
 
-    model = BonsaiFinetune(
-        ModernBertConfig(
-            **model_cfg,
-            vocab_size=len(vocab),
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-        ),
+    model = instantiate(
+        cfg.model,
+        vocab_size=len(vocab),
+        max_seqlen=pretrain_cfg["max_seqlen"],
+        hidden_size=pretrain_cfg["hidden_size"],
+        num_layers=pretrain_cfg["num_layers"],
+        num_attention_heads=pretrain_cfg["num_attention_heads"],
+        bias=pretrain_cfg["bias"],
+        attn_type=pretrain_cfg["attn_type"],
+        predict_token_id=vocab["[CLS]"],
     )
 
     lightning_module = FinetuneModule.load_from_checkpoint(
@@ -139,6 +144,15 @@ def main(cfg: DictConfig) -> None:
         datamodule=data_module,
         ckpt_path=cfg.paths.ckpt_path,
     )
+    if cfg.paths.predict_split is not None:
+        predictions_output_path = Path(model_save_dir) / "test_predictions"
+        lightning_module.predictions_output_path = predictions_output_path
+        trainer.predict(
+            model=lightning_module,
+            datamodule=data_module,
+            ckpt_path="best",
+        )
+        print(f"Saved predictions to {predictions_output_path}")
 
 
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.

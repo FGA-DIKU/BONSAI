@@ -15,6 +15,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self,
         path_train_data: str,
         path_val_data: str,
+        path_predict_data: str,
         path_population: str,
         batch_size: int,
         num_workers: int,
@@ -22,15 +23,14 @@ class FinetuneDataModule(L.LightningDataModule):
         max_len: int,
         train_outcomes: List[dict],
         val_outcomes: List[dict],
-        test_outcomes: List[dict],
-        path_test_data: Optional[str] = None,
+        predict_outcomes: List[dict],
         sampling_weight_fn: Optional[Any] = None,
         train_sampler: Optional[WeightedRandomSampler] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
         self.path_val_data = path_val_data
-        self.path_test_data = path_test_data
+        self.path_predict_data = path_predict_data
         self.population = pl.read_csv(path_population)
 
         self.batch_size = batch_size
@@ -40,7 +40,7 @@ class FinetuneDataModule(L.LightningDataModule):
 
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
-        self.test_outcomes = test_outcomes
+        self.predict_outcomes = predict_outcomes
         self.sampling_weight_fn = sampling_weight_fn
         self.train_sampler = train_sampler
 
@@ -48,7 +48,7 @@ class FinetuneDataModule(L.LightningDataModule):
         if stage == "fit":
             self.setup_fit()
         elif stage == "test":
-            raise NotImplementedError("Predict stage not supported for PretrainModule.")
+            raise NotImplementedError("Test stage not supported for PretrainModule.")
         elif stage == "predict":
             self.setup_predict()
 
@@ -94,22 +94,18 @@ class FinetuneDataModule(L.LightningDataModule):
         )
 
     def setup_predict(self):
-        if self.path_test_data is None:
-            raise ValueError("path_test_data must be set before running predict.")
-        test_data = torch.load(self.path_test_data)
-        test_subject_ids = outcome_subject_ids(self.test_outcomes)
-        test_data = [
-            sub for sub in test_data if sub["subject_id"] in test_subject_ids
+        if self.path_predict_data is None:
+            raise ValueError("path_predict_data must be set before running predict.")
+        predict_data = torch.load(self.path_predict_data)
+        predict_data = [
+            sub for sub in predict_data if sub["subject_id"] in self.predict_outcomes
         ]
         population_subject_ids = self.population["subject_id"].to_list()
-        test_data = filter_subject_data(test_data, population_subject_ids)
-        test_subjects, test_outcome_rows = expand_subjects_for_outcomes(
-            test_data, self.test_outcomes
-        )
-        background_length = (test_subjects[0]["segment"] == 0).sum()
+        predict_data = filter_subject_data(predict_data, population_subject_ids)
+        background_length = (predict_data[0]["segment"] == 0).sum()
         self.predict_dataset = FinetuneDataset(
-            test_subjects,
-            outcome_rows=test_outcome_rows,
+            predict_data,
+            outcomes=self.predict_outcomes,
             predict_token_id=self.predict_token_id,
             background_length=background_length,
             max_len=self.max_len,
@@ -152,7 +148,7 @@ class FinetuneDataModule(L.LightningDataModule):
             shuffle=False,
             collate_fn=dynamic_padding,
         )
-    
+
     def predict_dataloader(self):
         return DataLoader(
             self.predict_dataset,
@@ -160,7 +156,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
-            drop_last=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )

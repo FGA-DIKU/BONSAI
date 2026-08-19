@@ -5,13 +5,16 @@ import polars as pl
 from bonsai.functional.features import create_features
 
 
-def drop_duplicates(df: pl.DataFrame) -> pl.DataFrame:
+def drop_duplicates(
+    df: pl.DataFrame, numeric_column: Optional[str] = None
+) -> pl.DataFrame:
     pre = len(df)
-    df = df.unique(subset=["subject_id", "code", "time"], maintain_order=True)
+    dup_cols = ["subject_id", "code", "time"]
+    if numeric_column is not None:
+        dup_cols.append(numeric_column)
+    df = df.unique(subset=dup_cols, maintain_order=True)
     if pre != len(df):
-        logging.info(
-            f"Dropped {pre - len(df)} duplicate rows based on subject_id, code, and time"
-        )
+        logging.info(f"Dropped {pre - len(df)} duplicate rows based on {dup_cols}")
     return df
 
 
@@ -21,6 +24,7 @@ def process_split(
     path_output_dir: Path,
     tokenizer,
     exclude_regex: Optional[str] = None,
+    numeric_column: Optional[str] = None,
 ):
     path_output_dir_split = path_output_dir / split
     path_output_dir_split.mkdir(parents=True, exist_ok=True)
@@ -38,11 +42,15 @@ def process_split(
         logging.info(f"Processing shard {shard_idx}/{len(shards)}: {shard}")
 
         # Load
-        shard_df = pl.read_parquet(shard)
+        load_cols = ["subject_id", "code", "time"]
+        if numeric_column is not None:
+            load_cols.append(numeric_column)
+        shard_df = pl.read_parquet(shard, columns=load_cols)
+
         data_counts["loaded"] += len(shard_df)
 
         # Drop duplicates
-        shard_df = drop_duplicates(shard_df)
+        shard_df = drop_duplicates(shard_df, numeric_column=numeric_column)
         data_counts["after_duplicates"] += len(shard_df)
 
         # Optional: Exclude codes based on regex
@@ -51,20 +59,23 @@ def process_split(
         data_counts["after_exclusion"] += len(shard_df)
 
         # Create features
-        features = create_features(shard_df)
+        features = create_features(shard_df, numeric_column=numeric_column)
         data_counts["after_features"] += len(features)
 
         # Tokenize
         tokenized = tokenizer(features)
 
         # Cast to correct dtypes
-        tokenized = tokenized.select(
+        cols = [
             pl.col("subject_id").cast(pl.Int64),
             pl.col("code").cast(pl.Int64),
             pl.col("age").cast(pl.Float32),
             pl.col("abspos").cast(pl.Float32),
             pl.col("segment").cast(pl.Int32),
-        )
+        ]
+        if numeric_column is not None:
+            cols.append(pl.col("numeric_value").cast(pl.Float32))
+        tokenized = tokenized.select(cols)
         tokenized.write_parquet(path_output_dir_split / f"{shard.stem}.parquet")
 
         ids.extend(tokenized["subject_id"].unique())

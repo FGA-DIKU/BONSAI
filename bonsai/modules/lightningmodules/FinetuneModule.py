@@ -1,9 +1,15 @@
+from os.path import join
+from pathlib import Path
+from typing import Optional
+import logging
+
 import lightning as L
+import polars as pl
 import torch
 from torch import nn
 from torch.optim import AdamW
-from transformers import get_linear_schedule_with_warmup
-from torchmetrics import MetricCollection, Accuracy, AUROC, AveragePrecision
+from torch.optim.lr_scheduler import LinearLR
+from torchmetrics import AUROC, Accuracy, AveragePrecision, MetricCollection
 
 from bonsai.modules.metrics.metrics import BinarySensAtSpec
 
@@ -18,12 +24,14 @@ class FinetuneModule(L.LightningModule):
         optimizer_epsilon: float = 1e-6,
         weight_decay: float = 0.0,
         scheduler_warmup_epochs: int = 0,
+        predictions_output_path: Optional[Path] = None,
     ):
         super().__init__()
         self.learning_rate = learning_rate
         self.optimizer_epsilon = optimizer_epsilon
         self.weight_decay = weight_decay
         self.scheduler_warmup_epochs = scheduler_warmup_epochs
+        self.predictions_output_path = predictions_output_path
 
         self.model = model
         if compile_mode is not None:
@@ -33,7 +41,9 @@ class FinetuneModule(L.LightningModule):
         self.train_metrics = self.configure_metrics("train")
         self.val_metrics = self.configure_metrics("val")
         self.test_metrics = self.configure_metrics("test")
-        hparams = model.config.to_dict()
+        self.predict_metrics = self.configure_metrics("predict")
+
+        hparams = self.model.hparams.copy()
         hparams.update(
             {
                 "learning_rate": learning_rate,
@@ -44,6 +54,18 @@ class FinetuneModule(L.LightningModule):
             }
         )
         self.save_hyperparameters(hparams)
+
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        """Warn on value_embedding_mode changes vs the pretrain ckpt."""
+        ckpt_mode = checkpoint.get("hyper_parameters", {}).get("value_embedding_mode")
+        ft_mode = self.model.hparams.get("value_embedding_mode")
+        if ckpt_mode != ft_mode:
+            logging.warning(
+                "value_embedding_mode changed between pretrain and finetune: "
+                "checkpoint=%r, finetune model=%r. ",
+                ckpt_mode,
+                ft_mode,
+            )
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
@@ -93,6 +115,59 @@ class FinetuneModule(L.LightningModule):
             "label": labels.squeeze(-1),
         }
 
+    def on_predict_epoch_start(self) -> None:
+        self.predictions = []
+        self.labels = []
+        self.subject_ids = []
+        self.logits = []
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        labels = batch["target"]
+        logits = self.model(batch)
+        probs = torch.sigmoid(logits)
+        if self.predictions_output_path is not None:
+            self.logits.append(logits.squeeze(-1))
+            self.labels.append(labels.squeeze(-1))
+            self.subject_ids.append(batch["subject_id"])
+            self.predictions.append(probs.squeeze(-1))
+        return {
+            "subject_id": batch["subject_id"],
+            "logit": logits.squeeze(-1),
+            "prob": probs.squeeze(-1),
+            "label": labels.squeeze(-1),
+        }
+
+    def on_predict_epoch_end(self) -> None:
+        if self.predictions_output_path is None:
+            return
+
+        logits = torch.cat([x.detach().cpu().float() for x in self.logits])
+        labels = torch.cat([x.detach().cpu().long() for x in self.labels])
+
+        if self.predictions_output_path is not None:
+            self.predictions_output_path.mkdir(parents=True, exist_ok=True)
+            pl.DataFrame(
+                {
+                    "subject_id": torch.cat(
+                        [x.detach().cpu() for x in self.subject_ids]
+                    ),
+                    "logit": logits,
+                    "prob": torch.cat(
+                        [x.detach().cpu().float() for x in self.predictions]
+                    ),
+                    "label": labels,
+                }
+            ).write_csv(join(self.predictions_output_path, "predictions.csv"))
+
+            self.predict_metrics.reset()
+            metrics = self.predict_metrics(logits, labels)
+            metrics = {
+                key: float(value.detach().cpu()) for key, value in metrics.items()
+            }
+            pl.DataFrame(metrics).write_csv(
+                join(self.predictions_output_path, "predict_metrics.csv")
+            )
+
     def configure_optimizers(self):
         optimizer = AdamW(
             self.model.parameters(),
@@ -100,13 +175,16 @@ class FinetuneModule(L.LightningModule):
             eps=self.optimizer_epsilon,
             weight_decay=self.weight_decay,
         )
+        if self.scheduler_warmup_epochs == 0:
+            return optimizer
+
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
         )
-        scheduler = get_linear_schedule_with_warmup(
+        scheduler = LinearLR(
             optimizer=optimizer,
-            num_warmup_steps=steps_per_epoch * self.scheduler_warmup_epochs,
-            num_training_steps=self.trainer.estimated_stepping_batches,
+            start_factor=1e-4,
+            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
         )
         scheduler_config = {
             "scheduler": scheduler,

@@ -16,6 +16,8 @@ paths:
 
 exclude_regex: ^(?:LAB).* # example regex to exclude all features that start with 'LAB'
 
+numeric_column: 
+
 tokenizer:
   vocabulary:
   cutoffs:

@@ -1,19 +1,26 @@
 from pathlib import Path
 
-import polars as pl
 import hydra
 import lightning as L
+import polars as pl
 import torch
 from dotenv import load_dotenv
+from hydra.utils import instantiate
+from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from transformers import ModernBertConfig
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from omegaconf import DictConfig, OmegaConf
 
 from bonsai.modules.callbacks.loss_plot import LossPlotCallback
 
+from bonsai.functional.features import compute_abspos
+from bonsai.functional.loss import get_loss_weight
+from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.paths import get_config_path
+from bonsai.functional.sampling import get_sampler
+from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
@@ -25,6 +32,7 @@ from bonsai.functional.outcomes import (
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.versioning import generate_unused_run_id
+from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
     "version", lambda: generate_unused_run_id(), use_cache=True
@@ -42,8 +50,6 @@ def main(cfg: DictConfig) -> None:
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
 
-    model_cfg = cfg.model
-
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
     outcomes = outcomes.with_columns(
@@ -53,6 +59,7 @@ def main(cfg: DictConfig) -> None:
         outcomes, cfg.outcomes.duplicate_subject_policy
     )
     train_outcomes, val_outcomes, test_outcomes = split_and_binarize_outcomes(
+    train_outcomes, val_outcomes, predict_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
         val_key="val",
@@ -64,7 +71,7 @@ def main(cfg: DictConfig) -> None:
         {
             "train": train_outcomes,
             "val": val_outcomes,
-            "test": test_outcomes,
+            "test": predict_outcomes,
         }
     )
 
@@ -74,24 +81,20 @@ def main(cfg: DictConfig) -> None:
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
         path_val_data=cfg.paths.val_split,
-        path_test_data=cfg.paths.test_split,
+        path_predict_data=cfg.paths.predict_split,
         path_population=cfg.paths.population,
         train_outcomes=train_outcomes,
         val_outcomes=val_outcomes,
-        test_outcomes=test_outcomes,
+        predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
         sampling_weight_fn=cfg.training.sampling_weight_fn,
     )
 
-    model = BonsaiFinetune(
-        ModernBertConfig(
-            **model_cfg,
-            vocab_size=len(vocab),
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-        ),
+    model = instantiate(
+        cfg.model,
+        vocab_size=len(vocab),
+        predict_token_id=vocab["[CLS]"],
     )
 
     lightning_module = FinetuneModule(
@@ -149,34 +152,15 @@ def main(cfg: DictConfig) -> None:
         ckpt_path=cfg.paths.ckpt_path,
     )
 
-    if cfg.paths.test_split is not None:
-        ckpt_callback = callbacks[0]
-        predict_ckpt_path = ckpt_callback.best_model_path or ckpt_callback.last_model_path
-        if predict_ckpt_path is None:
-            raise RuntimeError(
-                "No checkpoint was saved during training; cannot run predict."
-            )
-
-        predictions_path = Path(model_save_dir) / "test_predictions.csv"
-        outputs = trainer.predict(
+    if cfg.paths.predict_split is not None:
+        predictions_output_path = Path(model_save_dir) / "test_predictions"
+        lightning_module.predictions_output_path = predictions_output_path
+        trainer.predict(
             model=lightning_module,
             datamodule=data_module,
-            ckpt_path=predict_ckpt_path,
-            return_predictions=True,
+            ckpt_path="best",
         )
-        subject_ids = torch.cat([batch["subject_id"].detach().cpu() for batch in outputs])
-        logits = torch.cat([batch["logit"].detach().cpu() for batch in outputs])
-        probs = torch.cat([batch["prob"].detach().cpu() for batch in outputs])
-        labels = torch.cat([batch["label"].detach().cpu() for batch in outputs])
-        pl.DataFrame(
-            {
-                "subject_id": subject_ids.numpy(),
-                "logit": logits.float().numpy(),
-                "prob": probs.float().numpy(),
-                "label": labels.numpy(),
-            }
-        ).write_csv(predictions_path)
-        print(f"Saved predictions to {predictions_path}")
+        print(f"Saved predictions to {predictions_output_path}")
 
 
 # TODO: Aggregate scores here, assuming test has been run after each training and test outputs some file.
