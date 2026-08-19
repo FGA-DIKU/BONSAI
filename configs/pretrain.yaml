@@ -19,6 +19,7 @@ training:
   batch_size: 128
   accumulate_grad_batches: 1
   epochs: 10
+  loss_fn: CE
   learning_rate: 3e-4
   optimizer_epsilon: 1e-6
   scheduler_warmup_epochs: 1
@@ -50,19 +51,5 @@ model:
   causal: true 
   attn_type: sdpa
 
-
-#scheduler:
-  #_target_: transformers.get_linear_schedule_with_warmup
-  #num_warmup_epochs: 2
-  #num_training_epochs: 3
-
-metrics:
-  top1:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 1
-  top10:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 10
-  mlm_loss:
-    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
-    loss_name: loss
+lightning_module:
+  _target_: bonsai.modules.lightningmodules.PretrainModule.PretrainModule

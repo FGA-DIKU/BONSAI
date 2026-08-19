@@ -10,12 +10,12 @@ class CodeValueLoss(nn.Module):
         self.value_loss_fn = nn.MSELoss()
         self.value_loss_weight = value_loss_weight
 
-    def forward(self, logits, labels, val_logits, val_labels):
-        code_loss = self.code_loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
+    def forward(self, logits, val_logits, labels, val_labels):
+        code_loss = self.code_loss_fn(logits, labels)
         # MLM may mask no numeric tokens in a batch → empty tensors → NaN mean MSE
         if val_logits.numel() == 0:
             value_loss = code_loss.new_zeros(())
         else:
             value_loss = self.value_loss_fn(val_logits, val_labels)
         loss = code_loss + self.value_loss_weight * value_loss
-        return loss, code_loss, value_loss
+        return loss
