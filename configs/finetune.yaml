@@ -26,7 +26,7 @@ labels:
   n_hours_end_include: null
 
 outcomes:
-  duplicate_subject_policy: first_lowest_censor_abspos
+  duplicate_subject_policy: first_lowest_censor_abspos # all or first_lowest_censor_abspos
 
 training:
   max_len: 2048

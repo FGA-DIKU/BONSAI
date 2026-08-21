@@ -15,6 +15,7 @@ from bonsai.functional.features import compute_abspos
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
+from bonsai.modules.callbacks.loss_plot import LossPlotCallback
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.functional.outcomes import (
@@ -112,15 +113,21 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
-        monitor=cfg.training.eval_monitor_metric,
-        mode="min",
-        save_top_k=1,
-        filename="best",
-        enable_version_counter=False,
-        save_last=True,
-    )
+    callbacks = [
+        ModelCheckpoint(
+            dirpath=model_save_dir,
+            monitor=cfg.training.eval_monitor_metric,
+            mode="min",
+            save_top_k=1,
+            filename="best",
+            enable_version_counter=False,
+            save_last=True,
+        ),
+        LossPlotCallback(
+            metrics_csv=Path(model_save_dir) / "metrics.csv",
+            save_path=Path(model_save_dir) / "loss.png",
+        ),
+    ]
 
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
@@ -128,7 +135,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[ckpt_callback],
+        callbacks=callbacks,
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
