@@ -18,6 +18,8 @@ def censor_subject(
     # Slice everything up to idx
     for embed_name in ["code", "abspos", "segment", "age"]:
         subject[embed_name] = subject[embed_name][:idx]
+    if "numeric_value" in subject:
+        subject["numeric_value"] = subject["numeric_value"][:idx]
 
     if predict_token_id is not None:
         subject = append_predict_token(subject, censor_date_abspos, predict_token_id)
@@ -49,6 +51,13 @@ def append_predict_token(
             ),
         )
     )
+    if "numeric_value" in subject:
+        subject["numeric_value"] = torch.cat(
+            (
+                subject["numeric_value"],
+                torch.tensor([float("nan")], dtype=subject["numeric_value"].dtype),
+            )
+        )
 
     age_in_years = float((censor_date_abspos - subject["abspos"][0]) / (365.25 * 24))
     subject["age"] = torch.cat(

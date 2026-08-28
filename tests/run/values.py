@@ -1,0 +1,57 @@
+import os
+import subprocess
+
+os.environ["BONSAI_CONFIG_PATH"] = "../../configs"
+os.environ["BONSAI_MODELS"] = "../../example_data/models"
+os.environ["BONSAI_PROCESSED_DATA"] = "../../example_data/processed_data"
+os.environ["BONSAI_PREDICTIONS"] = "../../example_data/predictions"
+
+correct = subprocess.run(
+    [
+        "python",
+        "bonsai/run/create_data.py",
+        "--config-name",
+        "examples/example_value_data",
+        "dataset=lab_correlated_MEDS_data_not_fused",
+    ],
+    check=True,
+    text=True,
+)
+
+correct = subprocess.run(
+    [
+        "python",
+        "bonsai/run/create_outcome.py",
+        "--config-name",
+        "examples/example_outcome_val",
+        "dataset=lab_correlated_MEDS_data_not_fused",
+    ],
+    check=True,
+    text=True,
+)
+
+correct = subprocess.run(
+    [
+        "python",
+        "bonsai/run/pretrain.py",
+        "--config-name",
+        "examples/example_pretrain_val",
+        "dataset=lab_correlated_MEDS_data_not_fused",
+    ],
+    check=True,
+    text=True,
+)
+
+correct = subprocess.run(
+    [
+        "python",
+        "bonsai/run/finetune.py",
+        "--config-name",
+        "examples/example_finetune_val",
+        "dataset=lab_correlated_MEDS_data_not_fused",
+        "pretrain_path=/Users/zcr545/Desktop/Projects/repos/bonsai_data/models/lab_correlated_MEDS_data_not_fused/examples/example_pretrain_val/run_id_723506/version_0/best.ckpt",
+        "outcome=examples/example_outcome_val",
+    ],
+    check=True,
+    text=True,
+)

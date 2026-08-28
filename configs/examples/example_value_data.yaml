@@ -1,5 +1,6 @@
+# @package _global_
 defaults:
-  - core/base_create@
+  - ../core/base_create@
   - _self_
   
 splits: 
@@ -7,13 +8,13 @@ splits:
   - tuning
   - held_out
 
-dataset: 
+dataset: lab_correlated_MEDS_data_not_fused
 
 paths: 
   input_dir: example_data/${dataset}
   output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
 
-exclude_regex: 
+exclude_regex: ^(?:D//).* # example regex to exclude all features that start with 'D'
 
 numeric_column: "numeric_value_normalized"
 

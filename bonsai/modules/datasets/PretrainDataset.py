@@ -70,14 +70,14 @@ class MLMPretrainDataset(PretrainDataset):
 
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
-        masked_codes, target = self.mask_patient_codes(subject["code"])
-        subject["concept"] = masked_codes
+        masked_codes, target, _ = self.mask_patient_codes(subject["code"])
+        subject["code"] = masked_codes
         subject["target"] = target
         return subject
 
     def mask_patient_codes(
         self, codes: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         target = codes.clone()
         probability_vector = torch.full(target.shape, self.masking_select_ratio)
 
@@ -110,7 +110,32 @@ class MLMPretrainDataset(PretrainDataset):
             dtype=codes.dtype,
         )
         codes[indicies_random] = random_words[indicies_random]
-        return codes, target
+        return codes, target, indices_mask
+
+
+class ValueMLMPretrainDataset(MLMPretrainDataset):
+    def __getitem__(self, index: int) -> dict:
+        subject = super(MLMPretrainDataset, self).__getitem__(index)
+        masked_codes, masked_numeric_values, target, numeric_target = (
+            self.mask_patient_codes(subject["code"], subject["numeric_value"])
+        )
+        subject["code"] = masked_codes
+        subject["target"] = target
+        subject["numeric_value"] = masked_numeric_values
+        subject["numeric_target"] = numeric_target
+        return subject
+
+    def mask_patient_codes(
+        self,
+        codes: torch.Tensor,
+        numeric_values: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        codes, target, indices_mask = super().mask_patient_codes(codes)
+        numeric_target = numeric_values.clone()
+        # Hide input values at [MASK]; keep targets only at those positions.
+        numeric_values[indices_mask] = float("nan")
+        numeric_target[~indices_mask] = float("nan")
+        return codes, numeric_values, target, numeric_target
 
 
 class ARPretrainDataset(PretrainDataset):
@@ -129,6 +154,20 @@ class ARPretrainDataset(PretrainDataset):
         subject = super().__getitem__(index)
         subject["target"] = subject["code"][1:]
         subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
+
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
+        return subject
+
+
+class ValueARPretrainDataset(ARPretrainDataset):
+    def __getitem__(self, index: int) -> dict:
+        subject = super().__getitem__(index)
+        # AR already shifted code/target; numeric_value is still full-length from deepcopy.
+        values = subject["numeric_value"]
+        subject["numeric_target"] = values[1:].clone()
+        subject["numeric_value"] = values[:-1]
+        subject["numeric_target"] = subject["numeric_target"].masked_fill(
+            subject["target"] == -100, float("nan")
+        )
         return subject

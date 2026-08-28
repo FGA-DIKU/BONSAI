@@ -15,4 +15,6 @@ def truncate_subject(
 
         for embed_name in ["code", "abspos", "segment", "age"]:
             subject[embed_name] = subject[embed_name][idxs]
+        if "numeric_value" in subject:
+            subject["numeric_value"] = subject["numeric_value"][idxs]
     return subject

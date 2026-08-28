@@ -6,6 +6,7 @@ import polars as pl
 import torch
 from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
+from hydra.utils import instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
@@ -18,7 +19,6 @@ from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
-from bonsai.modules.networks.bonsai_nets import BonsaiFinetune
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -76,16 +76,14 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
-    model = BonsaiFinetune(
+    model = instantiate(
+        cfg.model,
         vocab_size=len(vocab),
         max_seqlen=pretrain_cfg["max_seqlen"],
         hidden_size=pretrain_cfg["hidden_size"],
         num_layers=pretrain_cfg["num_layers"],
         num_attention_heads=pretrain_cfg["num_attention_heads"],
         bias=pretrain_cfg["bias"],
-        dropout=cfg.model.dropout,
-        attention_dropout=cfg.model.attention_dropout,
-        causal=cfg.model.causal,
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
     )

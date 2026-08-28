@@ -1,0 +1,79 @@
+dataset:
+  root_dir: ???
+  name: ${oc:get_dataset_name_from_root:root_dir}
+  version: ${oc:get_dataset_version_from_root:root_dir}
+  code_modifiers: []
+input_dir: ${oc.env:PREMEDS_INPUT_DIR}
+output_dir: ${oc.env:MEDS_OUTPUT_DIR}
+_default_description: 'This is a MEDS pipeline ETL. Please set a more detailed description
+  at the top of your specific pipeline
+
+  configuration file.'
+log_dir: ${stage_cfg.output_dir}/.logs
+do_overwrite: false
+seed: 1
+worker: 0
+polling_time: 300
+stages:
+- augment_event_config:
+    source_event_conversion_config_fp: ${source_event_conversion_config_fp}
+    output_event_conversion_config_fp: ${event_conversion_config_fp}
+    event_columns:
+      row_idx: $row_idx
+- shard_events:
+    infer_schema_length: 999999999
+    data_input_dir: ${input_dir}/data
+- split_and_shard_subjects
+- convert_to_subject_sharded
+- convert_to_MEDS_events:
+    do_dedup_text_and_numeric: true
+- merge_to_MEDS_cohort:
+    additional_sort_by:
+    - row_idx
+- extract_code_metadata
+- aggregate_numeric_metadata:
+    train_only: true
+    lower_quantile: 0.01
+    upper_quantile: 0.99
+    min_bins: 2
+    max_bins: 100
+    numeric_value_bounds: {}
+    numeric_metadata_output_filepath: ${output_dir}/numeric_metadata.json
+- annotate_numeric_values:
+    numeric_metadata_filepath: null
+- finalize_MEDS_metadata
+- finalize_MEDS_data
+stage: finalize_MEDS_data
+etl_metadata:
+  pipeline_name: MEDS-Transforms Pipeline
+  dataset_name: preMEDS
+  dataset_version: 2.0
+  package_name: ${get_package_name:}
+  package_version: ${get_package_version:}
+code_modifiers: null
+description: 'This pipeline extracts the preMEDS dataset in longitudinal, sparse form
+  from an input dataset meeting
+
+  select criteria and converts them to the flattened MEDS format. You can control
+  the key arguments to this
+
+  pipeline by setting environment variables:
+
+
+  export EVENT_CONVERSION_CONFIG_FP=event_configs.yaml       # Path to your event
+  conversion config
+
+  export PREMEDS_INPUT_DIR=../preMEDS_w_meta                 # Path to the output
+  dir of the pre-MEDS step
+
+  export MEDS_OUTPUT_DIR=../MEDS_new_data            # Path to where you want the
+  dataset to live'
+shards_map_fp: ${output_dir}/metadata/.shards.json
+source_event_conversion_config_fp: ${oc.env:EVENT_CONVERSION_CONFIG_FP}
+event_conversion_config_fp: ${output_dir}/event_conversion_config.augmented.yaml
+stage_cfg:
+  data_input_dir: ${output_dir}/annotate_numeric_values
+  metadata_input_dir: ${output_dir}/metadata
+  reducer_output_dir: null
+  train_only: false
+  output_dir: ${output_dir}/data

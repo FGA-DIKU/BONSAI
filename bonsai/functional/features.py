@@ -1,10 +1,12 @@
 import polars as pl
 import logging
 from datetime import datetime
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 
-def create_features(df: pl.DataFrame) -> pl.DataFrame:
+def create_features(
+    df: pl.DataFrame, numeric_column: Optional[str] = None
+) -> pl.DataFrame:
     """
     Create background, age, absolute position, and segment features.
     TODO: Death?
@@ -39,7 +41,10 @@ def create_features(df: pl.DataFrame) -> pl.DataFrame:
         )
     )
 
-    features = features.select("subject_id", "code", "age", "abspos", "segment")
+    select_cols = ["subject_id", "code", "age", "abspos", "segment"]
+    if numeric_column is not None:
+        select_cols.append(pl.col(numeric_column).alias("numeric_value"))
+    features = features.select(select_cols)
 
     return features
 

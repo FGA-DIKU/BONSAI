@@ -43,6 +43,8 @@ training:
   eval_monitor_metric: val/loss
 
 model:
+  # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
   max_seqlen: ${training.max_len}
   hidden_size: 64
   num_layers: 4
@@ -50,5 +52,5 @@ model:
   dropout: 0.1
   attention_dropout: 0.0
   bias: false
-  causal: false
+  causal: true
   attn_type: sdpa

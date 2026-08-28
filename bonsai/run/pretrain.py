@@ -2,7 +2,7 @@ import hydra
 import lightning as L
 from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
-from hydra.utils import get_class
+from hydra.utils import get_class, instantiate
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
@@ -10,8 +10,6 @@ from omegaconf import DictConfig, OmegaConf
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
-from bonsai.modules.lightningmodules.PretrainModule import PretrainModule
-from bonsai.modules.networks.bonsai_nets import BonsaiPretrain
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -47,17 +45,17 @@ def main(cfg: DictConfig) -> None:
         max_len=cfg.training.max_len,
     )
 
-    model = BonsaiPretrain(
-        vocab_size=len(data_module.vocabulary),
-        max_seqlen=cfg.model.max_seqlen,
-        hidden_size=cfg.model.hidden_size,
-        num_layers=cfg.model.num_layers,
-        num_attention_heads=cfg.model.num_attention_heads,
-        bias=cfg.model.bias,
-        dropout=cfg.model.dropout,
-        attention_dropout=cfg.model.attention_dropout,
-        causal=cfg.model.causal,
-        attn_type=cfg.model.attn_type,
+    model = instantiate(cfg.model, vocab_size=len(data_module.vocabulary))
+
+    lightning_module = instantiate(
+        cfg.lightning_module,
+        model=model,
+        compile_mode=cfg.hardware.compile_mode,
+        learning_rate=cfg.training.learning_rate,
+        optimizer_epsilon=cfg.training.optimizer_epsilon,
+        scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        loss_fn=cfg.training.loss_fn,
+        loss_params=cfg.training.get("loss_params", {}),
     )
 
     ckpt_callback = ModelCheckpoint(
@@ -68,14 +66,6 @@ def main(cfg: DictConfig) -> None:
         filename="best",
         enable_version_counter=False,
         save_last=True,
-    )
-
-    lightning_module = PretrainModule(
-        model=model,
-        compile_mode=cfg.hardware.compile_mode,
-        learning_rate=cfg.training.learning_rate,
-        optimizer_epsilon=cfg.training.optimizer_epsilon,
-        scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
     )
 
     trainer = L.Trainer(

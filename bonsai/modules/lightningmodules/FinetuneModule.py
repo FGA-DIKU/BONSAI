@@ -1,6 +1,7 @@
 from os.path import join
 from pathlib import Path
 from typing import Optional
+import logging
 
 import lightning as L
 import polars as pl
@@ -48,6 +49,18 @@ class FinetuneModule(L.LightningModule):
             }
         )
         self.save_hyperparameters(hparams)
+
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        """Warn on value_embedding_mode changes vs the pretrain ckpt."""
+        ckpt_mode = checkpoint.get("hyper_parameters", {}).get("value_embedding_mode")
+        ft_mode = self.model.hparams.get("value_embedding_mode")
+        if ckpt_mode != ft_mode:
+            logging.warning(
+                "value_embedding_mode changed between pretrain and finetune: "
+                "checkpoint=%r, finetune model=%r. ",
+                ckpt_mode,
+                ft_mode,
+            )
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(

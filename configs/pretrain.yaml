@@ -10,7 +10,7 @@ paths:
   train_split: ${paths.dir}/subject_data_train.pt
   val_split: ${paths.dir}/subject_data_tuning.pt
   vocab: ${paths.dir}/vocabulary.pt
-  dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset # or MLMPretrainDataset
+  dataset_class: bonsai.modules.datasets.PretrainDataset.ARPretrainDataset # or MLMPretrainDataset / ValueARPretrainDataset / ValueMLMPretrainDataset
   population: ${paths.dir}/population_full.csv
   ckpt_path: 
 
@@ -19,11 +19,13 @@ training:
   batch_size: 128
   accumulate_grad_batches: 1
   epochs: 10
+  loss_fn: CE
   learning_rate: 3e-4
   optimizer_epsilon: 1e-6
   scheduler_warmup_epochs: 1
   limit_val_batches: 1.0
   limit_train_batches: 1.0
+  value_loss_weight: 1.0
   ckpt_every_n_epoch: 1
   cutoff_date: # Optional
   #   day: 1
@@ -31,12 +33,14 @@ training:
   #   year: 2015
   # MLM specific
   # masking:
-  #   masking_select_ratio: 1.
+  #   masking_select_ratio: 0.2
   #   masking_mask_ratio: .8
   #   masking_random_ratio: .1
   #   masking_ignore_special_tokens: true
 
 model:
+  # For numeric values, switch to BonsaiValuePretrain and set value_embedding_mode.
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiPretrain
   max_seqlen: ${training.max_len}
   hidden_size: 64
   num_layers: 4
@@ -44,22 +48,8 @@ model:
   dropout: 0.1
   attention_dropout: 0.0
   bias: false
-  causal: false
+  causal: true 
   attn_type: sdpa
 
-
-#scheduler:
-  #_target_: transformers.get_linear_schedule_with_warmup
-  #num_warmup_epochs: 2
-  #num_training_epochs: 3
-
-metrics:
-  top1:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 1
-  top10:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 10
-  mlm_loss:
-    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
-    loss_name: loss
+lightning_module:
+  _target_: bonsai.modules.lightningmodules.PretrainModule.PretrainModule
