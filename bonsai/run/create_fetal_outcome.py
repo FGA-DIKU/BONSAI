@@ -39,8 +39,9 @@ def main(cfg: DictConfig) -> None:
     input_dir = Path(cfg.paths.input_dir)
     patient_table = Path(cfg.paths.patient_table)
     mapping_file = Path(cfg.paths.mapping_file)
-    mapping_df = pd.read_csv(mapping_file, usecols=["MOR_CPR", "mapping"])
-    mapping_dict = mapping_df.set_index("MOR_CPR")["mapping"].to_dict()
+    mapping_id_column = cfg.paths.mapping_id_column
+    mapping_df = pd.read_csv(mapping_file, usecols=[mapping_id_column, "mapping"])
+    mapping_dict = mapping_df.set_index(mapping_id_column)["mapping"].to_dict()
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 

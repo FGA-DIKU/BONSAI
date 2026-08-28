@@ -12,6 +12,7 @@ paths:
   input_dir: ${dataset}/data
   patient_table: ${patient_table}
   mapping_file: ${mapping_file}
+  mapping_id_column: MOR_CPR
   save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
 
 splits:
