@@ -39,10 +39,13 @@ load_dotenv()
 )
 def main(cfg: DictConfig) -> None:
     print(
-        f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
+        f"{OmegaConf.to_yaml(cfg)}\n"
+        f"Outcome: {cfg.outcome}\n"
+        f"Run id: {cfg.run_id}\n"
+        f"Run dir: {HydraConfig.get().run.dir}\n"
     )
 
-    logger = CSVLogger(get_experiment_output_path(), name="training_runs")
+    logger = CSVLogger(get_experiment_output_path(), name=None, version=0)
     model_save_dir = logger.log_dir
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)

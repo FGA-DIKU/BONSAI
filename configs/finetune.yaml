@@ -3,6 +3,13 @@ defaults:
   - hardware/1gpu6cpu@hardware
   - _self_
 
+hydra:
+  run:
+    dir: ${oc.env:BONSAI_MODELS}/${dataset}/${outcome}/run_id_${run_id}
+  sweep:
+    dir: ${oc.env:BONSAI_MODELS}/${dataset}
+    subdir: ${outcome}/run_id_${run_id}
+
 dataset:
 outcome:
 pretrain_path:
