@@ -80,7 +80,7 @@ class TestFeatures(unittest.TestCase):
             ]
         )
         abspos = compute_abspos(times)
-        self.assertTrue(np.isclose(abspos[1] - abspos[0], 1.0, atol=0.01))
+        self.assertTrue(np.isclose(abspos[1] - abspos[0], 1e-3, atol=1e-5))
         self.assertTrue(abspos[2] is None)
 
         dt = datetime(2000, 1, 1, 0, 0, 0)
