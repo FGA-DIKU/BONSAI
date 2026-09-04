@@ -89,7 +89,7 @@ python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=co
 ## Related projects
 
 - [CORE-BEHRT](https://github.com/mikkelfo/CORE-BEHRT): the predecessor framework BONSAI grew out of.
-- [PHAIR_EHR](https://github.com/kirilklein/PHAIR_EHR): BONSAI extended for causal inference, with cohort matching, joint exposure/outcome finetuning and IPW/AIPW/TMLE effect estimation.
+- [BONSAI Causal](https://github.com/kirilklein/bonsai-causal): BONSAI extended for causal inference, with cohort matching, joint exposure/outcome finetuning and IPW/AIPW/TMLE effect estimation.
 
 ## Contributing
 
