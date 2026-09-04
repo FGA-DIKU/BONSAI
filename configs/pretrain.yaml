@@ -50,6 +50,10 @@ model:
   bias: false
   causal: true 
   attn_type: sdpa
+  # abs_pos data stores timestamps in thousands of hours;
+  # Fourier converts to canonical hours internally.
+  # Options: scaled_time2vec (existing behavior), fourier.
+  abspos_encoding: scaled_time2vec
 
 lightning_module:
   _target_: bonsai.modules.lightningmodules.PretrainModule.PretrainModule

@@ -43,6 +43,7 @@ class BonsaiBase(nn.Module):
         attention_dropout,
         causal,
         attn_type,
+        abspos_encoding="scaled_time2vec",
     ):
         if attn_type == "flash" and not _FLASH_ATTENTION_AVAILABLE:
             raise ImportError(
@@ -57,6 +58,7 @@ class BonsaiBase(nn.Module):
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             max_seqlen=max_seqlen,
+            abspos_encoding=abspos_encoding,
         )
         self.drop = nn.Dropout(dropout)
         self.layers = nn.ModuleList(
@@ -87,6 +89,7 @@ class BonsaiBase(nn.Module):
             "causal": causal,
             "attn_type": attn_type,
             "value_embedding_mode": None,
+            "abspos_encoding": abspos_encoding,
         }
 
     def embed(self, batch: dict) -> torch.Tensor:
@@ -153,6 +156,7 @@ class BonsaiPretrain(BonsaiBase):
         attention_dropout,
         causal,
         attn_type,
+        abspos_encoding="scaled_time2vec",
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -165,6 +169,7 @@ class BonsaiPretrain(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            abspos_encoding=abspos_encoding,
         )
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
         # Weight tying (shares weights from code embedding to pretrain head)
@@ -196,6 +201,7 @@ class BonsaiValuePretrain(BonsaiBase):
         causal,
         attn_type,
         value_embedding_mode,
+        abspos_encoding="scaled_time2vec",
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -208,12 +214,14 @@ class BonsaiValuePretrain(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            abspos_encoding=abspos_encoding,
         )
         self.embeddings = EhrValueEmbeddings(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             max_seqlen=max_seqlen,
             value_embedding_mode=value_embedding_mode,
+            abspos_encoding=abspos_encoding,
         )
         self.hparams["value_embedding_mode"] = value_embedding_mode
         self.pretrain_head = nn.Linear(hidden_size, vocab_size, bias=bias)
@@ -259,6 +267,7 @@ class BonsaiFinetune(BonsaiBase):
         causal,
         attn_type,
         predict_token_id,
+        abspos_encoding="scaled_time2vec",
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -271,6 +280,7 @@ class BonsaiFinetune(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            abspos_encoding=abspos_encoding,
         )
         self.hparams["predict_token_id"] = predict_token_id
         self.finetune_head = nn.Linear(hidden_size, 1, bias=bias)
@@ -298,6 +308,7 @@ class BonsaiValueFinetune(BonsaiBase):
         attn_type,
         predict_token_id,
         value_embedding_mode,
+        abspos_encoding="scaled_time2vec",
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -310,12 +321,14 @@ class BonsaiValueFinetune(BonsaiBase):
             attention_dropout=attention_dropout,
             causal=causal,
             attn_type=attn_type,
+            abspos_encoding=abspos_encoding,
         )
         self.embeddings = EhrValueEmbeddings(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             max_seqlen=max_seqlen,
             value_embedding_mode=value_embedding_mode,
+            abspos_encoding=abspos_encoding,
         )
         self.hparams["value_embedding_mode"] = value_embedding_mode
         self.hparams["predict_token_id"] = predict_token_id

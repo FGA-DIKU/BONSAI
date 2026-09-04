@@ -12,3 +12,16 @@
 build/
 .venv/
 venv/
+
+# Temporary files
+tests/
+test_tmp_*/
+.test_tmp*/
+.test-tmp*/
+.claude
+.codex_test_tmp/
+.pytest*/
+.tmp/
+
+outputs/
+.coverage

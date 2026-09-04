@@ -85,6 +85,7 @@ def main(cfg: DictConfig) -> None:
         num_attention_heads=pretrain_cfg["num_attention_heads"],
         bias=pretrain_cfg["bias"],
         attn_type=pretrain_cfg["attn_type"],
+        abspos_encoding=pretrain_cfg.get("abspos_encoding", "scaled_time2vec"),
         predict_token_id=vocab["[CLS]"],
     )
 

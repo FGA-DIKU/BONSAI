@@ -54,3 +54,5 @@ model:
   bias: false
   causal: true
   attn_type: sdpa
+  # bonsai/run/finetune.py overrides this from the pretraining checkpoint.
+  abspos_encoding: scaled_time2vec
