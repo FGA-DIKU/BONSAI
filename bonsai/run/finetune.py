@@ -7,7 +7,7 @@ import torch
 from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
 
@@ -109,6 +109,7 @@ def main(cfg: DictConfig) -> None:
         model=model,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
+        weight_decay=cfg.training.get("weight_decay", 0.0),
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=get_loss_weight(
             cfg.training.loss_weight_function,
@@ -131,6 +132,14 @@ def main(cfg: DictConfig) -> None:
             save_path=Path(model_save_dir) / "loss.png",
         ),
     ]
+    if cfg.training.get("early_stopping_patience") is not None:
+        callbacks.append(
+            EarlyStopping(
+                monitor=cfg.training.eval_monitor_metric,
+                mode="min",
+                patience=cfg.training.early_stopping_patience,
+            )
+        )
 
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
