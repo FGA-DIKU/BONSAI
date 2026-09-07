@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2896" height="2172" viewBox="0 0 1448 1086" role="img" aria-labelledby="title desc">
+<title id="title">BONSAI pipeline</title>
+<desc id="desc">Three-stage BONSAI pipeline: data creation, pre-training, and fine-tuning.</desc>
+<defs>
+  <marker id="arrow-white" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L8,4 L0,8 Z" fill="#f0f6fc"/>
+  </marker>
+</defs>
+
+<circle cx="42" cy="42" r="21" fill="none" stroke="#f4c542" stroke-width="2.5"/>
+<text x="42" y="50" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="24" font-weight="600" fill="#f4c542" style="">1</text>
+<text x="82" y="52" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="28" font-weight="700" fill="#f0f6fc" style="">Data creation</text>
+<ellipse cx="157" cy="115" rx="75" ry="21" fill="#0d1117" fill-opacity=".82" stroke="#4db8ff" stroke-width="2"/>
+<path d="M82,115 v132 c0,14 34,25 75,25 s75,-11 75,-25 v-132" fill="#0d1117" fill-opacity=".82" stroke="#4db8ff" stroke-width="2"/>
+<ellipse cx="157" cy="163" rx="20" ry="8" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<path d="M137,163 v34 c0,4.5 9,8 20,8 s20,-3.5 20,-8 v-34 M137,175 c0,4.5 9,8 20,8 s20,-3.5 20,-8 M137,186 c0,4.5 9,8 20,8 s20,-3.5 20,-8" stroke="#4db8ff" stroke-width="2" fill="none"/>
+<text x="157" y="239" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="22" font-weight="600" fill="#f0f6fc" style="">MEDS</text>
+<path d="M240,174 L327,174" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="334" y="124" width="250" height="105" rx="13" fill="#0d1117" fill-opacity="0.86" stroke="#c8d1dc" stroke-width="2"/>
+<path d="M370,158 h8 l2,5 5,2 5,-2 4,7 -4,4 v6 l4,4 -4,7 -5,-2 -5,2 -2,5 h-8 l-2,-5 -5,-2 -5,2 -4,-7 4,-4 v-6 l-4,-4 4,-7 5,2 5,-2 z" stroke="#c8d1dc" stroke-width="2" fill="none" stroke-linejoin="round"/>
+<circle cx="374" cy="175" r="5" fill="none" stroke="#c8d1dc" stroke-width="2"/>
+<text x="414" y="169" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="21" font-weight="650" fill="#f0f6fc" style="">Create data</text>
+<text x="414" y="200" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="16" font-weight="500" fill="#b7c0cc" style="font-style:italic;">features -> tokenize</text>
+<path d="M591,174 L662,174" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="671" y="28" width="307" height="278" rx="13" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<path d="M699,43 h18 l8,8 v28 h-26 z M717,43 v8 h8 M704,58 h14 M704,64 h14 M704,70 h11" stroke="#4db8ff" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="750" y="70" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="21" font-weight="600" fill="#f0f6fc" style="">Patient sequences</text>
+<rect x="691" y="92" width="269" height="58" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<rect x="691" y="164" width="269" height="58" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<rect x="691" y="235" width="269" height="58" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<rect x="713" y="106" width="11" height="11" rx="2" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<rect x="713" y="123" width="11" height="11" rx="2" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<rect x="730" y="106" width="11" height="11" rx="2" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<rect x="730" y="123" width="11" height="11" rx="2" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<text x="759" y="130" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="19" font-weight="550" fill="#f0f6fc" style="">tokenized sequences</text>
+<path d="M712,173 h18 l8,8 v28 h-26 z M730,173 v8 h8 M717,188 h14 M717,194 h14 M717,200 h11" stroke="#4db8ff" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="759" y="202" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="19" font-weight="550" fill="#f0f6fc" style="">vocabulary</text>
+<circle cx="724" cy="256" r="8" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<path d="M712,279 c2,-10 7,-14 12,-14 s10,4 12,14 z M735,255 c6,2 8,7 8,11 M737,267 c5,2 8,6 8,12" fill="none" stroke="#4db8ff" stroke-width="2" stroke-linecap="round"/>
+<text x="759" y="274" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="19" font-weight="550" fill="#f0f6fc" style="">population</text>
+<line x1="24" y1="335" x2="1392" y2="335" stroke="#8b949e" stroke-width="1.8" stroke-dasharray="9 8"/>
+<circle cx="42" cy="388" r="21" fill="none" stroke="#f4c542" stroke-width="2.5"/>
+<text x="42" y="396" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="24" font-weight="600" fill="#f4c542" style="">2</text>
+<text x="82" y="398" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="28" font-weight="700" fill="#f0f6fc" style="">Pre-training</text>
+<rect x="102" y="428" width="270" height="74" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<path d="M123,443 h18 l8,8 v28 h-26 z M141,443 v8 h8 M128,458 h14 M128,464 h14 M128,470 h11" stroke="#4db8ff" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="175" y="473" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="20" font-weight="550" fill="#f0f6fc" style="">Patient sequences</text>
+<path d="M373,465 L454,465" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="462" y="420" width="390" height="84" rx="12" fill="#0d1117" fill-opacity="0.86" stroke="#ff5d5d" stroke-width="2"/>
+<path d="M503,438 l18,10 v20 l-18,10 -18,-10 v-20 z M485,448 l18,10 18,-10 M503,458 v20" stroke="#ff5d5d" stroke-width="2" fill="none" stroke-linejoin="round"/>
+<text x="546" y="458" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="21" font-weight="650" fill="#ff5d5d" style="">Pretrain</text>
+<text x="546" y="486" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="16" font-weight="500" fill="#b7c0cc" style="font-style:italic;">self-supervised: next-token or masked</text>
+<path d="M854,464 L927,464" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="933" y="423" width="250" height="82" rx="12" fill="#0d1117" fill-opacity="0.86" stroke="#f4c542" stroke-width="2"/>
+<path d="M972,451 L958,469 M976,451 L987,469 M961,475 H983" stroke="#f4c542" stroke-width="2" fill="none"/>
+<circle cx="972" cy="443" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<circle cx="953" cy="475" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<circle cx="991" cy="475" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<text x="1008" y="471" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="20" font-weight="600" fill="#f0f6fc" style="">Pretrained model</text>
+<path d="M1054,505 L1054,784" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<line x1="24" y1="559" x2="1392" y2="559" stroke="#8b949e" stroke-width="1.8" stroke-dasharray="9 8"/>
+<circle cx="42" cy="612" r="21" fill="none" stroke="#f4c542" stroke-width="2.5"/>
+<text x="42" y="620" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="24" font-weight="600" fill="#f4c542" style="">3</text>
+<text x="82" y="622" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="28" font-weight="700" fill="#f0f6fc" style="">Fine-tuning</text>
+<rect x="22" y="665" width="719" height="319" rx="14" fill="#0d1117" fill-opacity="0.75" stroke="#7ee787" stroke-width="2"/>
+<path d="M47,682 h18 l8,8 v28 h-26 z M65,682 v8 h8 M52,697 h14 M52,703 h14 M52,709 h11" stroke="#7ee787" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="91" y="711" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="21" font-weight="600" fill="#7ee787" style="">Downstream task preparation</text>
+<rect x="40" y="754" width="171" height="70" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<ellipse cx="80" cy="777" rx="20" ry="8" fill="none" stroke="#4db8ff" stroke-width="2"/>
+<path d="M60,777 v34 c0,4.5 9,8 20,8 s20,-3.5 20,-8 v-34 M60,789 c0,4.5 9,8 20,8 s20,-3.5 20,-8 M60,800 c0,4.5 9,8 20,8 s20,-3.5 20,-8" stroke="#4db8ff" stroke-width="2" fill="none"/>
+<text x="113" y="798" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="19" font-weight="600" fill="#f0f6fc" style="">MEDS</text>
+<rect x="37" y="869" width="213" height="81" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<path d="M52,886 h18 l8,8 v28 h-26 z M70,886 v8 h8 M57,901 h14 M57,907 h14 M57,913 h11" stroke="#4db8ff" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="96" y="900" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f6fc" style="">Outcome definition</text>
+<text x="96" y="926" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500" fill="#f0f6fc" style="">(+ exclusion criteria)</text>
+<rect x="297" y="794" width="166" height="100" rx="12" fill="#0d1117" fill-opacity="0.86" stroke="#7ee787" stroke-width="2"/>
+<path d="M327,826 h8 l2,5 5,2 5,-2 4,7 -4,4 v6 l4,4 -4,7 -5,-2 -5,2 -2,5 h-8 l-2,-5 -5,-2 -5,2 -4,-7 4,-4 v-6 l-4,-4 4,-7 5,2 5,-2 z" stroke="#c8d1dc" stroke-width="2" fill="none" stroke-linejoin="round"/>
+<circle cx="331" cy="843" r="5" fill="none" stroke="#c8d1dc" stroke-width="2"/>
+<text x="362" y="835" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="650" fill="#f0f6fc" style="">Create</text>
+<text x="362" y="862" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="650" fill="#f0f6fc" style="">outcomes</text>
+<path d="M211,789 L264,789 L264,834 L292,834" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<path d="M250,911 L264,911 L264,861 L292,861" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="504" y="789" width="216" height="127" rx="13" fill="#0d1117" fill-opacity="0.86" stroke="#7ee787" stroke-width="2"/>
+<rect x="526" y="829" width="5" height="13" fill="none" stroke="#7ee787" stroke-width="2"/>
+<rect x="535" y="822" width="5" height="20" fill="none" stroke="#7ee787" stroke-width="2"/>
+<rect x="544" y="812" width="5" height="30" fill="none" stroke="#7ee787" stroke-width="2"/>
+<text x="578" y="831" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="19" font-weight="600" fill="#f0f6fc" style="">Outcomes</text>
+<text x="520" y="866" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500" fill="#b7c0cc" style="font-style:italic;">index date, outcome date,</text>
+<text x="526" y="894" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500" fill="#b7c0cc" style="font-style:italic;">censor date per subject</text>
+<path d="M464,844 L498,844" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="765" y="625" width="180" height="81" rx="11" fill="#0d1117" fill-opacity="0.86" stroke="#4db8ff" stroke-width="2"/>
+<path d="M785,643 h18 l8,8 v28 h-26 z M803,643 v8 h8 M790,658 h14 M790,664 h14 M790,670 h11" stroke="#4db8ff" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="842" y="659" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#f0f6fc" style="">Patient</text>
+<text x="842" y="686" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#f0f6fc" style="">sequences</text>
+<path d="M850,706 L850,808 L886,808" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<path d="M741,846 L887,846" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<rect x="893" y="784" width="251" height="140" rx="13" fill="#0d1117" fill-opacity="0.86" stroke="#ff5d5d" stroke-width="2"/>
+<path d="M926,823 a17,17 0 0 1 29,-8 l3,4 M958,819 v-9 M958,819 h-9 M958,827 a17,17 0 0 1 -29,8 l-3,-4 M926,831 v9 M926,831 h9" stroke="#ff5d5d" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="982" y="829" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="20" font-weight="650" fill="#ff5d5d" style="">Finetune</text>
+<text x="935" y="870" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500" fill="#b7c0cc" style="font-style:italic;">censor at censor date;</text>
+<text x="913" y="898" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500" fill="#b7c0cc" style="font-style:italic;">train / tuning / held-out splits</text>
+<rect x="1200" y="764" width="195" height="85" rx="12" fill="#0d1117" fill-opacity="0.86" stroke="#f4c542" stroke-width="2"/>
+<path d="M1239,794 L1225,812 M1243,794 L1254,812 M1228,818 H1250" stroke="#f4c542" stroke-width="2" fill="none"/>
+<circle cx="1239" cy="786" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<circle cx="1220" cy="818" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<circle cx="1258" cy="818" r="7" fill="#0d1117" stroke="#f4c542" stroke-width="2"/>
+<text x="1278" y="804" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#f0f6fc" style="">Finetuned</text>
+<text x="1278" y="831" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#f0f6fc" style="">model</text>
+<rect x="1200" y="865" width="195" height="91" rx="12" fill="#0d1117" fill-opacity="0.86" stroke="#f4c542" stroke-width="2"/>
+<rect x="1216" y="904" width="5" height="13" fill="none" stroke="#f4c542" stroke-width="2"/>
+<rect x="1225" y="897" width="5" height="20" fill="none" stroke="#f4c542" stroke-width="2"/>
+<rect x="1234" y="887" width="5" height="30" fill="none" stroke="#f4c542" stroke-width="2"/>
+<text x="1275" y="903" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#f0f6fc" style="">Predictions</text>
+<text x="1275" y="933" text-anchor="start" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500" fill="#f0f6fc" style="font-style:italic;">(held-out split)</text>
+<path d="M1144,838 L1163,838 L1163,808 L1194,808" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+<path d="M1144,864 L1163,864 L1163,910 L1194,910" stroke="#f0f6fc" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-white)"/>
+</svg>
