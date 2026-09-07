@@ -36,19 +36,19 @@ outcomes:
   duplicate_subject_policy: first_lowest_censor_abspos # all or first_lowest_censor_abspos
 
 training:
-  max_len: 2048
-  batch_size: 256
+  max_len: 512
+  batch_size: 512
   accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 20
+  epochs: 40
   learning_rate: 1e-5
-  weight_decay: 0.01
-  early_stopping_patience: 3
+  #weight_decay: 0.01
+  #early_stopping_patience: 3
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
     _target_: bonsai.functional.sampling.effective_n_samples
   loss_weight_function: 
     _target_: bonsai.functional.loss.effective_n_samples
-  scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
+  scheduler_warmup_epochs: 1 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
   limit_val_batches: null
   limit_train_batches: null
@@ -56,11 +56,13 @@ training:
 
 model:
   # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.
-  _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiValueFinetune
   max_seqlen: ${training.max_len}
-  hidden_size: 128
+  hidden_size: 54
   num_layers: 4
   num_attention_heads: 4
   dropout: 0.1
   attention_dropout: 0.0
-  causal: false
+  causal: true
+  bias: false
+  attn_type: sdpa
