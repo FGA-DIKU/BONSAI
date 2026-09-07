@@ -13,6 +13,7 @@ class LossPlotCallback(Callback):
         self.metrics_csv = metrics_csv
         self.save_path = save_path
         self.sens_save_path = save_path.with_name("sens_at_spec85.png")
+        self.auroc_save_path = save_path.with_name("auroc.png")
 
     @staticmethod
     def _epoch_series(df: pl.DataFrame, column: str) -> pl.DataFrame:
@@ -85,4 +86,13 @@ class LossPlotCallback(Callback):
             ylabel="sensitivity @ specificity 0.85",
             title="Training and validation sensitivity @ specificity 0.85",
             save_path=self.sens_save_path,
+        )
+        self._plot_epoch_series(
+            self._epoch_series(df, "train/AUROC"),
+            self._epoch_series(df, "val/AUROC"),
+            train_col="train/AUROC",
+            val_col="val/AUROC",
+            ylabel="AUROC",
+            title="Training and validation AUROC",
+            save_path=self.auroc_save_path,
         )
