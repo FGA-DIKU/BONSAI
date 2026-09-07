@@ -39,10 +39,10 @@ training:
   max_len: 512
   batch_size: 512
   accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 40
+  epochs: 80
   learning_rate: 1e-5
-  #weight_decay: 0.01
-  #early_stopping_patience: 3
+  weight_decay: 0.01
+  early_stopping_patience: 10
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
     _target_: bonsai.functional.sampling.effective_n_samples
@@ -52,7 +52,8 @@ training:
   ckpt_every_n_epoch: 1
   limit_val_batches: null
   limit_train_batches: null
-  eval_monitor_metric: val/loss
+  eval_monitor_metric: val/AUROC  # or val/loss, val/AveragePrecision, val/sens@spec85
+  eval_monitor_mode: max  # min for loss, max for AUROC / AP / sens@spec
 
 model:
   # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.

@@ -117,11 +117,14 @@ def main(cfg: DictConfig) -> None:
         ),
     )
 
+    monitor_metric = cfg.training.eval_monitor_metric
+    monitor_mode = cfg.training.eval_monitor_mode
+
     callbacks = [
         ModelCheckpoint(
             dirpath=model_save_dir,
-            monitor=cfg.training.eval_monitor_metric,
-            mode="min",
+            monitor=monitor_metric,
+            mode=monitor_mode,
             save_top_k=1,
             filename="best",
             enable_version_counter=False,
@@ -135,8 +138,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.training.get("early_stopping_patience") is not None:
         callbacks.append(
             EarlyStopping(
-                monitor=cfg.training.eval_monitor_metric,
-                mode="min",
+                monitor=monitor_metric,
+                mode=monitor_mode,
                 patience=cfg.training.early_stopping_patience,
             )
         )
