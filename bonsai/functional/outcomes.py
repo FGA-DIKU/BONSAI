@@ -3,6 +3,8 @@ from typing import Literal
 
 import polars as pl
 
+from bonsai.functional.features import compute_abspos
+
 
 def get_subject_first_row_for_conditions(
     df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
@@ -97,7 +99,10 @@ def binarize_outcomes(
     )
 
 
-def outcomes_to_dict(outcomes: pl.DataFrame) -> dict[int, dict]:
+def finalize_outcomes(outcomes: pl.DataFrame) -> dict[int, dict]:
+    outcomes = outcomes.with_columns(
+        censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
     return {
         row["subject_id"]: {
             key: value for key, value in row.items() if key != "subject_id"
@@ -129,7 +134,7 @@ def split_and_binarize_outcomes(
     splits = split_outcomes(outcomes, train_key, val_key, test_key)
 
     return (
-        outcomes_to_dict(
+        finalize_outcomes(
             binarize_outcomes(
                 split,
                 n_hours_start_include,
@@ -151,7 +156,7 @@ def split_and_tte_outcomes(
     splits = split_outcomes(outcomes, train_key, val_key, test_key)
 
     return (
-        outcomes_to_dict(
+        finalize_outcomes(
             tte_outcomes(
                 split,
                 end_of_followup,
