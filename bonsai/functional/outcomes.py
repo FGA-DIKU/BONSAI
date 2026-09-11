@@ -1,10 +1,11 @@
-from typing import List, Literal, Optional, Dict, Tuple
 from datetime import datetime, timedelta
+from typing import Literal
+
 import polars as pl
 
 
 def get_subject_first_row_for_conditions(
-    df: pl.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
+    df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
     """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
     # Initialization
@@ -82,50 +83,108 @@ def fill_nans_with_sampled(dates):
 def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
-) -> Dict[int, dict]:
-    time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
-    time_delta_hours = time_delta_datetime.dt.total_hours()
+    n_hours_end_include: int | None = None,
+) -> pl.DataFrame:
+    time_delta_hours = (pl.col("outcome_date") - pl.col("index_date")).dt.total_hours()
 
-    outcomes_in_prediction_window = pl.lit(n_hours_start_include) <= time_delta_hours
+    in_prediction_window = time_delta_hours >= n_hours_start_include
+
     if n_hours_end_include is not None:
-        outcomes_in_prediction_window = outcomes_in_prediction_window & (
-            time_delta_hours <= pl.lit(n_hours_end_include)
-        )
+        in_prediction_window &= time_delta_hours <= n_hours_end_include
 
-    outcomes = outcomes.with_columns(
-        label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
+    return outcomes.with_columns(
+        label=in_prediction_window.fill_null(False).cast(pl.Int64)
     )
 
-    rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
+
+def outcomes_to_dict(outcomes: pl.DataFrame) -> dict[int, dict]:
     return {
         row["subject_id"]: {
-            "label": row["label"],
-            "censor_abspos": row["censor_abspos"],
+            key: value for key, value in row.items() if key != "subject_id"
         }
-        for row in rows
+        for row in outcomes.to_dicts()
     }
 
 
+def split_outcomes(
+    outcomes: pl.DataFrame,
+    train_key: str,
+    val_key: str,
+    test_key: str,
+):
+    return (
+        outcomes.filter(pl.col("split") == split_key)
+        for split_key in (train_key, val_key, test_key)
+    )
+
+
 def split_and_binarize_outcomes(
-    outcomes,
+    outcomes: pl.DataFrame,
     train_key: str,
     val_key: str,
     test_key: str,
     n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
-) -> Tuple[Dict[int, dict], Dict[int, dict], Dict[int, dict]]:
-    train_outcomes = outcomes.filter(pl.col("split") == train_key)
-    train_outcomes = binarize_outcomes(
-        train_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    val_outcomes = outcomes.filter(pl.col("split") == val_key)
-    val_outcomes = binarize_outcomes(
-        val_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    test_outcomes = outcomes.filter(pl.col("split") == test_key)
-    test_outcomes = binarize_outcomes(
-        test_outcomes, n_hours_start_include, n_hours_end_include
+    n_hours_end_include: int | None = None,
+):
+    splits = split_outcomes(outcomes, train_key, val_key, test_key)
+
+    return (
+        outcomes_to_dict(
+            binarize_outcomes(
+                split,
+                n_hours_start_include,
+                n_hours_end_include,
+            )
+        )
+        for split in splits
     )
 
-    return train_outcomes, val_outcomes, test_outcomes
+
+def split_and_tte_outcomes(
+    outcomes: pl.DataFrame,
+    train_key: str,
+    val_key: str,
+    test_key: str,
+    end_of_followup: dict | None,  # SHOULD BE A COLUMN
+    n_hours_end_include: int | None = None,
+):
+    splits = split_outcomes(outcomes, train_key, val_key, test_key)
+
+    return (
+        outcomes_to_dict(
+            tte_outcomes(
+                split,
+                end_of_followup,
+                n_hours_end_include,
+            )
+        )
+        for split in splits
+    )
+
+
+def tte_outcomes(
+    outcomes: pl.DataFrame,
+    end_of_followup: dict | None,  # SHOULD BE A COLUMN
+    n_hours_end_include: int | None = None,
+) -> pl.DataFrame:
+    """Adds time-to-event and event columns to outcomes dataframe"""
+    if (
+        "end_of_followup_date" not in outcomes.columns and end_of_followup is not None
+    ):  # TODO: TEMPORARY
+        outcomes = outcomes.with_columns(
+            pl.datetime(**end_of_followup).alias("end_of_followup_date")
+        )
+
+    origin = pl.col("index_date")
+    t_event = (pl.col("outcome_date") - origin).dt.total_hours()
+    t_end = (pl.col("end_of_followup_date") - origin).dt.total_hours()
+
+    has_event = t_event.is_not_null()
+    t_cens = pl.min_horizontal(t_end, pl.lit(n_hours_end_include))
+
+    return outcomes.with_columns(
+        duration=pl.when(has_event & (t_event <= t_cens))
+        .then(t_event)
+        .otherwise(t_cens),
+        label=(has_event & (t_event <= t_cens)).cast(pl.Int64),
+    )
