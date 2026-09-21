@@ -11,10 +11,8 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
 
-from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.outcomes import split_and_tte_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
@@ -54,7 +52,6 @@ def main(cfg: DictConfig) -> None:
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )
 
-    train_labels = [v["label"] for v in train_outcomes.values()]
     data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
@@ -67,9 +64,6 @@ def main(cfg: DictConfig) -> None:
         predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
-        train_sampler=get_sampler(
-            weight_fn=cfg.training.sampling_weight_fn, labels=train_labels
-        ),
     )
 
     model = instantiate(
@@ -91,10 +85,6 @@ def main(cfg: DictConfig) -> None:
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
-        pos_weight=get_loss_weight(
-            cfg.training.loss_weight_function,
-            labels=train_labels,
-        ),
     )
 
     ckpt_callback = ModelCheckpoint(
