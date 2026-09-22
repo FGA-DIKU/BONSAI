@@ -38,9 +38,6 @@ def main(cfg: DictConfig) -> None:
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
-    outcomes = outcomes.with_columns(
-        censor_abspos=compute_abspos(pl.col("censor_date"))
-    )
     train_outcomes, val_outcomes, predict_outcomes = split_and_binarize_outcomes(
         outcomes,
         train_key="train",
