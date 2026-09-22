@@ -1,4 +1,5 @@
 from typing import Literal
+
 import torch
 from torchmetrics import Metric
 
@@ -51,3 +52,24 @@ class SharedPrecisionAtK(Metric):
             raise ValueError(
                 f"Invalid reduce option: {self.reduce}. Must be 'mean' or 'sum'."
             )
+
+
+class TimepointMetric(Metric):
+    def __init__(self, metric: Metric, timepoint: int, **kwargs):
+        super().__init__(**kwargs)
+        self.metric = metric
+        self.timepoint = timepoint
+
+    def update(self, logits: torch.Tensor, labels: torch.Tensor):
+        assert logits.ndim == 2, "Logits must be of shape (B, C)"
+        # Filter out ignored indices
+        mask = labels != -100
+        logits = logits[mask]  # (B, C)
+        labels = labels[mask]  # (B, C)
+        # Select the logits and labels corresponding to the specified timepoint
+        logits_tp = logits[:, self.timepoint]
+        labels_tp = labels[:, self.timepoint]
+        self.metric.update(logits_tp, labels_tp)
+
+    def compute(self):
+        return self.metric.compute()

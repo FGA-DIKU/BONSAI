@@ -76,6 +76,7 @@ def main(cfg: DictConfig) -> None:
         bias=pretrain_cfg["bias"],
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
+        prediction_horizons=cfg.labels.prediction_horizons,
     )
 
     lightning_module = FinetuneModule.load_from_checkpoint(

@@ -1,0 +1,17 @@
+defaults: 
+  - finetune
+  - _self_
+
+dataset:
+outcome:
+pretrain_path:
+
+labels:
+  prediction_horizons: [3, 6, 12, 24, 32] # in months
+
+training:
+  batch_size: 256
+  epochs: 10
+  learning_rate: 3e-5
+  sampling_weight_fn: null
+  loss_weight_function: null
