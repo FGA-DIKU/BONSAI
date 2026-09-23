@@ -64,7 +64,7 @@ class FinetuneDataModule(L.LightningDataModule):
         val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
-        background_length = (train_data[0]["segment"] == 0).sum()
+        background_length = (train_data[0]["segment"] == 1).sum()
 
         self.train_dataset = FinetuneDataset(
             train_data,
@@ -90,7 +90,7 @@ class FinetuneDataModule(L.LightningDataModule):
         ]
         population_subject_ids = self.population["subject_id"].to_list()
         predict_data = filter_subject_data(predict_data, population_subject_ids)
-        background_length = (predict_data[0]["segment"] == 0).sum()
+        background_length = (predict_data[0]["segment"] == 1).sum()
         self.predict_dataset = FinetuneDataset(
             predict_data,
             outcomes=self.predict_outcomes,

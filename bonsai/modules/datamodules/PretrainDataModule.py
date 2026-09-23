@@ -58,7 +58,7 @@ class PretrainDataModule(L.LightningDataModule):
         val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
-        background_length = (train_data[0]["segment"] == 0).sum()
+        background_length = (train_data[0]["segment"] == 1).sum()
 
         if issubclass(self.dataset_class, MLMPretrainDataset):
             assert self.masking_config is not None
