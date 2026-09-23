@@ -37,6 +37,10 @@ def main(cfg: DictConfig) -> None:
     print(
         f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
     )
+    if cfg.training.sampling_weight_fn is not None and cfg.training.loss_weight_function is not None:
+        raise ValueError(
+            "Cannot specify both sampling_weight_fn and loss_weight_function"
+        )
 
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
