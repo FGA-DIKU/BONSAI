@@ -38,6 +38,7 @@ training:
   limit_val_batches: 50
   limit_train_batches: 50
   eval_monitor_metric: val/loss
+  eval_monitor_mode: min
 
 model:
   # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.

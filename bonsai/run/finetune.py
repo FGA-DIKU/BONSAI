@@ -104,7 +104,7 @@ def main(cfg: DictConfig) -> None:
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
         monitor=cfg.training.eval_monitor_metric,
-        mode="min",
+        mode=cfg.training.eval_monitor_mode,
         save_top_k=1,
         filename="best",
         enable_version_counter=False,
