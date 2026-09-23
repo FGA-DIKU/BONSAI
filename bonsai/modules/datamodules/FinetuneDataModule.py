@@ -1,11 +1,13 @@
-from typing import Literal, Dict, Optional
-import polars as pl
+from typing import Dict, Literal, Optional
+
 import lightning as L
+import polars as pl
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
+
 from bonsai.functional.collate import dynamic_padding
-from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 from bonsai.functional.subject_data import filter_subject_data
+from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 
 
 class FinetuneDataModule(L.LightningDataModule):
@@ -104,6 +106,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
+            shuffle=True,
             drop_last=True,
             collate_fn=dynamic_padding,
             sampler=self.train_sampler,
@@ -116,7 +119,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
-            drop_last=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )

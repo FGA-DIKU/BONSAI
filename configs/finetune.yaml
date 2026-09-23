@@ -17,9 +17,6 @@ paths:
   population: ${paths.dir}/population_full.csv
   ckpt_path: 
 
-data:
-  shuffle: true
-
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
   n_hours_start_include: 1 # start follow up (considering outcomes) time after index date (negative means before)
