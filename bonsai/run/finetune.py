@@ -49,10 +49,7 @@ def main(cfg: DictConfig) -> None:
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
-    if pretrain_cfg["max_seqlen"] < cfg.training.max_len:
-        raise ValueError(
-            f"Pretrain max_seqlen {pretrain_cfg['max_seqlen']} < finetune max_len {cfg.training.max_len}"
-        )
+    assert pretrain_cfg["max_seqlen"] >= cfg.training.max_len
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
