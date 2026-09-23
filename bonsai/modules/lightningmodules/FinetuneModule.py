@@ -1,7 +1,7 @@
+import logging
 from os.path import join
 from pathlib import Path
 from typing import Optional
-import logging
 
 import lightning as L
 import polars as pl
@@ -98,7 +98,7 @@ class FinetuneModule(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         labels = batch["target"]
-        logits, _ = self.model(batch)
+        logits = self.model(batch)
         self.test_metrics(logits, labels)
         self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
 
