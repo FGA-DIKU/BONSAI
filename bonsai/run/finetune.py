@@ -47,6 +47,7 @@ def main(cfg: DictConfig) -> None:
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
+    assert pretrain_cfg["max_seqlen"] >= cfg.training.max_len
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
