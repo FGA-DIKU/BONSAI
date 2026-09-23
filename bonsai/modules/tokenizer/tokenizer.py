@@ -50,7 +50,7 @@ class EHRTokenizer:
         unique_codes = codes.unique()
 
         # Add new codes
-        new_codes = set(unique_codes) - set(self.vocabulary)
+        new_codes = sorted(set(unique_codes) - set(self.vocabulary))
         if new_codes:
             start_idx = max(self.vocabulary.values()) + 1
             new_indices = range(start_idx, start_idx + len(new_codes))
