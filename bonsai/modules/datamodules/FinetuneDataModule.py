@@ -106,7 +106,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
-            shuffle=True,
+            shuffle=True if self.train_sampler is None else False,
             drop_last=True,
             collate_fn=dynamic_padding,
             sampler=self.train_sampler,
