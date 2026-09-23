@@ -1,5 +1,6 @@
+from typing import Dict, List
+
 import torch
-from typing import List, Dict
 
 
 def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
@@ -26,4 +27,12 @@ def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Ten
         )
     output["subject_id"] = torch.tensor(collected["subject_id"])
 
+    return output
+
+
+def tte_collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    output = dynamic_padding(batch)
+    output["duration"] = torch.nn.utils.rnn.pad_sequence(
+        [sample["duration"] for sample in batch], batch_first=True
+    )
     return output

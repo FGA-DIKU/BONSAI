@@ -259,7 +259,7 @@ class BonsaiFinetune(BonsaiBase):
         causal,
         attn_type,
         predict_token_id,
-        prediction_horizons,
+        prediction_horizons=None,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -274,7 +274,11 @@ class BonsaiFinetune(BonsaiBase):
             attn_type=attn_type,
         )
         self.hparams["predict_token_id"] = predict_token_id
-        self.finetune_head = nn.Linear(hidden_size, len(prediction_horizons), bias=bias)
+        self.finetune_head = nn.Linear(
+            hidden_size,
+            len(prediction_horizons) if prediction_horizons is not None else 1,
+            bias=bias,
+        )
 
     def forward(self, batch: dict):
         last_hidden_state = super().forward(batch)

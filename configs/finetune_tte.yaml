@@ -1,5 +1,5 @@
 defaults: 
-  - finetune
+  - examples/example_finetune
   - _self_
 
 dataset:
@@ -8,10 +8,11 @@ pretrain_path:
 
 labels:
   prediction_horizons: [3, 6, 12, 24, 32] # in months
+  end_of_followup: 
+    year: 2024
+    month: 1
+    day: 1
 
 training:
-  batch_size: 256
-  epochs: 10
-  learning_rate: 3e-5
   sampling_weight_fn: null
   loss_weight_function: null

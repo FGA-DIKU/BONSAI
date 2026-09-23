@@ -14,8 +14,8 @@ from omegaconf import DictConfig, OmegaConf
 from bonsai.functional.outcomes import split_and_tte_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
-from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
-from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
+from bonsai.modules.datamodules.TTEDataModule import TTEDataModule
+from bonsai.modules.lightningmodules.TTEModule import TTEModule
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -52,7 +52,7 @@ def main(cfg: DictConfig) -> None:
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )
 
-    data_module = FinetuneDataModule(
+    data_module = TTEDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
         path_train_data=cfg.paths.train_split,
@@ -79,13 +79,14 @@ def main(cfg: DictConfig) -> None:
         prediction_horizons=cfg.labels.prediction_horizons,
     )
 
-    lightning_module = FinetuneModule.load_from_checkpoint(
+    lightning_module = TTEModule.load_from_checkpoint(
         cfg.pretrain_path,
         strict=False,
         model=model,
         learning_rate=cfg.training.learning_rate,
         optimizer_epsilon=cfg.training.optimizer_epsilon,
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
+        prediction_horizons=cfg.labels.prediction_horizons,
     )
 
     ckpt_callback = ModelCheckpoint(
