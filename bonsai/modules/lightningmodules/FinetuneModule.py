@@ -81,8 +81,9 @@ class FinetuneModule(L.LightningModule):
     def training_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
+        probs = torch.sigmoid(logits)
         loss = self.train_loss(logits, labels.float())
-        self.train_metrics(logits, labels)
+        self.train_metrics(probs, labels)
         self.log("train/loss", loss, prog_bar=True)
         self.log_dict(self.train_metrics)
         return loss
@@ -90,16 +91,18 @@ class FinetuneModule(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
+        probs = torch.sigmoid(logits)
         loss = self.val_loss(logits, labels.float())
         self.log("val/loss", loss, prog_bar=True)
-        self.val_metrics(logits, labels)
+        self.val_metrics(probs, labels)
         self.log_dict(self.val_metrics)
         return loss
 
     def test_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
-        self.test_metrics(logits, labels)
+        probs = torch.sigmoid(logits)
+        self.test_metrics(probs, labels)
         self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
 
     def on_predict_epoch_start(self) -> None:
