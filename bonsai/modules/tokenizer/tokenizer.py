@@ -63,9 +63,9 @@ class EHRTokenizer:
             & (pl.col("subject_id") == pl.col("subject_id").shift(-1))
         ).with_columns(code=pl.lit("[SEP]"))
         if "numeric_value" in df.columns:
-            sep_rows = sep_rows.with_columns(numeric_value=pl.lit(None))
+            sep_rows = sep_rows.with_columns(numeric_value=pl.lit(None), dtype=sep_rows.schema["numeric_value"])
         df = pl.concat([df, sep_rows])
-        df = df.sort(["subject_id", "abspos"], maintain_order=True)
+        df = df.sort(["subject_id", "segment"], maintain_order=True)
         return df
 
     def tokenize(self, codes: pl.Expr) -> pl.Expr:
