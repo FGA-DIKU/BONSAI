@@ -61,6 +61,15 @@ class FinetuneModule(L.LightningModule):
                 ckpt_mode,
                 ft_mode,
             )
+        causal_mode = checkpoint.get("hyper_parameters", {}).get("causal")
+        ft_mode = self.model.hparams.get("causal")
+        if causal_mode != ft_mode:
+            logging.warning(
+                "causal mode changed between pretrain and finetune: "
+                "checkpoint=%r, finetune model=%r. ",
+                causal_mode,
+                ft_mode,
+            )
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
