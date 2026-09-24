@@ -10,6 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
+from bonsai.modules.datasets.PretrainDataset import ARPretrainDataset
 from bonsai.paths import get_config_path
 
 OmegaConf.register_new_resolver(
@@ -28,6 +29,8 @@ def main(cfg: DictConfig) -> None:
     print(
         f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
     )
+    if issubclass(get_class(cfg.paths.dataset_class), ARPretrainDataset):
+      assert cfg.model.causal, "AR pretraining requires causal attention"
 
     logger = CSVLogger(get_experiment_output_path(), name=None, version=0)
     model_save_dir = logger.log_dir
