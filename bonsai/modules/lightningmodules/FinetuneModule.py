@@ -52,24 +52,17 @@ class FinetuneModule(L.LightningModule):
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
         """Warn on value_embedding_mode changes vs the pretrain ckpt."""
-        ckpt_mode = checkpoint.get("hyper_parameters", {}).get("value_embedding_mode")
-        ft_mode = self.model.hparams.get("value_embedding_mode")
-        if ckpt_mode != ft_mode:
-            logging.warning(
-                "value_embedding_mode changed between pretrain and finetune: "
-                "checkpoint=%r, finetune model=%r. ",
-                ckpt_mode,
-                ft_mode,
-            )
-        causal_mode = checkpoint.get("hyper_parameters", {}).get("causal")
-        ft_mode = self.model.hparams.get("causal")
-        if causal_mode != ft_mode:
-            logging.warning(
-                "causal mode changed between pretrain and finetune: "
-                "checkpoint=%r, finetune model=%r. ",
-                causal_mode,
-                ft_mode,
-            )
+        for key in ["value_embedding_mode", "causal", "max_seqlen"]:
+            ckpt_value = checkpoint.get("hyper_parameters", {}).get(key)
+            ft_value = self.model.hparams.get(key)
+            if ckpt_value != ft_value:
+                logging.warning(
+                    "%s changed between pretrain and finetune: "
+                    "checkpoint=%r, finetune model=%r. ",
+                    key,
+                    ckpt_value,
+                    ft_value,
+                )
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
