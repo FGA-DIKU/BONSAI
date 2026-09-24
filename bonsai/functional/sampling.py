@@ -1,11 +1,14 @@
-from typing import List
 from collections import Counter
-from torch.utils.data import WeightedRandomSampler
+from typing import List
+
 import numpy as np
 from hydra.utils import instantiate
+from torch.utils.data import WeightedRandomSampler
 
 
 def get_sampler(weight_fn, labels) -> WeightedRandomSampler:
+    if weight_fn is None:
+        return None
     label_counts = Counter(labels)
     label_weight = instantiate(
         weight_fn,
@@ -34,11 +37,5 @@ def effective_n_samples(labels: List[int], label_counts: dict) -> List[float]:
         label: (1 - (beta**count)) / (1 - beta) for label, count in label_counts.items()
     }
 
-    # Calculate class probabilities
-    total_effective = sum(effective_nums.values())
-    class_probs = {
-        label: eff_num / total_effective for label, eff_num in effective_nums.items()
-    }
+    return [1.0 / effective_nums[label] for label in labels]
 
-    # Calculate weights for each sample
-    return [class_probs[outcome] / label_counts[outcome] for outcome in labels]

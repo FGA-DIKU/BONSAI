@@ -3,9 +3,10 @@ from typing import Dict, Literal, Optional
 import lightning as L
 import polars as pl
 import torch
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader
 
 from bonsai.functional.collate import dynamic_padding
+from bonsai.functional.sampling import get_sampler
 from bonsai.functional.subject_data import filter_subject_data
 from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 
@@ -24,7 +25,7 @@ class FinetuneDataModule(L.LightningDataModule):
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
         predict_outcomes: Dict[int, dict],
-        train_sampler: Optional[WeightedRandomSampler] = None,
+        train_sampler_weight_fn: Optional[callable] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
@@ -40,7 +41,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
         self.predict_outcomes = predict_outcomes
-        self.train_sampler = train_sampler
+        self.train_sampler_weight_fn = train_sampler_weight_fn
 
     def setup(self, stage: Literal["fit", "test", "predict"]):
         if stage == "fit":
@@ -79,6 +80,10 @@ class FinetuneDataModule(L.LightningDataModule):
             predict_token_id=self.predict_token_id,
             background_length=background_length,
             max_len=self.max_len,
+        )
+
+        self.train_sampler = get_sampler(
+            weight_fn=self.train_sampler_weight_fn, labels=[subject["target"] for subject in train_data]
         )
 
     def setup_predict(self):
