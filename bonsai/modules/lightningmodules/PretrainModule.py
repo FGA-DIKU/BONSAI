@@ -1,12 +1,13 @@
 import lightning as L
-from bonsai.modules.losses.CE import CE
-from bonsai.modules.losses.CodeValueLoss import CodeValueLoss
-from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
 from torchmetrics import MetricCollection
 from torchmetrics.regression import MeanSquaredError
+
+from bonsai.modules.losses.CE import CE
+from bonsai.modules.losses.CodeValueLoss import CodeValueLoss
+from bonsai.modules.metrics.metrics import SharedPrecisionAtK
 
 
 class PretrainModule(L.LightningModule):
@@ -114,7 +115,7 @@ class PretrainModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
+            total_iters=max(1, steps_per_epoch * self.scheduler_warmup_epochs),
         )
         scheduler_config = {
             "scheduler": scheduler,

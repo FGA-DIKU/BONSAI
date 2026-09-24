@@ -170,7 +170,7 @@ class FinetuneModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
+            total_iters=max(1, steps_per_epoch * self.scheduler_warmup_epochs),
         )
         scheduler_config = {
             "scheduler": scheduler,
