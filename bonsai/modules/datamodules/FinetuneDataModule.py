@@ -83,7 +83,7 @@ class FinetuneDataModule(L.LightningDataModule):
         )
 
         self.train_sampler = get_sampler(
-            weight_fn=self.train_sampler_weight_fn, labels=[subject["target"] for subject in train_data]
+            weight_fn=self.train_sampler_weight_fn, labels=[self.train_outcomes[s["subject_id"]]["label"] for s in train_data]
         )
 
     def setup_predict(self):

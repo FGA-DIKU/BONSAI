@@ -24,7 +24,7 @@ class FlashRotaryEmbedding(RotaryEmbedding):
             qkv[:, 0],
             self._cos_cached,
             self._sin_cached,
-            interleaved=True, # mimics rope.py forward
+            interleaved=self.interleaved,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
         )
@@ -32,7 +32,7 @@ class FlashRotaryEmbedding(RotaryEmbedding):
             qkv[:, 1],
             self._cos_cached,
             self._sin_cached,
-            interleaved=True, # mimics rope.py forward
+            interleaved=self.interleaved,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
         )

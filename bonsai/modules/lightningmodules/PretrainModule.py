@@ -1,3 +1,5 @@
+import math
+
 import lightning as L
 from torch import nn
 from torch.optim import AdamW
@@ -115,7 +117,7 @@ class PretrainModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=max(1, steps_per_epoch * self.scheduler_warmup_epochs),
+            total_iters=max(1, math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)),
         )
         scheduler_config = {
             "scheduler": scheduler,

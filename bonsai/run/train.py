@@ -50,7 +50,6 @@ def main(cfg: DictConfig) -> None:
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )
 
-    train_labels = [v["label"] for v in train_outcomes.values()]
     data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
@@ -63,9 +62,7 @@ def main(cfg: DictConfig) -> None:
         predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
-        train_sampler=get_sampler(
-            weight_fn=cfg.training.sampling_weight_fn, labels=train_labels
-        ),
+        train_sampler_weight_fn=cfg.training.sampling_weight_fn,
     )
 
     model = instantiate(
@@ -81,14 +78,14 @@ def main(cfg: DictConfig) -> None:
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=get_loss_weight(
             cfg.training.loss_weight_function,
-            labels=train_labels,
+            labels=[v["label"] for v in train_outcomes.values()],
         ),
     )
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
         monitor=cfg.training.eval_monitor_metric,
-        mode="min",
+        mode=cfg.training.eval_monitor_mode,
         save_top_k=1,
         filename="best",
         enable_version_counter=False,

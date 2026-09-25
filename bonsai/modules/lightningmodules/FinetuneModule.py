@@ -1,4 +1,5 @@
 import logging
+import math
 from os.path import join
 from pathlib import Path
 from typing import Optional
@@ -52,7 +53,7 @@ class FinetuneModule(L.LightningModule):
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
         """Warn on value_embedding_mode changes vs the pretrain ckpt."""
-        for key in ["value_embedding_mode", "causal", "max_seqlen"]:
+        for key in ["value_embedding_mode", "causal"]:
             ckpt_value = checkpoint.get("hyper_parameters", {}).get(key)
             ft_value = self.model.hparams.get(key)
             if ckpt_value != ft_value:
@@ -135,6 +136,7 @@ class FinetuneModule(L.LightningModule):
 
         logits = torch.cat([x.detach().cpu().float() for x in self.logits])
         labels = torch.cat([x.detach().cpu().long() for x in self.labels])
+        probs = torch.cat([x.detach().cpu().float() for x in self.predictions])
 
         if self.predictions_output_path is not None:
             self.predictions_output_path.mkdir(parents=True, exist_ok=True)
@@ -152,7 +154,7 @@ class FinetuneModule(L.LightningModule):
             ).write_csv(join(self.predictions_output_path, "predictions.csv"))
 
             self.predict_metrics.reset()
-            metrics = self.predict_metrics(logits, labels)
+            metrics = self.predict_metrics(probs, labels)
             metrics = {
                 key: float(value.detach().cpu()) for key, value in metrics.items()
             }
@@ -175,7 +177,7 @@ class FinetuneModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=max(1, steps_per_epoch * self.scheduler_warmup_epochs),
+            total_iters=max(1, math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)),
         )
         scheduler_config = {
             "scheduler": scheduler,
