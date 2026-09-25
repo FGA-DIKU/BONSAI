@@ -112,8 +112,10 @@ def compute_abspos(
     if isinstance(timestamps, datetime):
         return float(compute_abspos(pl.Series([timestamps]))[0])
     if isinstance(timestamps, (pl.Expr, pl.Series)):
-        return (timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
-                  / 3_600_000).cast(pl.Float32)
+        return (
+            timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
+            / 3_600_000
+        ).cast(pl.Float32)
 
     raise TypeError(
         "Invalid type for timestamps, only pl.Expr, pl.Series, and datetime are supported."

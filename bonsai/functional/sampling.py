@@ -38,4 +38,3 @@ def effective_n_samples(labels: List[int], label_counts: dict) -> List[float]:
     }
 
     return [1.0 / effective_nums[label] for label in labels]
-

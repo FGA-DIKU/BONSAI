@@ -30,7 +30,7 @@ def main(cfg: DictConfig) -> None:
         f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
     )
     if issubclass(get_class(cfg.paths.dataset_class), ARPretrainDataset):
-      assert cfg.model.causal, "AR pretraining requires causal attention"
+        assert cfg.model.causal, "AR pretraining requires causal attention"
 
     logger = CSVLogger(get_experiment_output_path(), name=None, version=0)
     model_save_dir = logger.log_dir

@@ -14,7 +14,6 @@ from bonsai.functional.features import compute_abspos
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule

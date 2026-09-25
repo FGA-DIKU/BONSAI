@@ -36,7 +36,10 @@ def main(cfg: DictConfig) -> None:
     print(
         f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
     )
-    if cfg.training.sampling_weight_fn is not None and cfg.training.loss_weight_function is not None:
+    if (
+        cfg.training.sampling_weight_fn is not None
+        and cfg.training.loss_weight_function is not None
+    ):
         raise ValueError(
             "Cannot specify both sampling_weight_fn and loss_weight_function"
         )
@@ -80,7 +83,6 @@ def main(cfg: DictConfig) -> None:
         train_sampler_weight_fn=cfg.training.sampling_weight_fn,
     )
 
-    
     model = instantiate(
         cfg.model,
         vocab_size=len(vocab),
