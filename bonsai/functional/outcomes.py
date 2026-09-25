@@ -135,7 +135,8 @@ def finalize_outcomes(outcomes: pl.DataFrame) -> dict[int, dict]:
     )
     return {
         row["subject_id"]: {
-            key: value for key, value in row.items() if key != "subject_id"
+            "label": row["label"],
+            "censor_abspos": row["censor_abspos"],
         }
         for row in outcomes.to_dicts()
     }
