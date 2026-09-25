@@ -145,12 +145,12 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "subject_id": [1, 2],
                 "index_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
                 "outcome_date": [datetime(2020, 1, 3), None],
-                "censor_abspos": [10, 20],
+                "censor_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 0)
+        self.assertEqual(result["label"][0], 1)
+        self.assertEqual(result["label"][1], 0)
 
     def test_binarize_outcomes_with_end(self):
         df = pl.DataFrame(
@@ -162,13 +162,13 @@ class TestBinizationOutcomes(unittest.TestCase):
                     datetime(2020, 1, 2),
                     datetime(2020, 1, 5),
                 ],
-                "censor_abspos": [10, 20, 30],
+                "censor_date": [datetime(2020, 1, 1)] * 3,
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
-        self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 1)
-        self.assertEqual(result[3]["label"], 0)
+        self.assertEqual(result["label"][0], 1)
+        self.assertEqual(result["label"][1], 1)
+        self.assertEqual(result["label"][2], 0)
 
     def test_binarize_outcomes_empty(self):
         df = pl.DataFrame(
@@ -176,11 +176,11 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "subject_id": pl.Int64,
                 "index_date": pl.Datetime,
                 "outcome_date": pl.Datetime,
-                "censor_abspos": pl.Int64,
+                "censor_date": pl.Int64,
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result, {})
+        self.assertTrue(result.is_empty())
 
     def test_split_and_binarize_outcomes(self):
         df = pl.DataFrame(
@@ -195,7 +195,7 @@ class TestBinizationOutcomes(unittest.TestCase):
                     datetime(2020, 1, 5),
                     None,
                 ],
-                "censor_abspos": [10, 20, 30, 40, 50, 60],
+                "censor_date": [datetime(2020, 1, 1)] * 6,
                 "split": ["train", "train", "val", "val", "test", "test"],
             }
         )
