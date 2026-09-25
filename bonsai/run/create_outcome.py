@@ -67,7 +67,6 @@ def main(cfg: DictConfig) -> None:
                 df.select("subject_id")
                 .unique()
                 .join(outcomes, on="subject_id", how="left")
-                .drop("code")
                 .rename({"time": "outcome_date"})
             )
             assert len(outcomes) == df["subject_id"].n_unique()
