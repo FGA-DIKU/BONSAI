@@ -1,49 +1,43 @@
-from typing import List, Literal, Optional, Dict, Tuple
 from datetime import datetime, timedelta
+from typing import Literal
+
 import polars as pl
+
+from bonsai.functional.features import compute_abspos
 
 
 def get_subject_first_row_for_conditions(
-    df: pl.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
+    df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
-    """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
-    # Initialization
-    df = df.with_columns(_prio=pl.lit(None).cast(pl.Int32))
-    row_mask = pl.lit(False)
-    subject_sets = []
-
-    # Find matches (dataframe rows AND subject_ids) of conditions
-    for i, cond in enumerate(conditions):
-        cond_expr = pl.col(cond["col"]).is_in(cond["vals"])  # Rows that meet condition
-        row_mask = row_mask | cond_expr  # OR operation
-        df = df.with_columns(
-            _prio=pl.when(cond_expr & pl.col("_prio").is_null())
-            .then(pl.lit(i))
-            .otherwise(pl.col("_prio"))
-        )  # Set priority (to take first row later)
-        subject_sets.append(
-            set(df.filter(cond_expr).get_column("subject_id").to_list())
-        )  # Get subjects that match condition
-
-    # Toggle between any or all conditions met
-    if dependence == "independent":
-        matched_subjects = set.union(*subject_sets)  # Any condition met
-    elif dependence == "dependent":  # TODO: Implement time_window
-        matched_subjects = set.intersection(*subject_sets)  # All conditions met
-    else:
+    """Earliest time each subject meets the definition: any condition (independent) or all (dependent)."""
+    if dependence not in ("independent", "dependent"):
         raise ValueError(
             f"Dependence can only be [independent, dependent], not {dependence}"
         )
 
-    # Get matched subjects AND rows
-    res = df.filter(pl.col("subject_id").is_in(list(matched_subjects)) & row_mask)
+    # Build conditions
+    per_cond = [
+        df.filter(
+            pl.any_horizontal(
+                pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]
+            )
+        )
+        .group_by("subject_id")
+        .agg(pl.col("time").min().alias(f"_time{i}"))
+        for i, cond in enumerate(conditions)
+    ]
 
-    # Take first row based on `conditions` ordering
-    res = (
-        res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
-    )
-    res = res.drop("_prio")
-    return res
+    # Joins conditions
+    how = "full" if dependence == "independent" else "inner"
+    res = per_cond[0]
+    for other in per_cond[1:]:
+        res = res.join(other, on="subject_id", how=how, coalesce=True)
+
+    # Find dependence time
+    cols = [f"_time{i}" for i in range(len(conditions))]
+    combine = pl.min_horizontal if dependence == "independent" else pl.max_horizontal
+
+    return res.select("subject_id", combine(cols).alias("time"))
 
 
 def get_date_from_absolute_date(absolute_date):
@@ -67,65 +61,82 @@ def get_date_from_exposure_date(subjects, df, dependence, conditions):
     )
     return subjects.join(
         result.select("subject_id", "time"), on="subject_id", how="left"
-    )["time"]
+    )
 
 
-def fill_nans_with_sampled(dates):
+def fill_nans_with_sampled(dates, seed=None):
     if dates.is_null().all():
         raise ValueError("No non-NaN indexing dates found")
 
     return dates.fill_null(
-        dates.drop_nulls().sample(dates.len(), with_replacement=True)
+        dates.drop_nulls().sample(dates.len(), with_replacement=True, seed=seed)
     )
 
 
 def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
-) -> Dict[int, dict]:
-    time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
-    time_delta_hours = time_delta_datetime.dt.total_hours()
+    n_hours_end_include: int | None = None,
+) -> pl.DataFrame:
+    window_start = pl.col("index_date") + pl.duration(hours=n_hours_start_include)
+    has_outcome = pl.col("outcome_date").is_not_null()
+    outcomes = outcomes.filter(~(has_outcome & (pl.col("outcome_date") < window_start)))
 
-    outcomes_in_prediction_window = pl.lit(n_hours_start_include) <= time_delta_hours
-    if n_hours_end_include is not None:
-        outcomes_in_prediction_window = outcomes_in_prediction_window & (
-            time_delta_hours <= pl.lit(n_hours_end_include)
+    if outcomes.select((pl.col("censor_date") > window_start).any()).item():
+        raise ValueError(
+            "censor_date is after the prediction window start; outcomes would leak into the input"
         )
 
-    outcomes = outcomes.with_columns(
-        label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
+    in_window = has_outcome
+    if n_hours_end_include is not None:
+        in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(
+            hours=n_hours_end_include
+        )
+    return outcomes.with_columns(label=in_window.cast(pl.Int64))
+
+
+def split_outcomes(
+    outcomes: pl.DataFrame,
+    train_key: str,
+    val_key: str,
+    test_key: str,
+):
+    return (
+        outcomes.filter(pl.col("split") == split_key)
+        for split_key in (train_key, val_key, test_key)
     )
 
-    rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
+
+def split_and_binarize_outcomes(
+    outcomes: pl.DataFrame,
+    train_key: str,
+    val_key: str,
+    test_key: str,
+    n_hours_start_include: int,
+    n_hours_end_include: int | None = None,
+):
+    splits = split_outcomes(outcomes, train_key, val_key, test_key)
+
+    return (
+        finalize_outcomes(
+            binarize_outcomes(
+                split,
+                n_hours_start_include,
+                n_hours_end_include,
+            )
+        )
+        for split in splits
+    )
+
+
+def finalize_outcomes(outcomes: pl.DataFrame) -> dict[int, dict]:
+    outcomes = outcomes.with_columns(
+        censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
     return {
         row["subject_id"]: {
             "label": row["label"],
             "censor_abspos": row["censor_abspos"],
         }
-        for row in rows
+        for row in outcomes.to_dicts()
     }
-
-
-def split_and_binarize_outcomes(
-    outcomes,
-    train_key: str,
-    val_key: str,
-    test_key: str,
-    n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
-) -> Tuple[Dict[int, dict], Dict[int, dict], Dict[int, dict]]:
-    train_outcomes = outcomes.filter(pl.col("split") == train_key)
-    train_outcomes = binarize_outcomes(
-        train_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    val_outcomes = outcomes.filter(pl.col("split") == val_key)
-    val_outcomes = binarize_outcomes(
-        val_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    test_outcomes = outcomes.filter(pl.col("split") == test_key)
-    test_outcomes = binarize_outcomes(
-        test_outcomes, n_hours_start_include, n_hours_end_include
-    )
-
-    return train_outcomes, val_outcomes, test_outcomes

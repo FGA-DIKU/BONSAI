@@ -1,20 +1,21 @@
 import logging
 from pathlib import Path
+
 import hydra
 import polars as pl
 from dotenv import load_dotenv
+from hydra.core.plugins import Plugins
 from omegaconf import DictConfig
 
-from hydra.core.plugins import Plugins
-from bonsai.paths import get_config_path
 from bonsai.functional.outcomes import (
-    get_subject_first_row_for_conditions,
-    get_date_from_absolute_date,
-    get_date_from_relative_date,
-    get_date_from_exposure_date,
     fill_nans_with_sampled,
+    get_date_from_absolute_date,
+    get_date_from_exposure_date,
+    get_date_from_relative_date,
+    get_subject_first_row_for_conditions,
 )
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
+from bonsai.paths import get_config_path
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
@@ -49,31 +50,30 @@ def main(cfg: DictConfig) -> None:
 
             df = df.drop_nulls(["subject_id", "time", "code"])
 
-            # Exclude subjects matching exclude.conditions
-            if exclude is not None:
-                exclude_df = get_subject_first_row_for_conditions(
-                    df, exclude.conditions, exclude.dependence
-                )
-                logging.info(f"Excluding {len(exclude_df)} subjects")
-                df = df.join(
-                    exclude_df.select("subject_id"),
-                    on="subject_id",
-                    how="anti",
-                )
-
             # Assign the outcomes matching outcome.conditions
             outcomes = get_subject_first_row_for_conditions(
                 df, outcome.conditions, outcome.dependence
             )
             logging.info(f"Matched {len(outcomes)} subjects")
+
             outcomes = (
                 df.select("subject_id")
                 .unique()
                 .join(outcomes, on="subject_id", how="left")
-                .drop("code")
                 .rename({"time": "outcome_date"})
             )
             assert len(outcomes) == df["subject_id"].n_unique()
+
+            # Exclude subjects matching exclude.conditions
+            if exclude is not None:
+                exclude_dates = (
+                    get_subject_first_row_for_conditions(
+                        df, exclude.conditions, exclude.dependence
+                    )
+                    .select("subject_id", "time")
+                    .rename({"time": "exclude_date"})
+                )
+                outcomes = outcomes.join(exclude_dates, on="subject_id", how="left")
 
             # Assign index dates
             if index.type == "absolute":
@@ -92,14 +92,13 @@ def main(cfg: DictConfig) -> None:
                     )
                 )
             elif index.type == "exposure":
-                outcomes = outcomes.with_columns(
-                    index_date=get_date_from_exposure_date(
-                        subjects=outcomes.select("subject_id"),
-                        df=df,
-                        dependence=index["dependence"],
-                        conditions=index["conditions"],
-                    )
-                )
+                index_dates = get_date_from_exposure_date(
+                    subjects=outcomes.select("subject_id"),
+                    df=df,
+                    dependence=index["dependence"],
+                    conditions=index["conditions"],
+                ).rename({"time": "index_date"})
+                outcomes = outcomes.join(index_dates, on="subject_id", how="inner")
             else:
                 raise ValueError(
                     f"got index.type={index.type}. This is either misconfigured or not yet supported"
@@ -108,14 +107,32 @@ def main(cfg: DictConfig) -> None:
             outcomes = outcomes.with_columns(split=pl.lit(split))
             all_outcomes.append(outcomes)
 
-    all_outcomes = pl.concat(all_outcomes) if all_outcomes else pl.DataFrame()
+    all_outcomes = (
+        pl.concat(all_outcomes).sort("subject_id", maintain_order=True)
+        if all_outcomes
+        else pl.DataFrame()
+    )
 
-    if (index_dates := all_outcomes["index_date"]).is_null().any():
+    if (
+        index_dates := all_outcomes["index_date"]
+    ).is_null().any() and index.type != "exposure":
         logging.warning(
             f"Found {index_dates.is_null().sum()} NaN index dates -- Replacing them..."
         )
         all_outcomes = all_outcomes.with_columns(
-            index_date=fill_nans_with_sampled(all_outcomes["index_date"])
+            index_date=fill_nans_with_sampled(all_outcomes["index_date"], seed=42)
+        )
+    elif index.type == "exposure":
+        all_outcomes = all_outcomes.filter(pl.col("index_date").is_not_null())
+
+    if exclude is not None:
+        n_before = all_outcomes.height
+        all_outcomes = all_outcomes.filter(
+            pl.col("exclude_date").is_null()
+            | (pl.col("exclude_date") >= pl.col("index_date"))
+        ).drop("exclude_date")
+        logging.info(
+            f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index"
         )
 
     all_outcomes = all_outcomes.with_columns(

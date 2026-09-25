@@ -1,15 +1,17 @@
 import unittest
+from datetime import datetime
+
 import polars as pl
+
 from bonsai.functional.outcomes import (
-    get_subject_first_row_for_conditions,
-    get_date_from_absolute_date,
-    get_date_from_relative_date,
-    get_date_from_exposure_date,
-    fill_nans_with_sampled,
     binarize_outcomes,
+    fill_nans_with_sampled,
+    get_date_from_absolute_date,
+    get_date_from_exposure_date,
+    get_date_from_relative_date,
+    get_subject_first_row_for_conditions,
     split_and_binarize_outcomes,
 )
-from datetime import datetime
 
 
 class TestCreateOutcomesUtils(unittest.TestCase):
@@ -29,7 +31,6 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df, conditions, dependence="independent"
         )
         self.assertEqual(set(result["subject_id"]), {1, 2})
-        self.assertIn("A", result["code"])
 
     def test_find_dependent(self):
         df = pl.DataFrame(
@@ -47,7 +48,6 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df, conditions, dependence="dependent"
         )
         self.assertEqual(set(result["subject_id"]), {2})
-        self.assertIn("A", result["code"])
 
     def test_find_dependent2(self):
         df = pl.DataFrame(
@@ -65,7 +65,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df, conditions, dependence="dependent"
         )
         self.assertEqual(set(result["subject_id"]), {2})
-        self.assertIn("C", result["code"])
+        self.assertEqual(result["time"][0], datetime(2020, 1, 4))
 
     def test_find_invalid_dependence(self):
         df = pl.DataFrame(
@@ -112,7 +112,6 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df.select("subject_id")
             .unique()
             .join(outcomes, on="subject_id", how="left")
-            .drop("code")
             .rename({"time": "outcome_date"})
         )
 
@@ -121,7 +120,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             df=df,
             conditions=conditions,
             dependence="independent",
-        )
+        )["time"]
         result_by_subject = dict(zip(outcomes["subject_id"], result))
 
         self.assertEqual(result_by_subject[1], datetime(2020, 1, 1))
@@ -145,13 +144,13 @@ class TestBinizationOutcomes(unittest.TestCase):
             {
                 "subject_id": [1, 2],
                 "index_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
-                "outcome_date": [datetime(2020, 1, 3), datetime(2020, 1, 1)],
-                "censor_abspos": [10, 20],
+                "outcome_date": [datetime(2020, 1, 3), None],
+                "censor_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 0)
+        self.assertEqual(result["label"][0], 1)
+        self.assertEqual(result["label"][1], 0)
 
     def test_binarize_outcomes_with_end(self):
         df = pl.DataFrame(
@@ -163,13 +162,13 @@ class TestBinizationOutcomes(unittest.TestCase):
                     datetime(2020, 1, 2),
                     datetime(2020, 1, 5),
                 ],
-                "censor_abspos": [10, 20, 30],
+                "censor_date": [datetime(2020, 1, 1)] * 3,
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
-        self.assertEqual(result[1]["label"], 1)
-        self.assertEqual(result[2]["label"], 1)
-        self.assertEqual(result[3]["label"], 0)
+        self.assertEqual(result["label"][0], 1)
+        self.assertEqual(result["label"][1], 1)
+        self.assertEqual(result["label"][2], 0)
 
     def test_binarize_outcomes_empty(self):
         df = pl.DataFrame(
@@ -177,11 +176,11 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "subject_id": pl.Int64,
                 "index_date": pl.Datetime,
                 "outcome_date": pl.Datetime,
-                "censor_abspos": pl.Int64,
+                "censor_date": pl.Int64,
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
-        self.assertEqual(result, {})
+        self.assertTrue(result.is_empty())
 
     def test_split_and_binarize_outcomes(self):
         df = pl.DataFrame(
@@ -194,21 +193,19 @@ class TestBinizationOutcomes(unittest.TestCase):
                     datetime(2020, 1, 4),
                     datetime(2020, 1, 1),
                     datetime(2020, 1, 5),
-                    datetime(2020, 1, 1),
+                    None,
                 ],
-                "censor_abspos": [10, 20, 30, 40, 50, 60],
+                "censor_date": [datetime(2020, 1, 1)] * 6,
                 "split": ["train", "train", "val", "val", "test", "test"],
             }
         )
         train, val, test = split_and_binarize_outcomes(
             df, "train", "val", "test", n_hours_start_include=24
         )
-        self.assertEqual(set(train.keys()), {1, 2})
-        self.assertEqual(set(val.keys()), {3, 4})
+        self.assertEqual(set(train.keys()), {1})
+        self.assertEqual(set(val.keys()), {3})
         self.assertEqual(set(test.keys()), {5, 6})
         self.assertEqual(train[1]["label"], 1)
-        self.assertEqual(train[2]["label"], 0)
         self.assertEqual(val[3]["label"], 1)
-        self.assertEqual(val[4]["label"], 0)
         self.assertEqual(test[5]["label"], 1)
         self.assertEqual(test[6]["label"], 0)

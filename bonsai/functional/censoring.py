@@ -1,19 +1,20 @@
-from bisect import bisect_right
-from typing import Dict, Optional
+from bisect import bisect_left
+from typing import Optional
+
 import torch
 
 
 def censor_subject(
-    subject: Dict[str, torch.Tensor],
+    subject: dict[str, torch.Tensor],
     censor_date_abspos: float,
     predict_token_id: Optional[int] = None,
-) -> Dict:
+) -> dict:
     """
     Censors a subject's data by truncating all attributes at the censor date,
     OPTIONALLY: then appends a CLS token with the censoring information.
     """
     # Find the position where censor_date fits in the sorted abspos list
-    idx = bisect_right(subject["abspos"].numpy(), censor_date_abspos)
+    idx = bisect_left(subject["abspos"].numpy(), censor_date_abspos)
 
     # Slice everything up to idx
     for embed_name in ["code", "abspos", "segment", "age"]:
@@ -28,8 +29,8 @@ def censor_subject(
 
 
 def append_predict_token(
-    subject: Dict, censor_date_abspos: float, predict_token_id: int
-) -> Dict:
+    subject: dict, censor_date_abspos: float, predict_token_id: int
+) -> dict:
     subject["code"] = torch.cat(
         (
             subject["code"],
