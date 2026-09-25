@@ -133,6 +133,13 @@ def main(cfg: DictConfig) -> None:
             f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index"
         )
 
+    if exclude is not None:
+        n_before = all_outcomes.height
+        all_outcomes = all_outcomes.filter(
+            pl.col("exclude_date").is_null() | (pl.col("exclude_date") >= pl.col("index_date"))
+        ).drop("exclude_date")
+        logging.info(f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index")
+
     all_outcomes = all_outcomes.with_columns(
         censor_date=get_date_from_relative_date(
             relative_dates=pl.col("index_date"),  # Censoring is based on index_date
