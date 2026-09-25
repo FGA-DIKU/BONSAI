@@ -21,29 +21,25 @@ training:
   batch_size: 2
   accumulate_grad_batches: 1
   epochs: 10
+  loss_fn: CE
   learning_rate: 0.0003
   optimizer_epsilon: 1.0e-06
   scheduler_warmup_epochs: 1
   limit_val_batches: 10
   limit_train_batches: 10
+  value_loss_weight: 1.0
   ckpt_every_n_epoch: 1
   cutoff_date: null
 model:
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiPretrain
   max_seqlen: ${training.max_len}
   hidden_size: 64
   num_layers: 4
   num_attention_heads: 4
   dropout: 0.1
+  attention_dropout: 0.0
   bias: false
-  causal: false
+  causal: true
   attn_type: sdpa
-metrics:
-  top1:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 1
-  top10:
-    _target_: corebehrt.modules.monitoring.metrics.PrecisionAtK
-    topk: 10
-  mlm_loss:
-    _target_: corebehrt.modules.monitoring.metrics.LossAccessor
-    loss_name: loss
+lightning_module:
+  _target_: bonsai.modules.lightningmodules.PretrainModule.PretrainModule
