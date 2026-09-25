@@ -15,7 +15,6 @@ from bonsai.functional.features import compute_abspos
 from bonsai.functional.loss import get_loss_weight
 from bonsai.functional.outcomes import split_and_binarize_outcomes
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.functional.sampling import get_sampler
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
@@ -37,12 +36,23 @@ def main(cfg: DictConfig) -> None:
     print(
         f"{OmegaConf.to_yaml(cfg)}\n Version: {cfg.run_id}\n Run dir: {HydraConfig.get().run.dir}\n"
     )
+    if (
+        cfg.training.sampling_weight_fn is not None
+        and cfg.training.loss_weight_function is not None
+    ):
+        raise ValueError(
+            "Cannot specify both sampling_weight_fn and loss_weight_function"
+        )
 
     logger = CSVLogger(get_experiment_output_path(), name="training_runs")
     model_save_dir = logger.log_dir
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
+    if pretrain_cfg["max_seqlen"] < cfg.training.max_len:
+        raise ValueError(
+            f"Pretrain max_seqlen {pretrain_cfg['max_seqlen']} < finetune max_len {cfg.training.max_len}"
+        )
 
     vocab = torch.load(cfg.paths.vocabulary)
     outcomes = pl.read_parquet(cfg.paths.outcome)
@@ -58,7 +68,6 @@ def main(cfg: DictConfig) -> None:
         n_hours_end_include=cfg.labels.n_hours_end_include,
     )
 
-    train_labels = [v["label"] for v in train_outcomes.values()]
     data_module = FinetuneDataModule(
         batch_size=cfg.training.batch_size,
         num_workers=cfg.hardware.num_workers,
@@ -71,9 +80,7 @@ def main(cfg: DictConfig) -> None:
         predict_outcomes=predict_outcomes,
         predict_token_id=vocab["[CLS]"],
         max_len=cfg.training.max_len,
-        train_sampler=get_sampler(
-            weight_fn=cfg.training.sampling_weight_fn, labels=train_labels
-        ),
+        train_sampler_weight_fn=cfg.training.sampling_weight_fn,
     )
 
     model = instantiate(
@@ -97,14 +104,14 @@ def main(cfg: DictConfig) -> None:
         scheduler_warmup_epochs=cfg.training.scheduler_warmup_epochs,
         pos_weight=get_loss_weight(
             cfg.training.loss_weight_function,
-            labels=train_labels,
+            labels=[v["label"] for v in train_outcomes.values()],
         ),
     )
 
     ckpt_callback = ModelCheckpoint(
         dirpath=model_save_dir,
         monitor=cfg.training.eval_monitor_metric,
-        mode="min",
+        mode=cfg.training.eval_monitor_mode,
         save_top_k=1,
         filename="best",
         enable_version_counter=False,
@@ -129,6 +136,7 @@ def main(cfg: DictConfig) -> None:
         datamodule=data_module,
         ckpt_path=cfg.paths.ckpt_path,
     )
+
     if cfg.paths.predict_split is not None:
         predictions_output_path = Path(model_save_dir) / "test_predictions"
         lightning_module.predictions_output_path = predictions_output_path

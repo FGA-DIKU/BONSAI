@@ -5,8 +5,9 @@ num_layers: 4
 num_attention_heads: 4
 bias: false
 dropout: 0.1
-causal: false
+causal: true
 attn_type: sdpa
+value_embedding_mode: null
 learning_rate: 0.0003
 optimizer_epsilon: 1.0e-06
 scheduler_warmup_epochs: 1

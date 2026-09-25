@@ -1,11 +1,14 @@
-from typing import Literal, Dict, Optional
-import polars as pl
+from typing import Dict, Literal, Optional
+
 import lightning as L
+import polars as pl
 import torch
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader
+
 from bonsai.functional.collate import dynamic_padding
-from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
+from bonsai.functional.sampling import get_sampler
 from bonsai.functional.subject_data import filter_subject_data
+from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 
 
 class FinetuneDataModule(L.LightningDataModule):
@@ -22,7 +25,7 @@ class FinetuneDataModule(L.LightningDataModule):
         train_outcomes: Dict[int, dict],
         val_outcomes: Dict[int, dict],
         predict_outcomes: Dict[int, dict],
-        train_sampler: Optional[WeightedRandomSampler] = None,
+        train_sampler_weight_fn: Optional[callable] = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
@@ -38,7 +41,7 @@ class FinetuneDataModule(L.LightningDataModule):
         self.train_outcomes = train_outcomes
         self.val_outcomes = val_outcomes
         self.predict_outcomes = predict_outcomes
-        self.train_sampler = train_sampler
+        self.train_sampler_weight_fn = train_sampler_weight_fn
 
     def setup(self, stage: Literal["fit", "test", "predict"]):
         if stage == "fit":
@@ -62,7 +65,7 @@ class FinetuneDataModule(L.LightningDataModule):
         val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
-        background_length = (train_data[0]["segment"] == 0).sum()
+        background_length = (train_data[0]["segment"] == 1).sum()
 
         self.train_dataset = FinetuneDataset(
             train_data,
@@ -79,6 +82,11 @@ class FinetuneDataModule(L.LightningDataModule):
             max_len=self.max_len,
         )
 
+        self.train_sampler = get_sampler(
+            weight_fn=self.train_sampler_weight_fn,
+            labels=[self.train_outcomes[s["subject_id"]]["label"] for s in train_data],
+        )
+
     def setup_predict(self):
         if self.path_predict_data is None:
             raise ValueError("path_predict_data must be set before running predict.")
@@ -88,7 +96,7 @@ class FinetuneDataModule(L.LightningDataModule):
         ]
         population_subject_ids = self.population["subject_id"].to_list()
         predict_data = filter_subject_data(predict_data, population_subject_ids)
-        background_length = (predict_data[0]["segment"] == 0).sum()
+        background_length = (predict_data[0]["segment"] == 1).sum()
         self.predict_dataset = FinetuneDataset(
             predict_data,
             outcomes=self.predict_outcomes,
@@ -104,6 +112,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
+            shuffle=True if self.train_sampler is None else False,
             drop_last=True,
             collate_fn=dynamic_padding,
             sampler=self.train_sampler,
@@ -116,7 +125,7 @@ class FinetuneDataModule(L.LightningDataModule):
             batch_size=self.batch_size,
             pin_memory=True,
             persistent_workers=True,
-            drop_last=True,
+            drop_last=False,
             shuffle=False,
             collate_fn=dynamic_padding,
         )

@@ -17,9 +17,6 @@ paths:
   population: ${paths.dir}/population_full.csv
   ckpt_path: 
 
-data:
-  shuffle: true
-
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
   n_hours_start_include: 1 # start follow up (considering outcomes) time after index date (negative means before)
@@ -35,12 +32,13 @@ training:
   sampling_weight_fn: 
     _target_: bonsai.functional.sampling.effective_n_samples
   loss_weight_function: 
-    _target_: bonsai.functional.loss.effective_n_samples
+    #_target_: bonsai.functional.loss.effective_n_samples
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
   limit_val_batches: 50
   limit_train_batches: 50
   eval_monitor_metric: val/loss
+  eval_monitor_mode: min
 
 model:
   # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.

@@ -1,8 +1,10 @@
-import polars as pl
 from typing import Optional
+
+import lightning as L
+import polars as pl
 import torch
 from torch.utils.data import DataLoader
-import lightning as L
+
 from bonsai.functional.collate import dynamic_padding
 from bonsai.functional.subject_data import filter_subject_data
 from bonsai.modules.datasets.PretrainDataset import (
@@ -56,7 +58,7 @@ class PretrainDataModule(L.LightningDataModule):
         val_data = filter_subject_data(val_data, population_subject_ids)
 
         # !!! Assumes background tokens ALWAYS exists AND same for all people !!!
-        background_length = (train_data[0]["segment"] == 0).sum()
+        background_length = (train_data[0]["segment"] == 1).sum()
 
         if issubclass(self.dataset_class, MLMPretrainDataset):
             assert self.masking_config is not None
@@ -103,8 +105,9 @@ class PretrainDataModule(L.LightningDataModule):
             self.train_dataset,
             num_workers=self.num_workers,
             batch_size=self.batch_size,
-            pin_memory=False,
+            pin_memory=True,
             persistent_workers=True,
+            shuffle=True,
             drop_last=True,
             collate_fn=dynamic_padding,
         )
@@ -114,7 +117,7 @@ class PretrainDataModule(L.LightningDataModule):
             self.val_dataset,
             num_workers=self.num_workers,
             batch_size=self.batch_size,
-            pin_memory=False,
+            pin_memory=True,
             persistent_workers=True,
             drop_last=False,
             shuffle=False,

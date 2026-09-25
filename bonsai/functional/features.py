@@ -1,7 +1,8 @@
-import polars as pl
 import logging
 from datetime import datetime
-from typing import Tuple, Union, Optional
+from typing import Optional, Tuple, Union
+
+import polars as pl
 
 
 def create_features(
@@ -109,14 +110,12 @@ def compute_abspos(
     timestamps: Union[pl.Expr, pl.Series, datetime],
 ) -> Union[pl.Expr, pl.Series, float]:
     if isinstance(timestamps, datetime):
-        return pl.Series([timestamps]).cast(pl.Datetime("ms")).dt.timestamp("ms").cast(
-            pl.Float32
-        )[0] / (3600 * 1_000)
-
+        return float(compute_abspos(pl.Series([timestamps]))[0])
     if isinstance(timestamps, (pl.Expr, pl.Series)):
-        return timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(
-            pl.Float32
-        ) / (3600 * 1_000)
+        return (
+            timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
+            / 3_600_000
+        ).cast(pl.Float32)
 
     raise TypeError(
         "Invalid type for timestamps, only pl.Expr, pl.Series, and datetime are supported."

@@ -1,4 +1,5 @@
 import logging
+import math
 from os.path import join
 from pathlib import Path
 from typing import Optional
@@ -52,15 +53,17 @@ class FinetuneModule(L.LightningModule):
 
     def on_load_checkpoint(self, checkpoint: dict) -> None:
         """Warn on value_embedding_mode changes vs the pretrain ckpt."""
-        ckpt_mode = checkpoint.get("hyper_parameters", {}).get("value_embedding_mode")
-        ft_mode = self.model.hparams.get("value_embedding_mode")
-        if ckpt_mode != ft_mode:
-            logging.warning(
-                "value_embedding_mode changed between pretrain and finetune: "
-                "checkpoint=%r, finetune model=%r. ",
-                ckpt_mode,
-                ft_mode,
-            )
+        for key in ["value_embedding_mode", "causal"]:
+            ckpt_value = checkpoint.get("hyper_parameters", {}).get(key)
+            ft_value = self.model.hparams.get(key)
+            if ckpt_value != ft_value:
+                logging.warning(
+                    "%s changed between pretrain and finetune: "
+                    "checkpoint=%r, finetune model=%r. ",
+                    key,
+                    ckpt_value,
+                    ft_value,
+                )
 
     def configure_metrics(self, prefix: str):
         return MetricCollection(
@@ -81,8 +84,9 @@ class FinetuneModule(L.LightningModule):
     def training_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
+        probs = torch.sigmoid(logits)
         loss = self.train_loss(logits, labels.float())
-        self.train_metrics(logits, labels)
+        self.train_metrics(probs, labels)
         self.log("train/loss", loss, prog_bar=True)
         self.log_dict(self.train_metrics)
         return loss
@@ -90,16 +94,18 @@ class FinetuneModule(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
+        probs = torch.sigmoid(logits)
         loss = self.val_loss(logits, labels.float())
         self.log("val/loss", loss, prog_bar=True)
-        self.val_metrics(logits, labels)
+        self.val_metrics(probs, labels)
         self.log_dict(self.val_metrics)
         return loss
 
     def test_step(self, batch, batch_idx):
         labels = batch["target"]
         logits = self.model(batch)
-        self.test_metrics(logits, labels)
+        probs = torch.sigmoid(logits)
+        self.test_metrics(probs, labels)
         self.log_dict(self.test_metrics, on_step=True, on_epoch=True)
 
     def on_predict_epoch_start(self) -> None:
@@ -130,6 +136,7 @@ class FinetuneModule(L.LightningModule):
 
         logits = torch.cat([x.detach().cpu().float() for x in self.logits])
         labels = torch.cat([x.detach().cpu().long() for x in self.labels])
+        probs = torch.cat([x.detach().cpu().float() for x in self.predictions])
 
         if self.predictions_output_path is not None:
             self.predictions_output_path.mkdir(parents=True, exist_ok=True)
@@ -147,7 +154,7 @@ class FinetuneModule(L.LightningModule):
             ).write_csv(join(self.predictions_output_path, "predictions.csv"))
 
             self.predict_metrics.reset()
-            metrics = self.predict_metrics(logits, labels)
+            metrics = self.predict_metrics(probs, labels)
             metrics = {
                 key: float(value.detach().cpu()) for key, value in metrics.items()
             }
@@ -170,7 +177,9 @@ class FinetuneModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=steps_per_epoch * self.scheduler_warmup_epochs,
+            total_iters=max(
+                1, math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)
+            ),
         )
         scheduler_config = {
             "scheduler": scheduler,
