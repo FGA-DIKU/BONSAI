@@ -9,12 +9,16 @@ def get_subject_first_row_for_conditions(
 ) -> pl.DataFrame:
     """Earliest time each subject meets the definition: any condition (independent) or all (dependent)."""
     if dependence not in ("independent", "dependent"):
-        raise ValueError(f"Dependence can only be [independent, dependent], not {dependence}")
+        raise ValueError(
+            f"Dependence can only be [independent, dependent], not {dependence}"
+        )
 
     # Build conditions
     per_cond = [
         df.filter(
-            pl.any_horizontal(pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"])
+            pl.any_horizontal(
+                pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]
+            )
         )
         .group_by("subject_id")
         .agg(pl.col("time").min().alias(f"_time{i}"))
@@ -78,7 +82,9 @@ def binarize_outcomes(
 
     in_window = has_outcome
     if n_hours_end_include is not None:
-        in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(hours=n_hours_end_include)
+        in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(
+            hours=n_hours_end_include
+        )
     outcomes = outcomes.with_columns(label=in_window.cast(pl.Int64))
 
     rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
