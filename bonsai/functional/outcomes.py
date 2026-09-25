@@ -70,20 +70,16 @@ def fill_nans_with_sampled(dates, seed=None):
 def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
+    n_hours_end_include: int | None,
 ) -> dict[int, dict]:
-    time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
-    time_delta_hours = time_delta_datetime.dt.total_hours()
+    window_start = pl.col("index_date") + pl.duration(hours=n_hours_start_include)
+    has_outcome = pl.col("outcome_date").is_not_null()
+    outcomes = outcomes.filter(~(has_outcome & (pl.col("outcome_date") < window_start)))
 
-    outcomes_in_prediction_window = pl.lit(n_hours_start_include) <= time_delta_hours
+    in_window = has_outcome
     if n_hours_end_include is not None:
-        outcomes_in_prediction_window = outcomes_in_prediction_window & (
-            time_delta_hours <= pl.lit(n_hours_end_include)
-        )
-
-    outcomes = outcomes.with_columns(
-        label=outcomes_in_prediction_window.fill_null(False).cast(pl.Int64)
-    )
+        in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(hours=n_hours_end_include)
+    outcomes = outcomes.with_columns(label=in_window.cast(pl.Int64))
 
     rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
     return {
