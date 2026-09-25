@@ -136,6 +136,7 @@ def main(cfg: DictConfig) -> None:
         datamodule=data_module,
         ckpt_path=cfg.paths.ckpt_path,
     )
+
     if cfg.paths.predict_split is not None:
         predictions_output_path = Path(model_save_dir) / "test_predictions"
         lightning_module.predictions_output_path = predictions_output_path
