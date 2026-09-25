@@ -74,7 +74,7 @@ def fill_nans_with_sampled(dates, seed=None):
 def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
-    n_hours_end_include: int | None,
+    n_hours_end_include: int | None = None,
 ) -> dict[int, dict]:
     window_start = pl.col("index_date") + pl.duration(hours=n_hours_start_include)
     has_outcome = pl.col("outcome_date").is_not_null()
