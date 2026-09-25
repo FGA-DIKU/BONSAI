@@ -156,7 +156,11 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
             }
         )
+<<<<<<< HEAD
         result = binarize_outcomes(df, start_include={"hours": 24})
+=======
+        result = binarize_outcomes(df, n_hours_start_include=24)
+>>>>>>> d1a892e (Kept censor_date for computation, moved abspos to later)
         self.assertEqual(result["label"][0], 1)
         self.assertEqual(result["label"][1], 0)
 
@@ -173,9 +177,13 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_date": [datetime(2020, 1, 1)] * 3,
             }
         )
+<<<<<<< HEAD
         result = binarize_outcomes(
             df, start_include={"hours": 24}, end_include={"hours": 72}
         )
+=======
+        result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
+>>>>>>> d1a892e (Kept censor_date for computation, moved abspos to later)
         self.assertEqual(result["label"][0], 1)
         self.assertEqual(result["label"][1], 1)
         self.assertEqual(result["label"][2], 0)
@@ -186,10 +194,17 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "subject_id": pl.Int64,
                 "index_date": pl.Datetime,
                 "outcome_date": pl.Datetime,
+<<<<<<< HEAD
                 "censor_date": pl.Datetime,
             }
         )
         result = binarize_outcomes(df, start_include={"hours": 24})
+=======
+                "censor_date": pl.Int64,
+            }
+        )
+        result = binarize_outcomes(df, n_hours_start_include=24)
+>>>>>>> d1a892e (Kept censor_date for computation, moved abspos to later)
         self.assertTrue(result.is_empty())
 
     def test_split_and_binarize_outcomes(self):
