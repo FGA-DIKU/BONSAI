@@ -1,20 +1,21 @@
 import logging
 from pathlib import Path
+
 import hydra
 import polars as pl
 from dotenv import load_dotenv
+from hydra.core.plugins import Plugins
 from omegaconf import DictConfig
 
-from hydra.core.plugins import Plugins
-from bonsai.paths import get_config_path
 from bonsai.functional.outcomes import (
-    get_subject_first_row_for_conditions,
-    get_date_from_absolute_date,
-    get_date_from_relative_date,
-    get_date_from_exposure_date,
     fill_nans_with_sampled,
+    get_date_from_absolute_date,
+    get_date_from_exposure_date,
+    get_date_from_relative_date,
+    get_subject_first_row_for_conditions,
 )
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
+from bonsai.paths import get_config_path
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
@@ -49,23 +50,19 @@ def main(cfg: DictConfig) -> None:
 
             df = df.drop_nulls(["subject_id", "time", "code"])
 
-            # Exclude subjects matching exclude.conditions
-            if exclude is not None:
-                exclude_df = get_subject_first_row_for_conditions(
-                    df, exclude.conditions, exclude.dependence
-                )
-                logging.info(f"Excluding {len(exclude_df)} subjects")
-                df = df.join(
-                    exclude_df.select("subject_id"),
-                    on="subject_id",
-                    how="anti",
-                )
-
             # Assign the outcomes matching outcome.conditions
             outcomes = get_subject_first_row_for_conditions(
                 df, outcome.conditions, outcome.dependence
             )
             logging.info(f"Matched {len(outcomes)} subjects")
+
+            # Exclude subjects matching exclude.conditions
+            if exclude is not None:
+                exclude_dates = get_subject_first_row_for_conditions(
+                    df, exclude.conditions, exclude.dependence
+                ).select("subject_id", "time").rename({"time": "exclude_date"})
+                outcomes = outcomes.join(exclude_dates, on="subject_id", how="left")
+
             outcomes = (
                 df.select("subject_id")
                 .unique()
@@ -117,6 +114,13 @@ def main(cfg: DictConfig) -> None:
         all_outcomes = all_outcomes.with_columns(
             index_date=fill_nans_with_sampled(all_outcomes["index_date"])
         )
+
+    if exclude is not None:
+        n_before = all_outcomes.height
+        all_outcomes = all_outcomes.filter(
+            pl.col("exclude_date").is_null() | (pl.col("exclude_date") >= pl.col("index_date"))
+        ).drop("exclude_date")
+        logging.info(f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index")
 
     all_outcomes = all_outcomes.with_columns(
         censor_date=get_date_from_relative_date(
