@@ -58,9 +58,13 @@ def main(cfg: DictConfig) -> None:
 
             # Exclude subjects matching exclude.conditions
             if exclude is not None:
-                exclude_dates = get_subject_first_row_for_conditions(
-                    df, exclude.conditions, exclude.dependence
-                ).select("subject_id", "time").rename({"time": "exclude_date"})
+                exclude_dates = (
+                    get_subject_first_row_for_conditions(
+                        df, exclude.conditions, exclude.dependence
+                    )
+                    .select("subject_id", "time")
+                    .rename({"time": "exclude_date"})
+                )
                 outcomes = outcomes.join(exclude_dates, on="subject_id", how="left")
 
             outcomes = (
@@ -105,7 +109,9 @@ def main(cfg: DictConfig) -> None:
 
     all_outcomes = pl.concat(all_outcomes) if all_outcomes else pl.DataFrame()
 
-    if (index_dates := all_outcomes["index_date"]).is_null().any() and index.type != "exposure":
+    if (
+        index_dates := all_outcomes["index_date"]
+    ).is_null().any() and index.type != "exposure":
         logging.warning(
             f"Found {index_dates.is_null().sum()} NaN index dates -- Replacing them..."
         )
@@ -118,9 +124,12 @@ def main(cfg: DictConfig) -> None:
     if exclude is not None:
         n_before = all_outcomes.height
         all_outcomes = all_outcomes.filter(
-            pl.col("exclude_date").is_null() | (pl.col("exclude_date") >= pl.col("index_date"))
+            pl.col("exclude_date").is_null()
+            | (pl.col("exclude_date") >= pl.col("index_date"))
         ).drop("exclude_date")
-        logging.info(f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index")
+        logging.info(
+            f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index"
+        )
 
     all_outcomes = all_outcomes.with_columns(
         censor_date=get_date_from_relative_date(
