@@ -79,7 +79,6 @@ def main(cfg: DictConfig) -> None:
         train_sampler_weight_fn=cfg.training.sampling_weight_fn,
     )
 
-    
     model = instantiate(
         cfg.model,
         vocab_size=len(vocab),
