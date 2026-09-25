@@ -56,6 +56,14 @@ def main(cfg: DictConfig) -> None:
             )
             logging.info(f"Matched {len(outcomes)} subjects")
 
+            outcomes = (
+                df.select("subject_id")
+                .unique()
+                .join(outcomes, on="subject_id", how="left")
+                .rename({"time": "outcome_date"})
+            )
+            assert len(outcomes) == df["subject_id"].n_unique()
+
             # Exclude subjects matching exclude.conditions
             if exclude is not None:
                 exclude_dates = (
@@ -66,14 +74,6 @@ def main(cfg: DictConfig) -> None:
                     .rename({"time": "exclude_date"})
                 )
                 outcomes = outcomes.join(exclude_dates, on="subject_id", how="left")
-
-            outcomes = (
-                df.select("subject_id")
-                .unique()
-                .join(outcomes, on="subject_id", how="left")
-                .rename({"time": "outcome_date"})
-            )
-            assert len(outcomes) == df["subject_id"].n_unique()
 
             # Assign index dates
             if index.type == "absolute":
@@ -107,7 +107,11 @@ def main(cfg: DictConfig) -> None:
             outcomes = outcomes.with_columns(split=pl.lit(split))
             all_outcomes.append(outcomes)
 
-    all_outcomes = pl.concat(all_outcomes) if all_outcomes else pl.DataFrame()
+    all_outcomes = (
+        pl.concat(all_outcomes).sort("subject_id", maintain_order=True)
+        if all_outcomes
+        else pl.DataFrame()
+    )
 
     if (
         index_dates := all_outcomes["index_date"]

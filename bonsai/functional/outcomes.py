@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Literal
 
 import polars as pl
+
+from bonsai.functional.features import compute_abspos
 
 
 def get_subject_first_row_for_conditions(
@@ -75,47 +77,65 @@ def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
     n_hours_end_include: int | None = None,
-) -> dict[int, dict]:
+) -> pl.DataFrame:
     window_start = pl.col("index_date") + pl.duration(hours=n_hours_start_include)
     has_outcome = pl.col("outcome_date").is_not_null()
     outcomes = outcomes.filter(~(has_outcome & (pl.col("outcome_date") < window_start)))
+
+    if outcomes.select((pl.col("censor_date") > window_start).any()).item():
+        raise ValueError(
+            "censor_date is after the prediction window start; outcomes would leak into the input"
+        )
 
     in_window = has_outcome
     if n_hours_end_include is not None:
         in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(
             hours=n_hours_end_include
         )
-    outcomes = outcomes.with_columns(label=in_window.cast(pl.Int64))
+    return outcomes.with_columns(label=in_window.cast(pl.Int64))
 
-    rows = outcomes.select("subject_id", "label", "censor_abspos").to_dicts()
-    return {
-        row["subject_id"]: {
-            "label": row["label"],
-            "censor_abspos": row["censor_abspos"],
-        }
-        for row in rows
-    }
+
+def split_outcomes(
+    outcomes: pl.DataFrame,
+    train_key: str,
+    val_key: str,
+    test_key: str,
+):
+    return (
+        outcomes.filter(pl.col("split") == split_key)
+        for split_key in (train_key, val_key, test_key)
+    )
 
 
 def split_and_binarize_outcomes(
-    outcomes,
+    outcomes: pl.DataFrame,
     train_key: str,
     val_key: str,
     test_key: str,
     n_hours_start_include: int,
-    n_hours_end_include: Optional[int] = None,
-) -> tuple[dict[int, dict], dict[int, dict], dict[int, dict]]:
-    train_outcomes = outcomes.filter(pl.col("split") == train_key)
-    train_outcomes = binarize_outcomes(
-        train_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    val_outcomes = outcomes.filter(pl.col("split") == val_key)
-    val_outcomes = binarize_outcomes(
-        val_outcomes, n_hours_start_include, n_hours_end_include
-    )
-    test_outcomes = outcomes.filter(pl.col("split") == test_key)
-    test_outcomes = binarize_outcomes(
-        test_outcomes, n_hours_start_include, n_hours_end_include
+    n_hours_end_include: int | None = None,
+):
+    splits = split_outcomes(outcomes, train_key, val_key, test_key)
+
+    return (
+        finalize_outcomes(
+            binarize_outcomes(
+                split,
+                n_hours_start_include,
+                n_hours_end_include,
+            )
+        )
+        for split in splits
     )
 
-    return train_outcomes, val_outcomes, test_outcomes
+
+def finalize_outcomes(outcomes: pl.DataFrame) -> dict[int, dict]:
+    outcomes = outcomes.with_columns(
+        censor_abspos=compute_abspos(pl.col("censor_date"))
+    )
+    return {
+        row["subject_id"]: {
+            key: value for key, value in row.items() if key != "subject_id"
+        }
+        for row in outcomes.to_dicts()
+    }
