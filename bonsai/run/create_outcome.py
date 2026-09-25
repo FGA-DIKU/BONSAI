@@ -132,6 +132,8 @@ def main(cfg: DictConfig) -> None:
         logging.info(
             f"Excluded {n_before - all_outcomes.height:_} subjects with an exclusion event before index"
         )
+    elif index.type == "exposure":
+        all_outcomes = all_outcomes.filter(pl.col("index_date").is_not_null())
 
     if exclude is not None:
         n_before = all_outcomes.height
