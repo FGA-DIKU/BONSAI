@@ -53,15 +53,15 @@ def get_date_from_exposure_date(subjects, df, dependence, conditions):
     )
     return subjects.join(
         result.select("subject_id", "time"), on="subject_id", how="left"
-    )["time"]
+    )
 
 
-def fill_nans_with_sampled(dates):
+def fill_nans_with_sampled(dates, seed=None):
     if dates.is_null().all():
         raise ValueError("No non-NaN indexing dates found")
 
     return dates.fill_null(
-        dates.drop_nulls().sample(dates.len(), with_replacement=True)
+        dates.drop_nulls().sample(dates.len(), with_replacement=True, seed=seed)
     )
 
 
