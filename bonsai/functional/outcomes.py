@@ -1,49 +1,35 @@
-from typing import List, Literal, Optional, Dict, Tuple
 from datetime import datetime, timedelta
+from typing import Literal, Optional
+
 import polars as pl
 
 
 def get_subject_first_row_for_conditions(
-    df: pl.DataFrame, conditions: List, dependence: Literal["independent", "dependent"]
+    df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
-    """Returns the first row (priority based on condition order) for each subject that matches the conditions"""
-    # Initialization
-    df = df.with_columns(_prio=pl.lit(None).cast(pl.Int32))
-    row_mask = pl.lit(False)
-    subject_sets = []
+    """Earliest time each subject meets the definition: any condition (independent) or all (dependent)."""
+    if dependence not in ("independent", "dependent"):
+        raise ValueError(f"Dependence can only be [independent, dependent], not {dependence}")
 
-    # Find matches (dataframe rows AND subject_ids) of conditions
-    for i, cond in enumerate(conditions):
-        cond_expr = pl.col(cond["col"]).is_in(cond["vals"])  # Rows that meet condition
-        row_mask = row_mask | cond_expr  # OR operation
-        df = df.with_columns(
-            _prio=pl.when(cond_expr & pl.col("_prio").is_null())
-            .then(pl.lit(i))
-            .otherwise(pl.col("_prio"))
-        )  # Set priority (to take first row later)
-        subject_sets.append(
-            set(df.filter(cond_expr).get_column("subject_id").to_list())
-        )  # Get subjects that match condition
+    # Build conditions
+    per_cond = [
+        df.filter(pl.col(cond["col"]).is_in(cond["vals"]))
+        .group_by("subject_id")
+        .agg(pl.col("time").min().alias(f"_time{i}"))
+        for i, cond in enumerate(conditions)
+    ]
 
-    # Toggle between any or all conditions met
-    if dependence == "independent":
-        matched_subjects = set.union(*subject_sets)  # Any condition met
-    elif dependence == "dependent":  # TODO: Implement time_window
-        matched_subjects = set.intersection(*subject_sets)  # All conditions met
-    else:
-        raise ValueError(
-            f"Dependence can only be [independent, dependent], not {dependence}"
-        )
+    # Joins conditions
+    how = "full" if dependence == "independent" else "inner"
+    res = per_cond[0]
+    for other in per_cond[1:]:
+        res = res.join(other, on="subject_id", how=how, coalesce=True)
 
-    # Get matched subjects AND rows
-    res = df.filter(pl.col("subject_id").is_in(list(matched_subjects)) & row_mask)
+    # Find dependence time
+    cols = [f"_time{i}" for i in range(len(conditions))]
+    combine = pl.min_horizontal if dependence == "independent" else pl.max_horizontal
 
-    # Take first row based on `conditions` ordering
-    res = (
-        res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
-    )
-    res = res.drop("_prio")
-    return res
+    return res.select("subject_id", combine(cols).alias("time"))
 
 
 def get_date_from_absolute_date(absolute_date):
@@ -83,7 +69,7 @@ def binarize_outcomes(
     outcomes: pl.DataFrame,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
-) -> Dict[int, dict]:
+) -> dict[int, dict]:
     time_delta_datetime = pl.col("outcome_date") - pl.col("index_date")
     time_delta_hours = time_delta_datetime.dt.total_hours()
 
@@ -114,7 +100,7 @@ def split_and_binarize_outcomes(
     test_key: str,
     n_hours_start_include: int,
     n_hours_end_include: Optional[int] = None,
-) -> Tuple[Dict[int, dict], Dict[int, dict], Dict[int, dict]]:
+) -> tuple[dict[int, dict], dict[int, dict], dict[int, dict]]:
     train_outcomes = outcomes.filter(pl.col("split") == train_key)
     train_outcomes = binarize_outcomes(
         train_outcomes, n_hours_start_include, n_hours_end_include
