@@ -13,7 +13,9 @@ def get_subject_first_row_for_conditions(
 
     # Build conditions
     per_cond = [
-        df.filter(pl.col(cond["col"]).is_in(cond["vals"]))
+        df.filter(
+            pl.any_horizontal(pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"])
+        )
         .group_by("subject_id")
         .agg(pl.col("time").min().alias(f"_time{i}"))
         for i, cond in enumerate(conditions)
