@@ -118,7 +118,7 @@ class PretrainModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)
+            total_iters=math.ceil(steps_per_epoch * self.scheduler_warmup_epochs),
         )
         scheduler_config = {
             "scheduler": scheduler,

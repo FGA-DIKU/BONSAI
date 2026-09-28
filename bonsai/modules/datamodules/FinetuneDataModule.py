@@ -82,10 +82,16 @@ class FinetuneDataModule(L.LightningDataModule):
             max_len=self.max_len,
         )
 
-        self.train_sampler = get_sampler(
-            weight_fn=self.train_sampler_weight_fn,
-            labels=[self.train_outcomes[s["subject_id"]]["label"] for s in train_data],
-        ) if self.train_sampler_weight_fn is not None else None
+        self.train_sampler = (
+            get_sampler(
+                weight_fn=self.train_sampler_weight_fn,
+                labels=[
+                    self.train_outcomes[s["subject_id"]]["label"] for s in train_data
+                ],
+            )
+            if self.train_sampler_weight_fn is not None
+            else None
+        )
 
     def setup_predict(self):
         if self.path_predict_data is None:
