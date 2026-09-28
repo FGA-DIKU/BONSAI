@@ -90,7 +90,7 @@ def main(cfg: DictConfig) -> None:
         pos_weight=get_loss_weight(
             cfg.training.loss_weight_function,
             labels=[v["label"] for v in train_outcomes.values()],
-        ),
+        ) if cfg.training.loss_weight_function is not None else None,
     )
 
     ckpt_callback = ModelCheckpoint(

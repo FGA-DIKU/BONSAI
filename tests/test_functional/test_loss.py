@@ -1,6 +1,8 @@
 import unittest
+
 import torch
-from bonsai.functional.loss import get_loss_weight, sqrt, effective_n_samples
+
+from bonsai.functional.loss import effective_n_samples, get_loss_weight, sqrt
 
 
 class TestLoss(unittest.TestCase):

@@ -7,8 +7,6 @@ from torch.utils.data import WeightedRandomSampler
 
 
 def get_sampler(weight_fn, labels) -> WeightedRandomSampler:
-    if weight_fn is None:
-        return None
     label_counts = Counter(labels)
     label_weight = instantiate(
         weight_fn,
