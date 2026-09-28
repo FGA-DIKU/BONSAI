@@ -1,5 +1,5 @@
 defaults:
-  - core/base_create@
+  - /core/base_create@
   - _self_
 
 dataset:
@@ -18,7 +18,7 @@ cohort:
     dependence: independent # independent/dependent
     conditions:
       - col: code
-        vals: [DIAGNOSIS//E10]
+        vals: [DIAGNOSIS//DE10]
         match: prefix # exact/prefix
 
   include:
@@ -28,5 +28,5 @@ cohort:
         vals: [MEDICATION//A10]
         match: prefix # exact/prefix
       - col: code
-        vals: [DIAGNOSIS//E11]
+        vals: [DIAGNOSIS//DE11]
         match: prefix # exact/prefix
