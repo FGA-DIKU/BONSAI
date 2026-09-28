@@ -1,0 +1,32 @@
+defaults:
+  - core/base_create@
+  - _self_
+
+dataset:
+
+paths:
+  input_dir: example_data/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/cohorts/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+cohort:
+  exclude: # OPTIONAL
+    dependence: independent # independent/dependent
+    conditions:
+      - col: code
+        vals: [DIAGNOSIS//E10]
+        match: prefix # exact/prefix
+
+  include:
+    dependence: independent # independent/dependent
+    conditions:
+      - col: code
+        vals: [MEDICATION//A10]
+        match: prefix # exact/prefix
+      - col: code
+        vals: [DIAGNOSIS//E11]
+        match: prefix # exact/prefix
