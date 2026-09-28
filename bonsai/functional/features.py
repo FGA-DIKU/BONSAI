@@ -114,7 +114,7 @@ def compute_abspos(
     if isinstance(timestamps, (pl.Expr, pl.Series)):
         return (
             timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
-            / 3_600_000
+            / (3600 * 1_000 * 1_000)
         ).cast(pl.Float32)
 
     raise TypeError(

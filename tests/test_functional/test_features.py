@@ -1,16 +1,18 @@
 import unittest
+from datetime import datetime
+
+import numpy as np
 import polars as pl
+
 from bonsai.functional.features import (
-    create_features,
-    create_background,
-    compute_age,
     compute_abspos,
+    compute_age,
     compute_segments,
+    create_background,
+    create_features,
     drop_invalids,
     exclude_incorrect_event_ages,
 )
-import numpy as np
-from datetime import datetime
 
 
 class TestFeatures(unittest.TestCase):
@@ -80,7 +82,7 @@ class TestFeatures(unittest.TestCase):
             ]
         )
         abspos = compute_abspos(times)
-        self.assertTrue(np.isclose(abspos[1] - abspos[0], 1.0, atol=0.01))
+        self.assertTrue(np.isclose(abspos[1] - abspos[0], 1e-3, atol=1e-5))
         self.assertTrue(abspos[2] is None)
 
         dt = datetime(2000, 1, 1, 0, 0, 0)
