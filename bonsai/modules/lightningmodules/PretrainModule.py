@@ -110,6 +110,7 @@ class PretrainModule(L.LightningModule):
         )
         if self.scheduler_warmup_epochs == 0:
             return optimizer
+        assert self.scheduler_warmup_epochs > 0
 
         steps_per_epoch = (
             self.trainer.estimated_stepping_batches // self.trainer.max_epochs
@@ -117,9 +118,7 @@ class PretrainModule(L.LightningModule):
         scheduler = LinearLR(
             optimizer=optimizer,
             start_factor=1e-4,
-            total_iters=max(
-                1, math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)
-            ),
+            total_iters=math.ceil(steps_per_epoch * self.scheduler_warmup_epochs)
         )
         scheduler_config = {
             "scheduler": scheduler,
