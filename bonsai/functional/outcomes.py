@@ -1,6 +1,7 @@
 import polars as pl
 
 from bonsai.functional.conditions import get_subject_first_row_for_conditions
+from bonsai.functional.features import compute_abspos
 
 
 def get_date_from_absolute_date(absolute_date):
