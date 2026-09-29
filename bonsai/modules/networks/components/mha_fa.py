@@ -16,7 +16,9 @@ class FlashMultiHeadAttention(nn.Module):
         self.head_dim = hidden_size // num_heads
 
         self.Wqkv = nn.Linear(hidden_size, hidden_size * 3, bias=bias)
-        self.rotary_embedding = FlashRotaryEmbedding(dim=self.head_dim)
+        self.rotary_embedding = FlashRotaryEmbedding(
+            dim=self.head_dim, interleaved=True
+        )
         self.self_attn = FlashSelfAttention(
             causal=causal, attention_dropout=attention_dropout
         )

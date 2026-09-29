@@ -114,17 +114,18 @@ class Time2Vec(nn.Module):
         self.phi = torch.nn.Parameter(torch.randn(output_dim - 1))
 
     def forward(self, tau: torch.Tensor) -> torch.Tensor:
-        tau = tau.unsqueeze(2)  # (batch_size, sequence_length, 1)
+        with torch.autocast(device_type=tau.device.type, enabled=False):
+            tau = tau.unsqueeze(2)  # (batch_size, sequence_length, 1)
 
-        linear_1 = torch.matmul(tau, self.w0) + self.phi0
-        linear_2 = torch.matmul(tau, self.w)
+            linear_1 = torch.matmul(tau, self.w0) + self.phi0
+            linear_2 = torch.matmul(tau, self.w)
 
-        if self.clip_range is not None:
-            linear_1 = torch.clamp(linear_1, -self.clip_range, self.clip_range)
+            if self.clip_range is not None:
+                linear_1 = torch.clamp(linear_1, -self.clip_range, self.clip_range)
 
-        periodic = self.f(linear_2 + self.phi)
+            periodic = self.f(linear_2 + self.phi)
 
-        return torch.cat((linear_1, periodic), dim=-1)
+            return torch.cat((linear_1, periodic), dim=-1)
 
 
 class ContinuousEmbedding(nn.Module):

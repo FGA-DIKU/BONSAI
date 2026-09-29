@@ -1,7 +1,8 @@
 from collections import Counter
-from typing import List, Optional, Dict
-import torch
+from typing import Dict, List, Optional
+
 import numpy as np
+import torch
 from hydra.utils import instantiate
 
 
@@ -10,8 +11,6 @@ def get_loss_weight(fn, labels: List[int]) -> Optional[torch.Tensor]:
     If loss_weight_function is false or undefined, then no positive weight is used.
     If loss_weight_function is defined then the function is used to calculate the weights.
     """
-    if fn is None:
-        return None
     label_counts = Counter(labels)
     return instantiate(fn, label_counts=label_counts)
 

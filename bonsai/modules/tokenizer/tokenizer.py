@@ -1,4 +1,5 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 import polars as pl
 
 
@@ -49,7 +50,7 @@ class EHRTokenizer:
         unique_codes = codes.unique()
 
         # Add new codes
-        new_codes = set(unique_codes) - set(self.vocabulary)
+        new_codes = sorted(set(unique_codes) - set(self.vocabulary))
         if new_codes:
             start_idx = max(self.vocabulary.values()) + 1
             new_indices = range(start_idx, start_idx + len(new_codes))
@@ -61,8 +62,12 @@ class EHRTokenizer:
             (pl.col("segment") != pl.col("segment").shift(-1))
             & (pl.col("subject_id") == pl.col("subject_id").shift(-1))
         ).with_columns(code=pl.lit("[SEP]"))
+        if "numeric_value" in df.columns:
+            sep_rows = sep_rows.with_columns(
+                numeric_value=pl.lit(None, dtype=sep_rows.schema["numeric_value"])
+            )
         df = pl.concat([df, sep_rows])
-        df = df.sort(["subject_id", "abspos"])
+        df = df.sort(["subject_id", "segment"], maintain_order=True)
         return df
 
     def tokenize(self, codes: pl.Expr) -> pl.Expr:

@@ -1,11 +1,13 @@
-import numpy as np
 import os
-from bonsai.paths import get_models_path
 from typing import Union
+
+import numpy as np
+
+from bonsai.paths import get_models_path
 
 
 def generate_unused_run_id(
-    model_dir: str = get_models_path(), string_match="run_id="
+    model_dir: str = get_models_path(), string_match="run_id_"
 ) -> Union[None, int]:
     global_used_ids = [0]
     for dirpath, _, _ in os.walk(model_dir):
