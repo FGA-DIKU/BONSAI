@@ -1,4 +1,5 @@
-from typing import List, Literal
+from typing import Literal
+
 import polars as pl
 
 
@@ -18,55 +19,30 @@ def get_condition_expression(cond) -> pl.Expr:
 
 
 def get_subject_first_row_for_conditions(
-    df: pl.DataFrame,
-    conditions: List,
-    dependence: Literal["independent", "dependent"],
+    df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
-    """Returns the first row (priority based on condition order) for each subject that matches the conditions."""
-    # Initialization
-    df = df.with_columns(_prio=pl.lit(None).cast(pl.Int32))
-    row_mask = pl.lit(False)
-    subject_sets = []
-
-    # Find matches (dataframe rows AND subject_ids) of conditions
-    for i, cond in enumerate(conditions):
-        cond_expr = get_condition_expression(cond)
-
-        # OR operation
-        row_mask = row_mask | cond_expr
-
-        # Set priority (to take first row later)
-        df = df.with_columns(
-            _prio=pl.when(cond_expr & pl.col("_prio").is_null())
-            .then(pl.lit(i))
-            .otherwise(pl.col("_prio"))
-        )
-
-        # Get subjects that match condition
-        subject_sets.append(
-            set(df.filter(cond_expr).get_column("subject_id").to_list())
-        )
-
-    # Toggle between any or all conditions met
-    if dependence == "independent":
-        matched_subjects = set.union(*subject_sets)  # Any condition met
-
-    elif dependence == "dependent":  # TODO: Implement time_window
-        matched_subjects = set.intersection(*subject_sets)  # All conditions met
-
-    else:
+    """Earliest time each subject meets the definition: any condition (independent) or all (dependent)."""
+    if dependence not in ("independent", "dependent"):
         raise ValueError(
             f"Dependence can only be [independent, dependent], not {dependence}"
         )
 
-    # Get matched subjects AND rows
-    res = df.filter(pl.col("subject_id").is_in(list(matched_subjects)) & row_mask)
+    # Build conditions
+    per_cond = [
+        df.filter(get_condition_expression(cond))
+        .group_by("subject_id")
+        .agg(pl.col("time").min().alias(f"_time{i}"))
+        for i, cond in enumerate(conditions)
+    ]
 
-    # Take first row based on `conditions` ordering
-    res = (
-        res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
-    )
+    # Joins conditions
+    how = "full" if dependence == "independent" else "inner"
+    res = per_cond[0]
+    for other in per_cond[1:]:
+        res = res.join(other, on="subject_id", how=how, coalesce=True)
 
-    res = res.drop("_prio")
+    # Find dependence time
+    cols = [f"_time{i}" for i in range(len(conditions))]
+    combine = pl.min_horizontal if dependence == "independent" else pl.max_horizontal
 
-    return res
+    return res.select("subject_id", combine(cols).alias("time"))
