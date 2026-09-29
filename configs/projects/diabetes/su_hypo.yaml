@@ -20,11 +20,13 @@ outcome:
     conditions:
       - col: code
         vals: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
+        match: prefix # exact/prefix
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - col: code
         vals: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
+        match: prefix # exact/prefix
 
   index:
     type: exposure # absolute/relative/exposure
@@ -32,6 +34,7 @@ outcome:
     conditions: 
       - col: code
         vals: [ MEDICATION//MA10BB ]
+        match: prefix # exact/prefix
 
   censor: # ALWAYS RELATIVE TO INDEX
     relative_shift: 0 # 0 sets index=censor
