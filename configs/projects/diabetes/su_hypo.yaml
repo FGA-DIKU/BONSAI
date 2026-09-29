@@ -34,4 +34,4 @@ outcome:
         vals: [ MEDICATION//MA10BB ]
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: 0 # 0 sets index=censor
+    relative_shift: 0 # 0 sets index=censor
