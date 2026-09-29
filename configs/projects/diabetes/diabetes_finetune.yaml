@@ -10,5 +10,7 @@ paths:
 
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
-  n_hours_start_include: 168 # start follow up (considering outcomes) time after index date (negative means before)
-  n_hours_end_include: 8760
+  start_include: 
+    days: 7 # start follow up (considering outcomes) time after index date (negative means before)
+  end_include: 
+    days: 365
