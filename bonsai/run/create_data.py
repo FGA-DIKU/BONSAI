@@ -66,7 +66,9 @@ def main(cfg: DictConfig) -> None:
     torch.save(tokenizer.vocabulary, path_output_dir / "vocabulary.pt")
 
     population = pl.from_dict({"subject_id": ids})
-    population.write_csv(path_output_dir / "cohorts" / "population_full.csv")
+    population_path = path_output_dir / "cohorts" / "population_full.csv"
+    population_path.parent.mkdir(parents=True, exist_ok=True)
+    population.write_csv(population_path)
 
 
 if __name__ == "__main__":
