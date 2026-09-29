@@ -32,9 +32,7 @@ def get_subject_first_row_for_conditions(
 
     # Build conditions
     per_cond = [
-        df.filter(
-            get_condition_expression(cond)
-        )
+        df.filter(get_condition_expression(cond))
         .group_by("subject_id")
         .agg(pl.col("time").min().alias(f"_time{i}"))
         for i, cond in enumerate(conditions)
