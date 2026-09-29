@@ -190,7 +190,6 @@ class TestBinizationOutcomes(unittest.TestCase):
             }
         )
         result = binarize_outcomes(df, start_include={"hours": 24})
-
         self.assertTrue(result.is_empty())
 
     def test_split_and_binarize_outcomes(self):
