@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 from hydra.core.plugins import Plugins
 from omegaconf import DictConfig
 
+from bonsai.functional.conditions import get_subject_first_row_for_conditions
 from bonsai.functional.outcomes import (
     fill_nans_with_sampled,
     get_date_from_absolute_date,
     get_date_from_exposure_date,
     get_date_from_relative_date,
-    get_subject_first_row_for_conditions,
 )
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 from bonsai.paths import get_config_path

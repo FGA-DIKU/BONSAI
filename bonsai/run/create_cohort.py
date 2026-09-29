@@ -4,13 +4,12 @@ from pathlib import Path
 import hydra
 import polars as pl
 from dotenv import load_dotenv
+from hydra.core.plugins import Plugins
 from omegaconf import DictConfig
 
-from hydra.core.plugins import Plugins
-from bonsai.paths import get_config_path
-from bonsai.functional.cohorts import get_cohort_subjects
+from bonsai.functional.conditions import get_subject_first_row_for_conditions
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
-
+from bonsai.paths import get_config_path
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
@@ -34,28 +33,27 @@ def main(cfg: DictConfig) -> None:
     logging.info(f"Excluding subjects with {exclude}")
 
     all_subjects = []
-
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
-
         for shard in shards:
-            df = pl.read_parquet(
-                shard,
-                columns=["subject_id", "time", "code"],
-            )
+            df = pl.read_parquet(shard, columns=["subject_id", "time", "code"])
 
             df = df.drop_nulls(["subject_id", "time", "code"])
 
-            cohort = get_cohort_subjects(
-                df=df,
-                include_conditions=include.conditions,
-                include_dependence=include.dependence,
-                exclude_conditions=(
-                    exclude.conditions if exclude is not None else None
-                ),
-                exclude_dependence=(
-                    exclude.dependence if exclude is not None else None
-                ),
+            # Exclude subjects matching exclude.conditions
+            if exclude is not None:
+                exclude_df = get_subject_first_row_for_conditions(
+                    df, exclude.conditions, exclude.dependence
+                )
+                logging.info(f"Excluding {len(exclude_df)} subjects")
+                df = df.join(
+                    exclude_df.select("subject_id"),
+                    on="subject_id",
+                    how="anti",
+                )
+
+            cohort = get_subject_first_row_for_conditions(
+                df, include.conditions, include.depedence
             )
 
             all_subjects.append(cohort)
@@ -63,9 +61,7 @@ def main(cfg: DictConfig) -> None:
     cohort = (
         pl.concat(all_subjects).unique("subject_id")
         if all_subjects
-        else pl.DataFrame(
-            schema={"subject_id": pl.Int64}
-        )
+        else pl.DataFrame(schema={"subject_id": pl.Int64})
     )
 
     logging.info(f"Total number of subjects: {len(cohort):_}")

@@ -11,15 +11,10 @@ def get_condition_expression(cond) -> pl.Expr:
 
     if match == "prefix":
         return pl.any_horizontal(
-            [
-                pl.col(cond["col"]).str.starts_with(val)
-                for val in cond["vals"]
-            ]
+            [pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]]
         )
 
-    raise ValueError(
-        f"Match can only be [exact, prefix], not {match}"
-    )
+    raise ValueError(f"Match can only be [exact, prefix], not {match}")
 
 
 def get_subject_first_row_for_conditions(
@@ -42,20 +37,14 @@ def get_subject_first_row_for_conditions(
 
         # Set priority (to take first row later)
         df = df.with_columns(
-            _prio=pl.when(
-                cond_expr & pl.col("_prio").is_null()
-            )
+            _prio=pl.when(cond_expr & pl.col("_prio").is_null())
             .then(pl.lit(i))
             .otherwise(pl.col("_prio"))
         )
 
         # Get subjects that match condition
         subject_sets.append(
-            set(
-                df.filter(cond_expr)
-                .get_column("subject_id")
-                .to_list()
-            )
+            set(df.filter(cond_expr).get_column("subject_id").to_list())
         )
 
     # Toggle between any or all conditions met
@@ -71,16 +60,11 @@ def get_subject_first_row_for_conditions(
         )
 
     # Get matched subjects AND rows
-    res = df.filter(
-        pl.col("subject_id").is_in(list(matched_subjects))
-        & row_mask
-    )
+    res = df.filter(pl.col("subject_id").is_in(list(matched_subjects)) & row_mask)
 
     # Take first row based on `conditions` ordering
     res = (
-        res.sort(["_prio", "time"])
-        .group_by("subject_id", maintain_order=True)
-        .first()
+        res.sort(["_prio", "time"]).group_by("subject_id", maintain_order=True).first()
     )
 
     res = res.drop("_prio")
