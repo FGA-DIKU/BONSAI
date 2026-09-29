@@ -24,6 +24,7 @@ outcome:
     conditions:
       - col: code
         vals: [ SYN//Negative ]
+        match: exact # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure

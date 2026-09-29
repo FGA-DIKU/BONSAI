@@ -6,6 +6,21 @@ import polars as pl
 from bonsai.functional.features import compute_abspos
 
 
+def get_condition_expression(cond) -> pl.Expr:
+    """Build a Polars expression for a condition."""
+    match = cond.get("match", "exact")
+
+    if match == "exact":
+        return pl.col(cond["col"]).is_in(cond["vals"])
+
+    if match == "prefix":
+        return pl.any_horizontal(
+            [pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]]
+        )
+
+    raise ValueError(f"Match can only be [exact, prefix], not {match}")
+
+
 def get_subject_first_row_for_conditions(
     df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
@@ -18,9 +33,7 @@ def get_subject_first_row_for_conditions(
     # Build conditions
     per_cond = [
         df.filter(
-            pl.any_horizontal(
-                pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]
-            )
+            get_condition_expression(cond)
         )
         .group_by("subject_id")
         .agg(pl.col("time").min().alias(f"_time{i}"))
