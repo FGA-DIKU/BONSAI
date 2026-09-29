@@ -53,8 +53,8 @@ def main(cfg: DictConfig) -> None:
         train_key="train",
         val_key="tuning",
         test_key="held_out",
-        n_hours_start_include=cfg.labels.n_hours_start_include,
-        n_hours_end_include=cfg.labels.n_hours_end_include,
+        start_include=cfg.labels.start_include,
+        end_include=cfg.labels.end_include,
     )
 
     data_module = FinetuneDataModule(

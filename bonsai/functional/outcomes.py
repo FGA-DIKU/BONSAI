@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from typing import Literal
 
 import polars as pl
@@ -53,13 +52,13 @@ def get_subject_first_row_for_conditions(
 
 def get_date_from_absolute_date(absolute_date):
     assert absolute_date is not None
-    return datetime(**absolute_date)
+    return pl.datetime(**absolute_date)
 
 
-def get_date_from_relative_date(relative_dates, relative_hour_shift):
+def get_date_from_relative_date(relative_dates: pl.Expr, relative_shift: dict):
     assert relative_dates is not None
-    assert relative_hour_shift is not None
-    return relative_dates + timedelta(hours=relative_hour_shift)
+    assert relative_shift is not None
+    return relative_dates + pl.duration(**relative_shift)
 
 
 def get_date_from_exposure_date(subjects, df, dependence, conditions):
@@ -86,10 +85,10 @@ def fill_nans_with_sampled(dates, seed=None):
 
 def binarize_outcomes(
     outcomes: pl.DataFrame,
-    n_hours_start_include: int,
-    n_hours_end_include: int | None = None,
+    start_include: dict,
+    end_include: dict | None = None,
 ) -> pl.DataFrame:
-    window_start = pl.col("index_date") + pl.duration(hours=n_hours_start_include)
+    window_start = pl.col("index_date") + pl.duration(**start_include)
     has_outcome = pl.col("outcome_date").is_not_null()
     outcomes = outcomes.filter(~(has_outcome & (pl.col("outcome_date") < window_start)))
 
@@ -99,9 +98,9 @@ def binarize_outcomes(
         )
 
     in_window = has_outcome
-    if n_hours_end_include is not None:
+    if end_include is not None:
         in_window &= pl.col("outcome_date") <= pl.col("index_date") + pl.duration(
-            hours=n_hours_end_include
+            **end_include
         )
     return outcomes.with_columns(label=in_window.cast(pl.Int64))
 
@@ -123,8 +122,8 @@ def split_and_binarize_outcomes(
     train_key: str,
     val_key: str,
     test_key: str,
-    n_hours_start_include: int,
-    n_hours_end_include: int | None = None,
+    start_include: dict,
+    end_include: dict | None = None,
 ):
     splits = split_outcomes(outcomes, train_key, val_key, test_key)
 
@@ -132,8 +131,8 @@ def split_and_binarize_outcomes(
         finalize_outcomes(
             binarize_outcomes(
                 split,
-                n_hours_start_include,
-                n_hours_end_include,
+                start_include,
+                end_include,
             )
         )
         for split in splits

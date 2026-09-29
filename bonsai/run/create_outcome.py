@@ -88,7 +88,7 @@ def main(cfg: DictConfig) -> None:
                 outcomes = outcomes.with_columns(
                     index_date=get_date_from_relative_date(
                         relative_dates=pl.col("outcome_date"),
-                        relative_hour_shift=index["relative_hour_shift"],
+                        relative_shift=index["relative_shift"],
                     )
                 )
             elif index.type == "exposure":
@@ -138,9 +138,7 @@ def main(cfg: DictConfig) -> None:
     all_outcomes = all_outcomes.with_columns(
         censor_date=get_date_from_relative_date(
             relative_dates=pl.col("index_date"),  # Censoring is based on index_date
-            relative_hour_shift=censor[
-                "relative_hour_shift"
-            ],  # 0 sets index_date=censor_date
+            relative_shift=censor["relative_shift"],  # 0 sets index_date=censor_date
         )
     )
 

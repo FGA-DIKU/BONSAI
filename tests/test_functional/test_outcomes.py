@@ -81,14 +81,22 @@ class TestCreateOutcomesUtils(unittest.TestCase):
 
     def test_get_date_from_absolute_date(self):
         date_dict = {"year": 2020, "month": 1, "day": 2}
-        result = get_date_from_absolute_date(absolute_date=date_dict)
+        result = pl.select(get_date_from_absolute_date(absolute_date=date_dict)).item()
         self.assertEqual(result, datetime(2020, 1, 2))
 
     def test_get_date_from_relative_date(self):
-        base_dates = pl.Series([datetime(2020, 1, 1), datetime(2020, 1, 2), None])
-        result = get_date_from_relative_date(
-            relative_dates=base_dates, relative_hour_shift=24
+        df = pl.DataFrame(
+            {
+                "outcome_date": [datetime(2020, 1, 1), datetime(2020, 1, 2), None],
+            }
         )
+        result = df.select(
+            get_date_from_relative_date(
+                relative_dates=pl.col("outcome_date"),
+                relative_shift={"hours": 24},
+            )
+        ).to_series()
+
         self.assertEqual(result[0], datetime(2020, 1, 2))
         self.assertEqual(result[1], datetime(2020, 1, 3))
         self.assertIsNone(result[2])
@@ -148,7 +156,7 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_date": [datetime(2020, 1, 1), datetime(2020, 1, 1)],
             }
         )
-        result = binarize_outcomes(df, n_hours_start_include=24)
+        result = binarize_outcomes(df, start_include={"hours": 24})
         self.assertEqual(result["label"][0], 1)
         self.assertEqual(result["label"][1], 0)
 
@@ -165,7 +173,9 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_date": [datetime(2020, 1, 1)] * 3,
             }
         )
-        result = binarize_outcomes(df, n_hours_start_include=24, n_hours_end_include=72)
+        result = binarize_outcomes(
+            df, start_include={"hours": 24}, end_include={"hours": 72}
+        )
         self.assertEqual(result["label"][0], 1)
         self.assertEqual(result["label"][1], 1)
         self.assertEqual(result["label"][2], 0)
@@ -179,7 +189,7 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "censor_date": pl.Datetime,
             }
         )
-        result = binarize_outcomes(df, n_hours_start_include=24)
+        result = binarize_outcomes(df, start_include={"hours": 24})
         self.assertTrue(result.is_empty())
 
     def test_split_and_binarize_outcomes(self):
@@ -200,7 +210,7 @@ class TestBinizationOutcomes(unittest.TestCase):
             }
         )
         train, val, test = split_and_binarize_outcomes(
-            df, "train", "val", "test", n_hours_start_include=24
+            df, "train", "val", "test", start_include={"hours": 24}
         )
         self.assertEqual(set(train.keys()), {1})
         self.assertEqual(set(val.keys()), {3})

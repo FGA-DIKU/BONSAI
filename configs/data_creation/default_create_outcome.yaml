@@ -37,9 +37,10 @@ outcome:
       year: 2020
       month: 1
       day: 1
-    relative_hour_shift: # relative
+    relative_shift: # relative
     dependence: # exposure
     conditions: # exposure
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: -1000 # 0 sets index=censor
+    relative_shift: 
+      hours: -1000 # 0 sets index=censor
