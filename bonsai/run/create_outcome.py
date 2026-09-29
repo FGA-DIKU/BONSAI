@@ -78,11 +78,9 @@ def main(cfg: DictConfig) -> None:
             # Assign index dates
             if index.type == "absolute":
                 outcomes = outcomes.with_columns(
-                    index_date=pl.lit(
-                        get_date_from_absolute_date(
+                    index_date=get_date_from_absolute_date(
                             absolute_date=index["absolute_date"]
                         )
-                    )
                 )
             elif index.type == "relative":
                 outcomes = outcomes.with_columns(
