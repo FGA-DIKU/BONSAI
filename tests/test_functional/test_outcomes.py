@@ -176,7 +176,7 @@ class TestBinizationOutcomes(unittest.TestCase):
                 "subject_id": pl.Int64,
                 "index_date": pl.Datetime,
                 "outcome_date": pl.Datetime,
-                "censor_date": pl.Int64,
+                "censor_date": pl.Datetime,
             }
         )
         result = binarize_outcomes(df, n_hours_start_include=24)
