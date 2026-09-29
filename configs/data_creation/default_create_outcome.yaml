@@ -19,14 +19,17 @@ outcome:
     conditions:
       - col: code
         vals: [ D437 ]
+        match: prefix # exact/prefix
       - col: code
         vals: [ D438 ]
+        match: prefix # exact/prefix
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - col: code
         vals: [ DE11 ]
+        match: prefix # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure
@@ -34,9 +37,10 @@ outcome:
       year: 2020
       month: 1
       day: 1
-    relative_hour_shift: # relative
+    relative_shift: # relative
     dependence: # exposure
     conditions: # exposure
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: -1000 # 0 sets index=censor
+    relative_shift: 
+      hours: -1000 # 0 sets index=censor

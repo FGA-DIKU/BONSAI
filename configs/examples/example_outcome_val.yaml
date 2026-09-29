@@ -24,6 +24,7 @@ outcome:
     conditions:
       - col: code
         vals: [ SYN//Negative ]
+        match: exact # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure
@@ -31,9 +32,11 @@ outcome:
       year: 2023
       month: 1
       day: 1
-    relative_hour_shift: 0
+    relative_shift: 
+      hours: 0
     dependence: # exposure
     conditions: # exposure
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: 48 # 0 sets index=censor
+    relative_shift: 
+      hours: 0 # 0 sets index=censor
