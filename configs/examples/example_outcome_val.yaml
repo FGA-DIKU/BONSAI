@@ -37,4 +37,4 @@ outcome:
     conditions: # exposure
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_hour_shift: 48 # 0 sets index=censor
+    relative_hour_shift: 0 # 0 sets index=censor
