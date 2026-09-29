@@ -67,7 +67,7 @@ def main(cfg: DictConfig) -> None:
     logging.info(f"Total number of subjects: {len(cohort):_}")
     logging.info(f"Saving to {save_path}")
 
-    cohort.write_parquet(save_path)
+    cohort.write_csv(save_path)
 
 
 if __name__ == "__main__":
