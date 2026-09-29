@@ -1,3 +1,4 @@
+# @package _global_
 defaults:
   - /core/base_create@
   - _self_
@@ -6,7 +7,7 @@ dataset:
 
 paths:
   input_dir: example_data/${dataset}
-  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/cohorts/${hydra:job.config_name}.parquet
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/${hydra:job.config_name}.csv
 
 splits:
   - train

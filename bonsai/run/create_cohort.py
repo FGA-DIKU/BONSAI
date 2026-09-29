@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> None:
                 )
 
             cohort = get_subject_first_row_for_conditions(
-                df, include.conditions, include.depedence
+                df, include.conditions, include.dependence
             )
 
             all_subjects.append(cohort)

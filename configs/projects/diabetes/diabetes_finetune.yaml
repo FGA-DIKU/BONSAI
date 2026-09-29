@@ -6,7 +6,7 @@ defaults:
 
 
 paths:
-  population: ${paths.dir}/diabetes_cohort.csv
+  population: ${paths.dir}/cohorts/diabetes_cohort.csv
 
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
