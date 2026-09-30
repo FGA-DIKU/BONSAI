@@ -1,6 +1,9 @@
 hydra:
   verbose: false
   output_subdir: hydra
+  job:
+    env_set:
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
   run:
     dir: ${oc.env:BONSAI_MODELS}/${dataset}/${hydra:job.config_name}/run_id_${run_id}
   sweep:
