@@ -20,14 +20,14 @@ outcome:
     conditions:
       - column: code
         value: [ LABTEST//NPUD220 ]
-        operator: prefix # exact/prefix
+        operator: startswith_any # in/startswith_any
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - column: code
         value: [ DIAGNOSIS//SYN_POS_DIAG ]
-        operator: prefix # exact/prefix
+        operator: startswith_any # in/startswith_any
 
   index:
     type: absolute # absolute/relative/exposure

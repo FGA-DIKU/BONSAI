@@ -24,8 +24,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"column": "code", "value": ["A"]},
-            {"column": "code", "value": ["C"]},
+            {"column": "code", "value": ["A"], "operator": "in"},
+            {"column": "code", "value": ["C"], "operator": "in"},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="independent"
@@ -41,8 +41,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"column": "code", "value": ["A"]},
-            {"column": "code", "value": ["C"]},
+            {"column": "code", "value": ["A"], "operator": "in"},
+            {"column": "code", "value": ["C"], "operator": "in"},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
@@ -58,8 +58,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"column": "code", "value": ["C"]},
-            {"column": "code", "value": ["A"]},
+            {"column": "code", "value": ["C"], "operator": "in"},
+            {"column": "code", "value": ["A"], "operator": "in"},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
@@ -75,7 +75,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
                 "time": [datetime(2020, 1, 1)],
             }
         )
-        conditions = [{"column": "code", "value": ["A"]}]
+        conditions = [{"column": "code", "value": ["A"], "operator": "in"}]
         with self.assertRaises(ValueError):
             get_subject_first_row_for_conditions(df, conditions, dependence="invalid")
 
@@ -110,8 +110,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"column": "code", "value": ["A"]},
-            {"column": "code", "value": ["C"]},
+            {"column": "code", "value": ["A"], "operator": "in"},
+            {"column": "code", "value": ["C"], "operator": "in"},
         ]
         outcomes = get_subject_first_row_for_conditions(
             df, conditions, dependence="independent"

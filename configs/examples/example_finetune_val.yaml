@@ -5,13 +5,8 @@ defaults:
   - _self_
 
 training:
-<<<<<<< HEAD
   max_len: 512  
   batch_size: 64 
-=======
-  max_len: 512  # must operator (or be ≤) pretrained max_seqlen
-  batch_size: 64  # val has ~150 subjects; 256 + drop_last left 0 val batches
->>>>>>> 92fb1c6 (Revamped cohort creation to match EHR-extract)
   epochs: 5
   limit_val_batches: 1.0
   limit_train_batches: 1.0
