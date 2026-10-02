@@ -16,20 +16,20 @@ splits:
 
 outcome:
   exclude: # OPTIONAL
-    dependence: independent # independent/dependent
-    conditions:
-      - col: code
-        vals: [ D437 ]
-        match: prefix # exact/prefix
-      - col: code
-        vals: [ D438 ]
-        match: prefix # exact/prefix
+  #   dependence: independent # independent/dependent
+  #   conditions:
+  #     - col: code
+  #       vals: [ DIAGNOSIS//DB581 ]
+  #       match: prefix # exact/prefix
+  #     - col: code
+  #       vals: [ DIAGNOSIS//DO601 ]
+  #       match: prefix # exact/prefix
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - col: code
-        vals: [ DE11 ]
+        vals: [ DIAGNOSIS//SYN_POS_DIAG ]
         match: prefix # exact/prefix
 
   index:
