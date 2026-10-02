@@ -48,7 +48,7 @@ def main(cfg: DictConfig) -> None:
         for shard in shards:
             df = pl.read_parquet(shard, columns=["subject_id", "time", "code"])
 
-            df = df.drop_nulls(["subject_id", "time", "code"])
+            df = df.drop_nulls(["subject_id", "code"])
 
             # Assign the outcomes matching outcome.conditions
             outcomes = get_subject_first_row_for_conditions(

@@ -38,7 +38,7 @@ def main(cfg: DictConfig) -> None:
         for shard in shards:
             df = pl.read_parquet(shard, columns=["subject_id", "time", "code"])
 
-            df = df.drop_nulls(["subject_id", "time", "code"])
+            df = df.drop_nulls(["subject_id", "code"])
 
             # Exclude subjects matching exclude.conditions
             if exclude is not None:
