@@ -1,0 +1,34 @@
+# @package _global_
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset:
+
+paths:
+  input_dir: example_data/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/cohorts/${hydra:job.config_name}.csv
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+cohort:
+  conditional_criteria:
+    - action: exclude
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [DIAGNOSIS//DE10]
+          operator: startswith_any # in/startswith_any
+
+    - action: include
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [MEDICATION//A10]
+          operator: startswith_any # in/startswith_any
+        - column: code
+          value: [DIAGNOSIS//DE11]
+          operator: startswith_any # in/startswith_any
