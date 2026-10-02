@@ -18,19 +18,19 @@ outcome:
   exclude: # OPTIONAL
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ D437 ]
-        match: prefix # exact/prefix
-      - col: code
-        vals: [ D438 ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ D437 ]
+        operator: prefix # exact/prefix
+      - column: code
+        value: [ D438 ]
+        operator: prefix # exact/prefix
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ DE11 ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ DE11 ]
+        operator: prefix # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure

@@ -24,8 +24,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
+            {"column": "code", "value": ["A"]},
+            {"column": "code", "value": ["C"]},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="independent"
@@ -41,8 +41,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
+            {"column": "code", "value": ["A"]},
+            {"column": "code", "value": ["C"]},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
@@ -58,8 +58,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"col": "code", "vals": ["C"]},
-            {"col": "code", "vals": ["A"]},
+            {"column": "code", "value": ["C"]},
+            {"column": "code", "value": ["A"]},
         ]
         result = get_subject_first_row_for_conditions(
             df, conditions, dependence="dependent"
@@ -75,7 +75,7 @@ class TestCreateOutcomesUtils(unittest.TestCase):
                 "time": [datetime(2020, 1, 1)],
             }
         )
-        conditions = [{"col": "code", "vals": ["A"]}]
+        conditions = [{"column": "code", "value": ["A"]}]
         with self.assertRaises(ValueError):
             get_subject_first_row_for_conditions(df, conditions, dependence="invalid")
 
@@ -110,8 +110,8 @@ class TestCreateOutcomesUtils(unittest.TestCase):
             }
         )
         conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
+            {"column": "code", "value": ["A"]},
+            {"column": "code", "value": ["C"]},
         ]
         outcomes = get_subject_first_row_for_conditions(
             df, conditions, dependence="independent"

@@ -25,14 +25,9 @@ def main(cfg: DictConfig) -> None:
     save_path = Path(cfg.paths.save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    include = cfg.cohort.include
-    exclude = cfg.cohort.exclude
-
     logging.info(f"Starting create_cohort for `{save_path.stem}`")
-    logging.info(f"Including subjects with {include}")
-    logging.info(f"Excluding subjects with {exclude}")
 
-    all_subjects = []
+    all_subjects = set()
     for split in cfg.splits:
         shards = [shard for shard in (input_dir / split).glob("*.parquet")]
         for shard in shards:
@@ -40,29 +35,28 @@ def main(cfg: DictConfig) -> None:
 
             df = df.drop_nulls(["subject_id", "code"])
 
-            # Exclude subjects matching exclude.conditions
-            if exclude is not None:
-                exclude_df = get_subject_first_row_for_conditions(
-                    df, exclude.conditions, exclude.dependence
-                )
-                logging.info(f"Excluding {len(exclude_df)} subjects")
-                df = df.join(
-                    exclude_df.select("subject_id"),
-                    on="subject_id",
-                    how="anti",
-                )
+            criterion_population = set(df["subject_id"].to_list())
+            for criterion in cfg.cohort.conditional_criteria:
+                if criterion.action == "exclude":
+                    exclude_df = get_subject_first_row_for_conditions(
+                        df, criterion.conditions, criterion.dependence
+                    )
+                    logging.info(f"Excluding {len(exclude_df)} subjects")
+                    criterion_population -= set(exclude_df["subject_id"].to_list())
+                elif criterion.action == "include":
+                    include_df = get_subject_first_row_for_conditions(
+                        df, criterion.conditions, criterion.dependence
+                    )
+                    logging.info(f"Including {len(include_df)} subjects")
+                    criterion_population &= set(include_df["subject_id"].to_list())
+                else:
+                    raise ValueError(
+                        f"Criterion action can only be [include, exclude], not {criterion.action}"
+                    )
 
-            cohort = get_subject_first_row_for_conditions(
-                df, include.conditions, include.dependence
-            )
+            all_subjects.add(criterion_population)
 
-            all_subjects.append(cohort)
-
-    cohort = (
-        pl.concat(all_subjects).unique("subject_id")
-        if all_subjects
-        else pl.DataFrame(schema={"subject_id": pl.Int64})
-    )
+    cohort = pl.DataFrame(list(all_subjects), schema={"subject_id": pl.Int64})
 
     logging.info(f"Total number of subjects: {len(cohort):_}")
     logging.info(f"Saving to {save_path}")

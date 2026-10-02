@@ -18,16 +18,16 @@ cohort:
   exclude: # OPTIONAL
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [DIAGNOSIS//DE10]
-        match: prefix # exact/prefix
+      - column: code
+        value: [DIAGNOSIS//DE10]
+        operator: prefix # exact/prefix
 
   include:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [MEDICATION//A10]
-        match: prefix # exact/prefix
-      - col: code
-        vals: [DIAGNOSIS//DE11]
-        match: prefix # exact/prefix
+      - column: code
+        value: [MEDICATION//A10]
+        operator: prefix # exact/prefix
+      - column: code
+        value: [DIAGNOSIS//DE11]
+        operator: prefix # exact/prefix
