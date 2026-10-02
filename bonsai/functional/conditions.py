@@ -45,4 +45,9 @@ def get_subject_first_row_for_conditions(
     cols = [f"_time{i}" for i in range(len(conditions))]
     combine = pl.min_horizontal if dependence == "independent" else pl.max_horizontal
 
+    if len(res) == 0:
+        raise ValueError(
+            f"No subjects meet the conditions {conditions} with dependence={dependence}"
+        )
+
     return res.select("subject_id", combine(cols).alias("time"))
