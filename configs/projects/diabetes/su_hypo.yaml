@@ -33,7 +33,7 @@ outcome:
     dependence: independent # exposure
     conditions: 
       - column: code
-        value: [ MEDICATION//MA10BB ]
+        value: [ MEDICATION//A10BB ]
         operator: prefix # exact/prefix
 
   censor: # ALWAYS RELATIVE TO INDEX
