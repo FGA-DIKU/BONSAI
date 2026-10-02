@@ -21,14 +21,14 @@ cohort:
       conditions:
         - column: code
           value: [DIAGNOSIS//DE10]
-          operator: prefix # exact/prefix
+          operator: startswith_any # in/startswith_any
 
     - action: include
       dependence: independent # independent/dependent
       conditions:
         - column: code
           value: [MEDICATION//A10]
-          operator: prefix # exact/prefix
+          operator: startswith_any # in/startswith_any
         - column: code
           value: [DIAGNOSIS//DE11]
-          operator: prefix # exact/prefix
+          operator: startswith_any # in/startswith_any

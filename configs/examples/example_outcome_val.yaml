@@ -24,7 +24,7 @@ outcome:
     conditions:
       - column: code
         value: [ SYN//Negative ]
-        operator: exact # exact/prefix
+        operator: in # in/startswith_any
 
   index:
     type: absolute # absolute/relative/exposure

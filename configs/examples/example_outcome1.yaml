@@ -20,17 +20,17 @@ outcome:
     conditions:
       - column: code
         value: [ D437 ]
-        operator: prefix # exact/prefix
+        operator: startswith_any # in/startswith_any
       - column: code
         value: [ D438 ]
-        operator: prefix # exact/prefix
+        operator: startswith_any # in/startswith_any
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - column: code
         value: [ DE11 ]
-        operator: prefix # exact/prefix
+        operator: startswith_any # in/startswith_any
 
   index:
     type: absolute # absolute/relative/exposure

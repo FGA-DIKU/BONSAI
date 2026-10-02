@@ -15,19 +15,20 @@ splits:
   - held_out
 
 cohort:
-  exclude: # OPTIONAL
-    dependence: independent # independent/dependent
-    conditions:
-      - column: code
-        value: [DIAGNOSIS//DE10]
-        operator: prefix # exact/prefix
+  conditional_criteria:
+    - action: exclude
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [DIAGNOSIS//DE10]
+          operator: startswith_any # in/startswith_any
 
-  include:
-    dependence: independent # independent/dependent
-    conditions:
-      - column: code
-        value: [MEDICATION//A10]
-        operator: prefix # exact/prefix
-      - column: code
-        value: [DIAGNOSIS//DE11]
-        operator: prefix # exact/prefix
+    - action: include
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [MEDICATION//A10]
+          operator: startswith_any # in/startswith_any
+        - column: code
+          value: [DIAGNOSIS//DE11]
+          operator: startswith_any # in/startswith_any
