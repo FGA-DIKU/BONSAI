@@ -22,9 +22,9 @@ outcome:
   outcome:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ SYN//Negative ]
-        match: exact # exact/prefix
+      - column: code
+        value: [ SYN//Negative ]
+        operator: exact # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure

@@ -5,17 +5,17 @@ import polars as pl
 
 def get_condition_expression(cond) -> pl.Expr:
     """Build a Polars expression for a condition."""
-    match = cond.get("match", "exact")
+    operator = cond.get("operator", "exact")
 
-    if match == "exact":
-        return pl.col(cond["col"]).is_in(cond["vals"])
+    if operator == "exact":
+        return pl.col(cond["column"]).is_in(cond["value"])
 
-    if match == "prefix":
+    if operator == "prefix":
         return pl.any_horizontal(
-            [pl.col(cond["col"]).str.starts_with(val) for val in cond["vals"]]
+            [pl.col(cond["column"]).str.starts_with(val) for val in cond["value"]]
         )
 
-    raise ValueError(f"Match can only be [exact, prefix], not {match}")
+    raise ValueError(f"Operator can only be [exact, prefix], not {operator}")
 
 
 def get_subject_first_row_for_conditions(

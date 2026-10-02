@@ -18,16 +18,16 @@ outcome:
   exclude: # OPTIONAL
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ LABTEST//NPUD220 ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ LABTEST//NPUD220 ]
+        operator: prefix # exact/prefix
 
   outcome:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ DIAGNOSIS//SYN_POS_DIAG ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ DIAGNOSIS//SYN_POS_DIAG ]
+        operator: prefix # exact/prefix
 
   index:
     type: absolute # absolute/relative/exposure

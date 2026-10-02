@@ -18,23 +18,23 @@ outcome:
   exclude: # OPTIONAL
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
+        operator: prefix # exact/prefix
   outcome:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
+        operator: prefix # exact/prefix
 
   index:
     type: exposure # absolute/relative/exposure
     dependence: independent # exposure
     conditions: 
-      - col: code
-        vals: [ MEDICATION//MA10BB ]
-        match: prefix # exact/prefix
+      - column: code
+        value: [ MEDICATION//MA10BB ]
+        operator: prefix # exact/prefix
 
   censor: # ALWAYS RELATIVE TO INDEX
     relative_shift: 0 # 0 sets index=censor
