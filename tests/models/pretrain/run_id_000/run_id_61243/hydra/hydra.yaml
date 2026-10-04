@@ -120,7 +120,8 @@ hydra:
     id: ???
     num: ???
     config_name: examples/example_pretrain
-    env_set: {}
+    env_set:
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
     env_copy: []
     config:
       override_dirname:
@@ -128,20 +129,20 @@ hydra:
         item_sep: ','
         exclude_keys: []
   runtime:
-    version: 1.3.2
+    version: 1.3.4
     version_base: '1.2'
-    cwd: /Users/rjm707/Desktop/BONSAI
+    cwd: /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/EHR
     config_sources:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: /Users/rjm707/Desktop/BONSAI/configs
+    - path: /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/EHR/configs
       schema: file
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /Users/rjm707/Desktop/BONSAI/data/models/correlated_MEDS_data/examples/example_pretrain/run_id_502280
+    output_dir: /Users/mariaelkjaermontgomery/Library/CloudStorage/Dropbox/phd/code/EHR/data/models/correlated_MEDS_data/examples/example_pretrain/run_id_61243
     choices:
       hydra/env: default
       hydra/callbacks: null

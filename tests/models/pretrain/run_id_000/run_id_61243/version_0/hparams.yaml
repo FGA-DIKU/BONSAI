@@ -1,4 +1,4 @@
-vocab_size: 2027
+vocab_size: 1684
 max_seqlen: 10
 hidden_size: 64
 num_layers: 4
