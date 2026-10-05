@@ -1,0 +1,55 @@
+# @package _global_
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset: phair_light
+
+paths: 
+  input_dir: FILL_OUT_THIS/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+outcome:
+  outcome:
+    action: include # include/exclude
+    dependence: independent # independent/dependent
+    conditional_criteria:
+      - column: code
+        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
+        operator: startswith_any # in/startswith_any
+  index:
+    action: exposure # absolute/relative/exposure
+    dependence: independent # independent/dependent
+    conditional_criteria:
+      - column: code
+        value: [ MEDICATION//A10BB ]
+        operator: startswith_any # in/startswith_any
+
+  censor: # ALWAYS RELATIVE TO INDEX
+    action: relative
+    conditional_criteria:
+      relative_shift: 0 # 0 sets index=censor
+
+cohort:
+  conditional_criteria:
+    - action: exclude
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [DIAGNOSIS//DE10]
+          operator: startswith_any # in/startswith_any
+
+    - action: include
+      dependence: independent # independent/dependent
+      conditions:
+        - column: code
+          value: [MEDICATION//A10]
+          operator: startswith_any # in/startswith_any
+        - column: code
+          value: [DIAGNOSIS//DE11]
+          operator: startswith_any # in/startswith_any

@@ -3,10 +3,10 @@ defaults:
   - /core/base_create@
   - _self_
 
-dataset: correlated_MEDS_data
+dataset: phair_light
 
 paths: 
-  input_dir: example_data/${dataset}
+  input_dir: FILL_OUT_THIS/${dataset}
   save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
 
 splits:
@@ -19,26 +19,22 @@ outcome:
     dependence: independent # independent/dependent
     conditions:
       - column: code
-        value: [ LABTEST//NPUD220 ]
+        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
         operator: startswith_any # in/startswith_any
-
   outcome:
     dependence: independent # independent/dependent
     conditions:
       - column: code
-        value: [ DIAGNOSIS//SYN_POS_DIAG ]
+        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
         operator: startswith_any # in/startswith_any
 
   index:
-    type: absolute # absolute/relative/exposure
-    absolute_date: # absolute
-      year: 2020
-      month: 1
-      day: 1
-    relative_shift: # relative
-    dependence: # exposure
-    conditions: # exposure
+    type: exposure # absolute/relative/exposure
+    dependence: independent # exposure
+    conditions: 
+      - column: code
+        value: [ MEDICATION//A10BB ]
+        operator: startswith_any # in/startswith_any
 
   censor: # ALWAYS RELATIVE TO INDEX
-    relative_shift: 
-      hours: -1000 # 0 sets index=censor
+    relative_shift: 0 # 0 sets index=censor

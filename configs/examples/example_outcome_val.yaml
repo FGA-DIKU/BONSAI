@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - ../core/base_create@
+  - /core/base_create@
   - _self_
 
 dataset: correlated_MEDS_data
@@ -22,9 +22,9 @@ outcome:
   outcome:
     dependence: independent # independent/dependent
     conditions:
-      - col: code
-        vals: [ SYN//Negative ]
-        match: exact # exact/prefix
+      - column: code
+        value: [ SYN//Negative ]
+        operator: in # in/startswith_any
 
   index:
     type: absolute # absolute/relative/exposure

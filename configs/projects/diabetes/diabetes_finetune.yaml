@@ -1,0 +1,16 @@
+# @package _global_
+defaults: 
+  - ../finetune@
+  - ../hardware/cpu@hardware
+  - _self_
+
+
+paths:
+  population: ${paths.dir}/cohorts/projects/diabetes/diabetes_cohort.csv
+
+labels:
+  # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
+  start_include: 
+    days: 7 # start follow up (considering outcomes) time after index date (negative means before)
+  end_include: 
+    days: 365
