@@ -120,6 +120,7 @@ def get_index_dates(df, action, conditional_criteria):
 
 def get_cohort(df, conditional_criteria) -> set:
     # TODO: This doesn't match the `first_row` logic in actions
+    # TODO: This needs to reference index_date!
     criterion_population = set(df["subject_id"].to_list())
     for criterion in conditional_criteria:
         if criterion.action == "exclude":

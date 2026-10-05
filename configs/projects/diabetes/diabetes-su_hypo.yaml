@@ -35,13 +35,6 @@ outcome:
     conditional_criteria:
       relative_shift: 0 # 0 sets index=censor
 
-  exclude: # OPTIONAL
-    dependence: independent # independent/dependent
-    conditions:
-      - column: code
-        value: [ DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162 ]
-        operator: startswith_any # in/startswith_any
-
 cohort:
   conditional_criteria:
     - action: exclude
