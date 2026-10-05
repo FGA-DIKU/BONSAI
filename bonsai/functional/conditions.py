@@ -18,6 +18,18 @@ def get_condition_expression(cond) -> pl.Expr:
     raise ValueError(f"Operator can only be [in, startswith_any], not {operator}")
 
 
+def get_matched_values(df: pl.DataFrame, conditions: list) -> set[tuple[str, str]]:
+    """(column, value) pairs from the conditions that match at least one row of df."""
+    matched = set()
+    for cond in conditions:
+        unique = df.select(pl.col(cond["column"]).unique())
+        for val in cond["value"]:
+            single = {**cond, "value": [val]}
+            if not unique.filter(get_condition_expression(single)).is_empty():
+                matched.add((cond["column"], val))
+    return matched
+
+
 def get_subject_first_row_for_conditions(
     df: pl.DataFrame, conditions: list, dependence: Literal["independent", "dependent"]
 ) -> pl.DataFrame:
@@ -44,10 +56,5 @@ def get_subject_first_row_for_conditions(
     # Find dependence time
     cols = [f"_time{i}" for i in range(len(conditions))]
     combine = pl.min_horizontal if dependence == "independent" else pl.max_horizontal
-
-    if len(res) == 0:
-        raise ValueError(
-            f"No subjects meet the conditions {conditions} with dependence={dependence}"
-        )
 
     return res.select("subject_id", combine(cols).alias("time"))

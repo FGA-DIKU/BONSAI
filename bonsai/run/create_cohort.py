@@ -54,7 +54,7 @@ def main(cfg: DictConfig) -> None:
                         f"Criterion action can only be [include, exclude], not {criterion.action}"
                     )
 
-            all_subjects.add(criterion_population)
+            all_subjects.update(criterion_population)
 
     cohort = pl.DataFrame(list(all_subjects), schema={"subject_id": pl.Int64})
 

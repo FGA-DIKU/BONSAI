@@ -1,31 +1,8 @@
 import polars as pl
 
+from bonsai.functional.actions import absolute_date, first_match, relative_date
 from bonsai.functional.conditions import get_subject_first_row_for_conditions
 from bonsai.functional.features import compute_abspos
-
-
-def get_date_from_absolute_date(absolute_date):
-    assert absolute_date is not None
-    return pl.datetime(**absolute_date)
-
-
-def get_date_from_relative_date(relative_dates: pl.Expr, relative_shift: dict):
-    assert relative_dates is not None
-    assert relative_shift is not None
-    return relative_dates + pl.duration(**relative_shift)
-
-
-def get_date_from_exposure_date(subjects, df, dependence, conditions):
-    assert subjects is not None
-    assert df is not None
-    assert dependence is not None
-    assert conditions is not None
-    result = get_subject_first_row_for_conditions(
-        df, conditions=conditions, dependence=dependence
-    )
-    return subjects.join(
-        result.select("subject_id", "time"), on="subject_id", how="left"
-    )
 
 
 def fill_nans_with_sampled(dates, seed=None):
@@ -104,3 +81,75 @@ def finalize_outcomes(outcomes: pl.DataFrame) -> dict[int, dict]:
         }
         for row in outcomes.to_dicts()
     }
+
+
+def get_outcome_dates(df, action, conditional_criteria):
+    if action == "first_match":
+        outcome_dates = first_match(df, conditional_criteria).rename(
+            {"time": "outcome_date"}
+        )
+    else:
+        raise ValueError(f"get_outcome_dates action={action} is not yet supported")
+    return outcome_dates
+
+
+def get_index_dates(df, action, conditional_criteria):
+    cohort = df.select("subject_id").unique()
+    # Assign index dates
+    if action == "absolute_date":
+        index_dates = cohort.with_columns(
+            index_date=absolute_date(conditional_criteria["absolute_date"])
+        )
+    elif action == "relative":
+        index_dates = cohort.with_columns(
+            index_date=relative_date(
+                dates=pl.col("outcome_date"),
+                relative_shift=conditional_criteria["relative_shift"],
+            )
+        )
+    elif action == "exposure":
+        index_dates = first_match(df, conditional_criteria).rename(
+            {"time": "index_date"}
+        )
+    else:
+        raise ValueError(f"get_index_dates action={action} is not yet supported")
+
+    index_dates = cohort.join(index_dates, on="subject_id", how="left")
+    return index_dates
+
+
+def get_cohort(df, conditional_criteria) -> set:
+    # TODO: This doesn't match the `first_row` logic in actions
+    criterion_population = set(df["subject_id"].to_list())
+    for criterion in conditional_criteria:
+        if criterion.action == "exclude":
+            exclude_df = get_subject_first_row_for_conditions(
+                df, criterion.conditions, criterion.dependence
+            )
+            criterion_population -= set(exclude_df["subject_id"].to_list())
+        elif criterion.action == "include":
+            include_df = get_subject_first_row_for_conditions(
+                df, criterion.conditions, criterion.dependence
+            )
+            criterion_population &= set(include_df["subject_id"].to_list())
+        else:
+            raise ValueError(
+                f"Criterion action can only be [include, exclude], not {criterion.action}"
+            )
+    return criterion_population
+
+
+def get_censor_dates(df, action, conditional_criteria):
+    assert len(df) == len(df["subject_id"].unique()), (
+        "Duplicate subject_ids found in df"
+    )
+    if action == "relative":
+        censor_dates = df.with_columns(
+            censor_date=relative_date(
+                dates=pl.col("index_date"),
+                relative_shift=conditional_criteria["relative_shift"],
+            )
+        )
+    else:
+        raise ValueError(f"get_censor_dates action={action} is not yet supported")
+    return censor_dates
