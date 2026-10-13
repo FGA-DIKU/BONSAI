@@ -1,8 +1,7 @@
 vocab_size: 1684
 max_seqlen: 10
-hidden_size: 64
+hidden_size: 256
 num_layers: 4
-num_attention_heads: 4
 bias: false
 dropout: 0.1
 causal: true

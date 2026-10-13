@@ -22,15 +22,14 @@ class SDPA(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(
-        self, hidden_size, num_heads, attention_dropout, bias, max_seqlen, causal
-    ):
+    def __init__(self, hidden_size, attention_dropout, bias, max_seqlen, causal):
         super().__init__()
-        assert hidden_size % num_heads == 0, (
-            f"Hidden size {hidden_size} must be divisible by num_heads {num_heads} "
-        )
-        self.num_heads = num_heads
-        self.head_dim = hidden_size // num_heads
+        if hidden_size % 64 != 0:
+            raise ValueError(
+                f"Hidden size {hidden_size} must be divisible by 64 (head_dim)"
+            )
+        self.head_dim = 64
+        self.num_heads = hidden_size // self.head_dim
         self.max_seqlen = max_seqlen
 
         self.Wqkv = nn.Linear(hidden_size, 3 * hidden_size, bias=bias)

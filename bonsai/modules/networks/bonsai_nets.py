@@ -23,7 +23,6 @@ class BonsaiBase(nn.Module):
         max_seqlen: Maximum sequence length (also sizes segment embeddings).
         hidden_size: Model hidden dimension.
         num_layers: Number of transformer layers.
-        num_attention_heads: Attention heads per layer.
         bias: Whether Linear and LayerNorm modules use bias.
         dropout: Residual / MLP dropout.
         attention_dropout: Dropout inside attention.
@@ -37,7 +36,6 @@ class BonsaiBase(nn.Module):
         max_seqlen,
         hidden_size,
         num_layers,
-        num_attention_heads,
         bias,
         dropout,
         attention_dropout,
@@ -63,7 +61,6 @@ class BonsaiBase(nn.Module):
             [
                 TransformerLayer(
                     hidden_size=hidden_size,
-                    num_heads=num_attention_heads,
                     dropout=dropout,
                     attention_dropout=attention_dropout,
                     bias=bias,
@@ -81,7 +78,6 @@ class BonsaiBase(nn.Module):
             "max_seqlen": max_seqlen,
             "hidden_size": hidden_size,
             "num_layers": num_layers,
-            "num_attention_heads": num_attention_heads,
             "bias": bias,
             "dropout": dropout,
             "causal": causal,
@@ -147,7 +143,6 @@ class BonsaiPretrain(BonsaiBase):
         max_seqlen,
         hidden_size,
         num_layers,
-        num_attention_heads,
         bias,
         dropout,
         attention_dropout,
@@ -159,7 +154,6 @@ class BonsaiPretrain(BonsaiBase):
             max_seqlen=max_seqlen,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
             attention_dropout=attention_dropout,
@@ -189,7 +183,6 @@ class BonsaiValuePretrain(BonsaiBase):
         max_seqlen,
         hidden_size,
         num_layers,
-        num_attention_heads,
         bias,
         dropout,
         attention_dropout,
@@ -202,7 +195,6 @@ class BonsaiValuePretrain(BonsaiBase):
             max_seqlen=max_seqlen,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
             attention_dropout=attention_dropout,
@@ -252,7 +244,6 @@ class BonsaiFinetune(BonsaiBase):
         max_seqlen,
         hidden_size,
         num_layers,
-        num_attention_heads,
         bias,
         dropout,
         attention_dropout,
@@ -265,7 +256,6 @@ class BonsaiFinetune(BonsaiBase):
             max_seqlen=max_seqlen,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
             attention_dropout=attention_dropout,
@@ -290,7 +280,6 @@ class BonsaiValueFinetune(BonsaiBase):
         max_seqlen,
         hidden_size,
         num_layers,
-        num_attention_heads,
         bias,
         dropout,
         attention_dropout,
@@ -304,7 +293,6 @@ class BonsaiValueFinetune(BonsaiBase):
             max_seqlen=max_seqlen,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
             bias=bias,
             dropout=dropout,
             attention_dropout=attention_dropout,

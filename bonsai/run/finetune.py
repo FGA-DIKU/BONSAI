@@ -7,7 +7,7 @@ import torch
 from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from omegaconf import DictConfig, OmegaConf
 
@@ -85,7 +85,6 @@ def main(cfg: DictConfig) -> None:
         max_seqlen=pretrain_cfg["max_seqlen"],
         hidden_size=pretrain_cfg["hidden_size"],
         num_layers=pretrain_cfg["num_layers"],
-        num_attention_heads=pretrain_cfg["num_attention_heads"],
         bias=pretrain_cfg["bias"],
         attn_type=pretrain_cfg["attn_type"],
         predict_token_id=vocab["[CLS]"],
@@ -115,6 +114,12 @@ def main(cfg: DictConfig) -> None:
         enable_version_counter=False,
         save_last=True,
     )
+    early_stopping = EarlyStopping(
+        cfg.training.eval_monitor_metric,
+        mode=cfg.training.eval_monitor_mode,
+        min_delta=1e-4,
+        patience=2,
+    )
 
     trainer = L.Trainer(
         accelerator=cfg.hardware.accelerator,
@@ -122,7 +127,7 @@ def main(cfg: DictConfig) -> None:
         devices=cfg.hardware.num_devices,
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
-        callbacks=[ckpt_callback],
+        callbacks=[ckpt_callback, early_stopping],
         logger=[logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,

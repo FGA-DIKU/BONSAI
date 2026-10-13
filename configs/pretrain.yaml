@@ -42,9 +42,8 @@ model:
   # For numeric values, switch to BonsaiValuePretrain and set value_embedding_mode.
   _target_: bonsai.modules.networks.bonsai_nets.BonsaiPretrain
   max_seqlen: ${training.max_len}
-  hidden_size: 64
+  hidden_size: 256
   num_layers: 4
-  num_attention_heads: 4
   dropout: 0.1
   attention_dropout: 0.0
   bias: false

@@ -16,7 +16,6 @@ class TransformerLayer(nn.Module):
     def __init__(
         self,
         hidden_size,
-        num_heads,
         dropout,
         attention_dropout,
         bias,
@@ -28,7 +27,6 @@ class TransformerLayer(nn.Module):
         self.ln1 = nn.LayerNorm(hidden_size, bias=bias)
         self.mha = attn_types[attn_type](
             hidden_size=hidden_size,
-            num_heads=num_heads,
             attention_dropout=attention_dropout,
             bias=bias,
             max_seqlen=max_seqlen,
