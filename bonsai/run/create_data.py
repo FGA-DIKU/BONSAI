@@ -4,14 +4,15 @@ from pathlib import Path
 import hydra
 import polars as pl
 import torch
+from dotenv import load_dotenv
+from hydra.core.plugins import Plugins
+from omegaconf import DictConfig
+
 from bonsai.functional.create_data import process_split
 from bonsai.functional.subject_data import prepare_subject_data
 from bonsai.modules.hydra.plugins import DataCreationSearchpathPlugin
 from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
 from bonsai.paths import get_config_path
-from dotenv import load_dotenv
-from hydra.core.plugins import Plugins
-from omegaconf import DictConfig
 
 load_dotenv()
 Plugins.instance().register(DataCreationSearchpathPlugin)
@@ -65,7 +66,9 @@ def main(cfg: DictConfig) -> None:
     torch.save(tokenizer.vocabulary, path_output_dir / "vocabulary.pt")
 
     population = pl.from_dict({"subject_id": ids})
-    population.write_csv(path_output_dir / "population_full.csv")
+    population_path = path_output_dir / "cohorts" / "population_full.csv"
+    population_path.parent.mkdir(parents=True, exist_ok=True)
+    population.write_csv(population_path)
 
 
 if __name__ == "__main__":

@@ -40,9 +40,9 @@ jobs:
               run: |
                 python bonsai/run/create_data.py --config-name examples/example_data dataset=correlated_MEDS_data
 
-            - name: create_outcome
+            - name: create_outcome_cohort
               run: |
-                python bonsai/run/create_outcome.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
+                python bonsai/run/create_outcome_cohort.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
 
             - name: pretrain
               run: |

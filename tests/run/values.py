@@ -21,7 +21,7 @@ correct = subprocess.run(
 correct = subprocess.run(
     [
         "python",
-        "bonsai/run/create_outcome.py",
+        "bonsai/run/create_outcome_cohort.py",
         "--config-name",
         "examples/example_outcome_val",
         "dataset=lab_correlated_MEDS_data_not_fused",

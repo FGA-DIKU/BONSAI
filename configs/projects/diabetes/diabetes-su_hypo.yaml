@@ -1,0 +1,117 @@
+# @package _global_
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset: phair_light
+
+paths: 
+  input_dir: FILL_OUT_THIS/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+index:
+  missing: drop
+  seed: 42
+  conditional_criteria:
+    - action: overwrite
+      mode: match
+      args:
+        dependence: independent
+        conditions:
+          - column: code
+            value: [ MEDICATION//A10BB ]
+            operator: startswith_any 
+    - action: overwrite
+      mode: first
+      args:
+        col: time
+    - action: overwrite
+      mode: rename
+      args:
+        time: index_date
+
+outcome:
+  conditional_criteria:
+    - action: append
+      mode: reference
+      args:
+        name: index_dates
+    - action: overwrite
+      mode: match
+      args:
+        dependence: same_row
+        conditions:
+        - column: code
+          value: &outcome_codes [DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162]
+          operator: startswith_any 
+        - column: time
+          operator: ge
+          value_col: index_date
+    - action: overwrite
+      mode: first
+      args:
+        col: time
+    - action: overwrite
+      mode: rename
+      args:
+        time: outcome_date
+
+censor:
+  conditional_criteria:
+    - action: overwrite
+      mode: reference
+      args:
+        name: index_dates
+    - action: overwrite
+      mode: rename
+      args:
+        index_date: censor_date
+
+
+cohort:
+  conditional_criteria:
+    - action: include
+      mode: reference
+      args: 
+        name: index_dates
+    - action: append
+      mode: reference
+      args:
+        name: index_dates
+    - action: exclude # excludes outcomes prior to index
+      mode: match
+      args:
+        dependence: same_row
+        conditions:
+        - column: code
+          value: *outcome_codes
+          operator: startswith_any 
+        - column: time
+          operator: lt
+          value_col: index_date
+
+    # Our cohort exclude/include
+    - action: exclude
+      mode: match
+      args: 
+        dependence: independent # independent/dependent
+        conditions:
+          - column: code
+            value: [DIAGNOSIS//DE10]
+            operator: startswith_any 
+    - action: include
+      mode: match
+      args:
+        dependence: independent # independent/dependent
+        conditions:
+          - column: code
+            value: [MEDICATION//A10]
+            operator: startswith_any 
+          - column: code
+            value: [DIAGNOSIS//DE11]
+            operator: startswith_any 

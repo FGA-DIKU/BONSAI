@@ -1,0 +1,13 @@
+# @package _global_
+defaults: 
+  - /finetune@
+  - /hardware/cpu@hardware
+  - _self_
+
+labels:
+  # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
+  start_include: 
+    days: 7 # start follow up (considering outcomes) time after index date (negative means before)
+    hours: 0
+  end_include: 
+    days: 365

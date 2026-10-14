@@ -1,0 +1,29 @@
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset: ???
+
+paths: 
+  input_dir: example_data/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+index:
+  missing: 
+  seed: 
+  conditional_criteria:
+
+outcome:
+  conditional_criteria:
+
+censor:
+  conditional_criteria:
+
+cohort:
+  conditional_criteria:
+   

@@ -51,7 +51,7 @@ python bonsai/run/create_data.py --config-name examples/example_data dataset=cor
 python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data
 
 # 3. Build outcome labels -> data/processed_data/correlated_MEDS_data/outcomes/examples/example_outcome1.parquet
-python bonsai/run/create_outcome.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
+python bonsai/run/create_outcome_cohort.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
 
 # 4. Finetune the pretrained model on that outcome (checkpoints are written to data/models/<dataset>/<config>/run_id_<id>/version_0/)
 python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_<id>/version_0/best.ckpt
@@ -66,7 +66,9 @@ The example configs live in [`configs/examples/`](configs/examples/). Every valu
 
 **Input** is a MEDS dataset. Point `paths.input_dir` at it in a data-creation config and set `dataset=<name>`.
 
-**Outcomes** are produced by [`create_outcome.py`](bonsai/run/create_outcome.py). If it does not fit your case, supply your own `.parquet` with five columns:
+**Outcomes** are produced by [`create_outcome_cohort.py`](bonsai/run/create_outcome_cohort.py).
+
+If it does not fit your case, supply your own `.parquet` with five columns:
 
 | column | meaning |
 |---|---|

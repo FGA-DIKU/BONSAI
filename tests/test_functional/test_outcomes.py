@@ -2,148 +2,79 @@ import unittest
 from datetime import datetime
 
 import polars as pl
+from omegaconf import OmegaConf
 
 from bonsai.functional.outcomes import (
     binarize_outcomes,
     fill_nans_with_sampled,
-    get_date_from_absolute_date,
-    get_date_from_exposure_date,
-    get_date_from_relative_date,
-    get_subject_first_row_for_conditions,
+    get_index_dates,
     split_and_binarize_outcomes,
 )
 
 
-class TestCreateOutcomesUtils(unittest.TestCase):
-    def test_find_independent(self):
-        df = pl.DataFrame(
+class TestIndexDates(unittest.TestCase):
+    def setUp(self):
+        # Subject 1 has an index event (A), subject 2 does not
+        self.df = pl.DataFrame(
             {
-                "subject_id": [1, 1, 2, 2],
-                "code": ["A", "B", "A", "C"],
-                "time": [datetime(2020, 1, i + 1) for i in range(4)],
+                "subject_id": [1, 1, 2],
+                "code": ["A", "B", "B"],
+                "time": [
+                    datetime(2020, 1, 1),
+                    datetime(2021, 1, 1),
+                    datetime(2020, 6, 1),
+                ],
             }
         )
-        conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
+        self.criteria = [
+            {
+                "action": "overwrite",
+                "mode": "match",
+                "args": {
+                    "dependence": "independent",
+                    "conditions": [
+                        {"column": "code", "value": ["A"], "operator": "in"}
+                    ],
+                },
+            },
+            {"action": "overwrite", "mode": "first", "args": {"col": "time"}},
+            {"action": "overwrite", "mode": "rename", "args": {"time": "index_date"}},
         ]
-        result = get_subject_first_row_for_conditions(
-            df, conditions, dependence="independent"
-        )
-        self.assertEqual(set(result["subject_id"]), {1, 2})
 
-    def test_find_dependent(self):
-        df = pl.DataFrame(
-            {
-                "subject_id": [1, 1, 2, 2, 3],
-                "code": ["A", "B", "A", "C", "A"],
-                "time": [datetime(2020, 1, i + 1) for i in range(5)],
-            }
-        )
-        conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
-        ]
-        result = get_subject_first_row_for_conditions(
-            df, conditions, dependence="dependent"
-        )
-        self.assertEqual(set(result["subject_id"]), {2})
-
-    def test_find_dependent2(self):
-        df = pl.DataFrame(
-            {
-                "subject_id": [1, 1, 2, 2, 3],
-                "code": ["A", "B", "A", "C", "A"],
-                "time": [datetime(2020, 1, i + 1) for i in range(5)],
-            }
-        )
-        conditions = [
-            {"col": "code", "vals": ["C"]},
-            {"col": "code", "vals": ["A"]},
-        ]
-        result = get_subject_first_row_for_conditions(
-            df, conditions, dependence="dependent"
-        )
-        self.assertEqual(set(result["subject_id"]), {2})
-        self.assertEqual(result["time"][0], datetime(2020, 1, 4))
-
-    def test_find_invalid_dependence(self):
-        df = pl.DataFrame(
-            {
-                "subject_id": [1],
-                "code": ["A"],
-                "time": [datetime(2020, 1, 1)],
-            }
-        )
-        conditions = [{"col": "code", "vals": ["A"]}]
-        with self.assertRaises(ValueError):
-            get_subject_first_row_for_conditions(df, conditions, dependence="invalid")
-
-    def test_get_date_from_absolute_date(self):
-        date_dict = {"year": 2020, "month": 1, "day": 2}
-        result = pl.select(get_date_from_absolute_date(absolute_date=date_dict)).item()
-        self.assertEqual(result, datetime(2020, 1, 2))
-
-    def test_get_date_from_relative_date(self):
-        df = pl.DataFrame(
-            {
-                "outcome_date": [datetime(2020, 1, 1), datetime(2020, 1, 2), None],
-            }
-        )
-        result = df.select(
-            get_date_from_relative_date(
-                relative_dates=pl.col("outcome_date"),
-                relative_shift={"hours": 24},
-            )
-        ).to_series()
-
-        self.assertEqual(result[0], datetime(2020, 1, 2))
-        self.assertEqual(result[1], datetime(2020, 1, 3))
-        self.assertIsNone(result[2])
-
-    def test_get_date_from_exposure_date(self):
-        df = pl.DataFrame(
-            {
-                "subject_id": [1, 1, 2, 2, 3],
-                "code": ["A", "B", "A", "C", "D"],
-                "time": [datetime(2020 + i, 1, 1) for i in range(5)],
-            }
-        )
-        conditions = [
-            {"col": "code", "vals": ["A"]},
-            {"col": "code", "vals": ["C"]},
-        ]
-        outcomes = get_subject_first_row_for_conditions(
-            df, conditions, dependence="independent"
-        )
-        outcomes = (
-            df.select("subject_id")
-            .unique()
-            .join(outcomes, on="subject_id", how="left")
-            .rename({"time": "outcome_date"})
+    def cfg(self, missing):
+        return OmegaConf.create(
+            {"missing": missing, "conditional_criteria": self.criteria}
         )
 
-        result = get_date_from_exposure_date(
-            subjects=outcomes.select("subject_id"),
-            df=df,
-            conditions=conditions,
-            dependence="independent",
-        )["time"]
-        result_by_subject = dict(zip(outcomes["subject_id"], result))
+    def test_drop(self):
+        result = get_index_dates(self.df, self.cfg("drop"), seed=0)
+        self.assertEqual(result["subject_id"].to_list(), [1])
 
-        self.assertEqual(result_by_subject[1], datetime(2020, 1, 1))
-        self.assertEqual(result_by_subject[2], datetime(2022, 1, 1))
-        self.assertIsNone(result_by_subject[3])
+    def test_sample(self):
+        result = get_index_dates(self.df, self.cfg("sample"), seed=0).sort("subject_id")
+        self.assertEqual(result["subject_id"].to_list(), [1, 2])
+        self.assertEqual(result["index_date"].to_list(), [datetime(2020, 1, 1)] * 2)
 
-    def test_fill_nans_with_sampled(self):
-        dates = pl.Series([datetime(2020, 1, 1), datetime(2021, 1, 1), None])
-        res = fill_nans_with_sampled(dates)
+
+class TestFillNansWithSampled(unittest.TestCase):
+    def test_fills_only_nulls_from_observed(self):
+        observed = [datetime(2020, 1, 1), datetime(2021, 1, 1)]
+        res = fill_nans_with_sampled(pl.Series(observed + [None, None]), seed=0)
         self.assertFalse(res.is_null().any())
+        self.assertEqual(res[:2].to_list(), observed)
+        self.assertTrue(set(res[2:]) <= set(observed))
 
-    def test_fill_nans_with_sampled_false(self):
-        dates = pl.Series([None, None, None])
+    def test_reproducible_with_seed(self):
+        dates = pl.Series([datetime(2020 + i, 1, 1) for i in range(10)] + [None] * 20)
+        self.assertTrue(
+            fill_nans_with_sampled(dates, seed=1).equals(
+                fill_nans_with_sampled(dates, seed=1)
+            )
+        )
+
+    def test_all_null_raises(self):
         with self.assertRaises(ValueError):
-            fill_nans_with_sampled(dates)
+            fill_nans_with_sampled(pl.Series([None, None, None]))
 
 
 class TestBinizationOutcomes(unittest.TestCase):
@@ -219,3 +150,7 @@ class TestBinizationOutcomes(unittest.TestCase):
         self.assertEqual(val[3]["label"], 1)
         self.assertEqual(test[5]["label"], 1)
         self.assertEqual(test[6]["label"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
