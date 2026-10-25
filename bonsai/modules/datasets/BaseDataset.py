@@ -31,6 +31,12 @@ class BaseDataset(Dataset):
         return len(self.subject_ids)
 
     def __getitem__(self, index):
+        if index < 0:
+            index += len(self)
+
+        if not 0 <= index < len(self):
+            raise IndexError("dataset index out of range")
+
         start = int(self.offsets[index])
         end = int(self.offsets[index + 1])
 
