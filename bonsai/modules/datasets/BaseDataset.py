@@ -6,7 +6,7 @@ class BaseDataset(Dataset):
     def __init__(self, subjects):
         lengths = torch.tensor(
             [len(s["code"]) for s in subjects],
-            dtype=torch.long,
+            dtype=torch.long
         )
 
         self.offsets = torch.cat(
