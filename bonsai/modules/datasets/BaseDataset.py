@@ -12,7 +12,7 @@ class BaseDataset(Dataset):
         self.offsets = torch.cat(
             [
                 torch.zeros(1, dtype=torch.long),
-                lengths.cumsum(0),
+                lengths.cumsum(0)
             ]
         )
 
