@@ -18,7 +18,7 @@ class BaseDataset(Dataset):
 
         self.subject_ids = torch.tensor(
             [s["subject_id"] for s in subjects],
-            dtype=torch.long,
+            dtype=torch.long
         )
 
         self.features = {
