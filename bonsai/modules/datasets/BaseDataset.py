@@ -4,21 +4,12 @@ from torch.utils.data import Dataset
 
 class BaseDataset(Dataset):
     def __init__(self, subjects):
-        lengths = torch.tensor(
-            [len(s["code"]) for s in subjects],
-            dtype=torch.long
-        )
+        lengths = torch.tensor([len(s["code"]) for s in subjects], dtype=torch.long)
 
-        self.offsets = torch.cat(
-            [
-                torch.zeros(1, dtype=torch.long),
-                lengths.cumsum(0)
-            ]
-        )
+        self.offsets = torch.cat([torch.zeros(1, dtype=torch.long), lengths.cumsum(0)])
 
         self.subject_ids = torch.tensor(
-            [s["subject_id"] for s in subjects],
-            dtype=torch.long
+            [s["subject_id"] for s in subjects], dtype=torch.long
         )
 
         self.features = {
