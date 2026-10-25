@@ -1,9 +1,8 @@
-from copy import deepcopy
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from torch.utils.data import Dataset
+from bonsai.modules.datasets.BaseDataset import BaseDataset
 
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
@@ -11,7 +10,7 @@ from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
 
 
-class PretrainDataset(Dataset):
+class PretrainDataset(BaseDataset):
     def __init__(
         self,
         subjects: List[Dict],
@@ -19,7 +18,7 @@ class PretrainDataset(Dataset):
         background_length: int,
         cutoff_date: Optional[dict] = None,
     ):
-        self.subjects = subjects
+        super().__init__(subjects)
         self.max_len = max_len
         self.background_length = background_length
         self.cutoff_date = (
@@ -27,7 +26,7 @@ class PretrainDataset(Dataset):
         )
 
     def __getitem__(self, index: int) -> dict:
-        subject = deepcopy(self.subjects[index])
+        subject = super().__getitem__(index)
         if self.cutoff_date is not None:
             subject = censor_subject(subject, self.cutoff_date)
         truncated_subject = truncate_subject(
@@ -38,9 +37,6 @@ class PretrainDataset(Dataset):
         )
         truncated_subject["segment"] = normalize_segments(truncated_subject["segment"])
         return truncated_subject
-
-    def __len__(self):
-        return len(self.subjects)
 
 
 class MLMPretrainDataset(PretrainDataset):

@@ -1,15 +1,14 @@
-from copy import deepcopy
 from typing import Dict, List
 
 import torch
-from torch.utils.data import Dataset
+from bonsai.modules.datasets.BaseDataset import BaseDataset
 
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
 
 
-class FinetuneDataset(Dataset):
+class FinetuneDataset(BaseDataset):
     def __init__(
         self,
         subjects: List[Dict],
@@ -18,14 +17,14 @@ class FinetuneDataset(Dataset):
         background_length: int,
         max_len: int,
     ):
-        self.subjects = subjects
+        super().__init__(subjects)
         self.outcomes = outcomes
         self.predict_token_id = predict_token_id
         self.background_length = background_length
         self.max_len = max_len
 
     def __getitem__(self, index: int) -> dict:
-        subject = deepcopy(self.subjects[index])
+        subject = super().__getitem__(index)
         subject_outcome = self.outcomes[subject["subject_id"]]
 
         subject["target"] = torch.tensor([subject_outcome["label"]], dtype=torch.long)
@@ -44,6 +43,3 @@ class FinetuneDataset(Dataset):
         subject["attention_mask"] = torch.ones(len(subject["code"]), dtype=torch.bool)
 
         return subject
-
-    def __len__(self):
-        return len(self.subjects)
