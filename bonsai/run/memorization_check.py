@@ -1,284 +1,388 @@
 """Memorization check: does a pretrained BONSAI model reproduce its training patients?
 
-Prompt the model with the first X events of a patient's record and check whether
-greedy generation reproduces the next Y events exactly. Thereafter, it does 
-the same for patients, the model never saw, allowing us to ask,
-how much more often training patients are reproduced (the excess) measures memorization.
+The model gets the first X events of a patient's record and continues it for Y
+events, always taking its most likely next code. Its continuation is compared
+with the real record:
 
-As we are checking whether the model can *exactly* generate the patient trajectory,
-we don't really need to append the predictions to the patient sequence and run 
-an additional forward pass. For a causal model, generation reproduces the next Y 
-events if each of those Y predictions is correct given the true record before it. One
-forward pass per patient therefore answers the question for every X and Y.
+    exact_match  all Y events reproduced, in order
+    overlap      share of the next Y real events also written, in any order
+    on_time      as overlap, but only codes written within 30 days of the real event
+    rare_codes   share of the patient's rare codes (held by < 0.1% of training
+                 patients) also written
+
+Records are partly predictable, so each score is compared with patients the
+model never trained on: memorization is the excess of the training patients.
+The next-event loss of the two groups is compared too: an AUC of 0.5 means a
+patient's loss says nothing about whether the model trained on them.
+
+Records are the windows pretraining trained on. Only aggregates are written:
+``excess.csv``, ``loss_check.csv`` and ``summary.txt``. The summary uses only
+(X, Y) with at least ``--min-patients`` scored patients per group, since long
+prompts leave few patients and noisy differences.
 
     python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
-        --data-dir <dir with subject_data_train.pt and subject_data_tuning.pt> \\
+        --data-dir <dir with subject_data_{train,tuning}.pt and vocabulary.pt> \\
         --output-dir memorization
 """
 
 import argparse
 import inspect
 import math
+from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import torch
+import torch.nn.functional as F
+from sklearn.metrics import roc_auc_score
+from torch.nn.utils.rnn import pad_sequence
 
-from bonsai.functional.normalization import normalize_segments
+from bonsai.functional.subject_data import filter_subject_data
+from bonsai.modules.datasets.PretrainDataset import PretrainDataset
 from bonsai.modules.networks.bonsai_nets import (
     BonsaiBase,
     BonsaiPretrain,
     BonsaiValuePretrain,
 )
 
-INPUT_FIELDS = ("code", "age", "abspos", "segment", "numeric_value")
+FIELDS = ("code", "age", "abspos", "segment", "numeric_value")
+SCORES = ("exact_match", "overlap", "on_time", "rare_codes")
+ON_TIME_YEARS = 30 / 365.25  # ages are in years
+RARE_CODE_SHARE = 0.001
+PROMPTS = (16, 64, 256, 1024, 4096)  # X
+CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
+LOSS_COLUMNS = (
+    "patients_train patients_unseen loss_train loss_unseen auc auc_lower auc_upper"
+).split()
+EXCESS_COLUMNS = (
+    "score X Y patients_train patients_unseen train unseen excess lower upper"
+).split()
+
+
+# -- Model and data ---------------------------------------------------------------
 
 
 def load_model(checkpoint: Path, device: str) -> BonsaiBase:
-    """Rebuild the pretrained model (with its next-event head) from a checkpoint."""
+    """The pretrained model, with its next-event head, from a Lightning checkpoint."""
     saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
     hparams = saved["hyper_parameters"]
     if not hparams.get("causal"):
         raise ValueError("The check needs a causally pretrained model (causal: true).")
-    cls = BonsaiValuePretrain if hparams.get("value_embedding_mode") else BonsaiPretrain
-    accepted = inspect.signature(cls).parameters
-    model = cls(
-        **{k: v for k, v in hparams.items() if k in accepted}, attention_dropout=0.0
-    )
+    value_model = hparams.get("value_embedding_mode")
+    model_class = BonsaiValuePretrain if value_model else BonsaiPretrain
+    accepted = inspect.signature(model_class).parameters
+    settings = {k: v for k, v in hparams.items() if k in accepted}
+    model = model_class(**settings, attention_dropout=0.0)
     weights = {
-        k.removeprefix("model."): v
-        for k, v in saved["state_dict"].items()
-        if k.startswith("model.")
+        key.removeprefix("model."): value
+        for key, value in saved["state_dict"].items()
+        if key.startswith("model.")
     }
     model.load_state_dict(weights, strict=True)
     return model.eval().to(device)
 
 
-def load_subjects(data_dir: Path, split: str) -> list[dict]:
-    """The processed patients of one split (``subject_data_<split>.pt``)."""
-    return torch.load(Path(data_dir) / f"subject_data_{split}.pt", weights_only=False)
+def training_windows(subjects, context, background_length, cutoff=None) -> list:
+    """Each patient's record as pretraining saw it: ``context`` inputs plus 1 target."""
+    dataset = PretrainDataset(subjects, context + 1, background_length, cutoff)
+    return [dataset[i] for i in range(len(dataset))]
 
 
-def make_batch(subjects: list[dict], length: int, device: str) -> dict:
-    """The first ``length`` events of each patient, as the model reads them."""
+def sample_patients(windows: list, min_events: int, max_patients: int) -> list:
+    """Up to ``max_patients`` patients with ``min_events`` or more events (seeded)."""
+    eligible = [w for w in windows if len(w["code"]) >= min_events]
+    if len(eligible) <= max_patients:
+        return eligible
+    chosen = np.random.default_rng(0).choice(len(eligible), max_patients, replace=False)
+    return [eligible[i] for i in sorted(chosen)]
+
+
+def make_batch(windows: list, length: int, device) -> dict:
+    """The first ``length`` events of each patient, right-padded."""
     batch = {}
-    for field in INPUT_FIELDS:
-        if all(field in s for s in subjects):
-            rows = [s[field][:length] for s in subjects]
-            if field == "segment":
-                rows = [normalize_segments(row) for row in rows]
-            batch[field] = torch.stack(rows).to(device)
-    batch["attention_mask"] = torch.ones_like(batch["code"], dtype=torch.bool)
+    for field in FIELDS:
+        if all(field in w for w in windows):
+            rows = [w[field][:length] for w in windows]
+            batch[field] = pad_sequence(rows, batch_first=True).to(device)
+    lengths = torch.tensor([min(len(w["code"]), length) for w in windows])
+    positions = torch.arange(batch["code"].shape[1])
+    batch["attention_mask"] = (positions < lengths[:, None]).to(device)
     return batch
 
 
+# -- Generation and loss ----------------------------------------------------------
+
+
+def hidden_states(model: BonsaiBase, batch: dict) -> torch.Tensor:
+    """Causal attention: position i has seen events 0..i and predicts event i + 1."""
+    with torch.autocast("cuda", torch.float16, enabled=batch["code"].is_cuda):
+        return BonsaiBase.forward(model, batch).float()
+
+
 @torch.inference_mode()
-def correct_next_events(
-    model: BonsaiBase, subjects: list[dict], length: int, device: str, batch_size: int
-) -> np.ndarray:
-    """Boolean [patients, length - 1]: column i says whether event i + 1 was predicted."""
-    out = []
-    for start in range(0, len(subjects), batch_size):
-        batch = make_batch(subjects[start : start + batch_size], length, device)
-        with torch.autocast("cuda", torch.float16, enabled=device.startswith("cuda")):
-            # Causal attention: the state at position i has seen events 0..i only,
-            # so its top prediction is the model's guess for event i + 1.
-            states = BonsaiBase.forward(model, batch)
-            predicted = model.pretrain_head(states[:, :-1]).argmax(-1)
-        out.append((predicted == batch["code"][:, 1:]).cpu().numpy())
-    return np.concatenate(out)
+def generate(model, windows: list, prompt: int, steps: int, batch_size: int = 8):
+    """[patients, steps] codes written greedily after ``prompt`` events.
+
+    Each written code replaces the real one before the next step; times, ages
+    and values stay those of the real record.
+    """
+    device, written = next(model.parameters()).device, []
+    for start in range(0, len(windows), batch_size):
+        batch = make_batch(windows[start : start + batch_size], prompt + steps, device)
+        codes = batch["code"].clone()
+        for i in range(prompt, prompt + steps):
+            seen = {field: values[:, :i] for field, values in batch.items()}
+            seen["code"] = codes[:, :i]
+            last = hidden_states(model, seen)[:, -1]
+            codes[:, i] = model.pretrain_head(last).argmax(-1)
+        written.append(codes[:, prompt:].cpu().numpy())
+    return np.concatenate(written)
+
+
+@torch.inference_mode()
+def patient_losses(model, windows: list, batch_size: int = 8) -> np.ndarray:
+    """Each patient's mean next-event loss over their window, as in pretraining."""
+    device, losses = next(model.parameters()).device, []
+    for start in range(0, len(windows), batch_size):
+        part = windows[start : start + batch_size]
+        batch = make_batch(part, max(len(w["code"]) for w in part) - 1, device)
+        targets = [w["code"][1:] for w in part]
+        targets = pad_sequence(targets, batch_first=True).to(device)
+        logits = model.pretrain_head(hidden_states(model, batch)).transpose(1, 2)
+        loss = F.cross_entropy(logits, targets, ignore_index=0, reduction="none")
+        losses += (loss.sum(1) / (targets != 0).sum(1)).tolist()
+    return np.array(losses)
+
+
+# -- Scores -----------------------------------------------------------------------
+
+
+def count_reproduced(generated, truth, codes: set, ages=None, window=None):
+    """(real events reproduced, real events counted), over real codes in ``codes``.
+
+    Order does not matter, but each written code stands in for one real event
+    only; with ``window``, it must also lie within ``window`` years of it.
+    """
+    used = np.zeros(len(generated), dtype=bool)
+    reproduced = counted = 0
+    for i, code in enumerate(truth):
+        if code not in codes:
+            continue
+        counted += 1
+        matches = (generated == code) & ~used
+        if window is not None:
+            matches &= np.abs(ages - ages[i]) <= window
+        if matches.any():
+            used[matches.argmax()] = True
+            reproduced += 1
+    return reproduced, counted
+
+
+def score_patient(generated, truth, ages, countable: set, rare: set) -> dict:
+    """One patient's four scores (NaN when there is nothing to count)."""
+    hits, n = count_reproduced(generated, truth, countable)
+    on_time, _ = count_reproduced(generated, truth, countable, ages, ON_TIME_YEARS)
+    rare_hits, rare_n = count_reproduced(generated, truth, rare)
+    return {
+        "exact_match": float((generated == truth).all()),
+        "overlap": hits / n if n else math.nan,
+        "on_time": on_time / n if n else math.nan,
+        "rare_codes": rare_hits / rare_n if rare_n else math.nan,
+    }
+
+
+def score_all_patients(
+    model,
+    windows_by_split,
+    prompts,
+    continuations,
+    max_patients,
+    countable,
+    rare,
+    batch_size=8,
+) -> pl.DataFrame:
+    """Scores per patient, split, X and Y (kept in memory, never written)."""
+    longest, rows = max(continuations), []
+    for split, windows in windows_by_split.items():
+        for x in prompts:
+            # The same patients for every Y. Decoding is greedy, so the first Y
+            # events of the longest continuation are the Y-event continuation.
+            patients = sample_patients(windows, x + longest, max_patients)
+            if not patients:
+                continue
+            generated = generate(model, patients, x, longest, batch_size)
+            for written, w in zip(generated, patients):
+                truth = w["code"][x : x + longest].numpy()
+                ages = w["age"][x : x + longest].numpy()
+                for y in continuations:
+                    real = truth[:y], ages[:y]
+                    scores = score_patient(written[:y], *real, countable, rare)
+                    rows.append({"split": split, "X": x, "Y": y, **scores})
+    return pl.DataFrame(rows)
+
+
+# -- Statistics -------------------------------------------------------------------
 
 
 def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    """95% Wilson score interval for a proportion (Wilson, 1927).
-
-    Unlike p +/- 1.96 * SE, it stays within [0, 1] and is not zero-width when no
-    patient matches, which is the usual case here (Brown, Cai & DasGupta, 2001).
-    """
+    """95% Wilson interval for a proportion; not empty when no patient matches."""
     p = successes / n
     centre = (p + z * z / (2 * n)) / (1 + z * z / n)
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
     return max(0.0, centre - half), min(1.0, centre + half)
 
 
-def sample_patients(subjects: list[dict], min_events: int, n: int) -> list[dict]:
-    """Up to ``n`` patients with at least ``min_events`` events (fixed seed)."""
-    eligible = [s for s in subjects if len(s["code"]) >= min_events]
-    if len(eligible) <= n:
-        return eligible
-    keep = np.random.default_rng(0).choice(len(eligible), n, replace=False)
-    return [eligible[i] for i in sorted(keep)]
+def difference_in_means(train: np.ndarray, unseen: np.ndarray, is_proportion: bool):
+    """Mean of ``train`` minus mean of ``unseen`` with a 95% interval: Newcombe
+    (1998, method 10) for exact match (yes/no), otherwise normal (Welch)."""
+    p1, p2 = train.mean(), unseen.mean()
+    if is_proportion:
+        l1, u1 = wilson_interval(int(train.sum()), len(train))
+        l2, u2 = wilson_interval(int(unseen.sum()), len(unseen))
+        below, above = math.hypot(p1 - l1, u2 - p2), math.hypot(u1 - p1, p2 - l2)
+        return p1 - p2, p1 - p2 - below, p1 - p2 + above
+    variance = train.var(ddof=1) / len(train) + unseen.var(ddof=1) / len(unseen)
+    half = 1.96 * math.sqrt(variance)
+    return p1 - p2, p1 - p2 - half, p1 - p2 + half
 
 
-def memorization_table(
-    model: BonsaiBase,
-    subjects_by_split: dict[str, list[dict]],
-    prompt_lengths: list[int],
-    continuation_lengths: list[int],
-    max_patients: int,
-    device: str,
-    batch_size: int,
-) -> pd.DataFrame:
-    """Share of patients reproduced exactly (with 95% interval) per split, X and Y."""
-    longest = max(continuation_lengths)
+def excess_over_unseen(
+    scores: pl.DataFrame, train_split: str, unseen_split: str
+) -> pl.DataFrame:
+    """Per score, X and Y: both groups' means and the excess, counting only the
+    patients who have the score (e.g. rare_codes needs a rare code in the next Y)."""
     rows = []
-    for split, subjects in subjects_by_split.items():
-        for x in prompt_lengths:
-            # The same patients for every Y: those with at least X + longest Y events.
-            patients = sample_patients(subjects, x + longest, max_patients)
-            if not patients:
+    for (x, y), part in scores.group_by("X", "Y"):
+        in_train = part.filter(pl.col("split") == train_split)
+        in_unseen = part.filter(pl.col("split") == unseen_split)
+        for name in SCORES:
+            train = in_train[name].drop_nans().to_numpy()
+            unseen = in_unseen[name].drop_nans().to_numpy()
+            if len(train) < 2 or len(unseen) < 2:
                 continue
-            correct = correct_next_events(
-                model, patients, x + longest, device, batch_size
-            )
-            for y in continuation_lengths:
-                window = correct[
-                    :, x - 1 : x - 1 + y
-                ]  # predictions of events X+1 ... X+Y
-                matches = int(window.all(axis=1).sum())
-                lower, upper = wilson_interval(matches, len(patients))
-                rows.append(
-                    {
-                        "split": split,
-                        "prompt_events": x,
-                        "continuation_events": y,
-                        "patients": len(patients),
-                        "exact_match": matches / len(patients),
-                        "exact_match_lower": lower,
-                        "exact_match_upper": upper,
-                        # Each prediction given the true record before it.
-                        "accuracy_given_true_history": window.mean(),
-                    }
-                )
-    return pd.DataFrame(rows)
+            is_proportion = name == "exact_match"
+            excess = difference_in_means(train, unseen, is_proportion)
+            counts = len(train), len(unseen), train.mean(), unseen.mean()
+            rows.append((name, x, y, *counts, *excess))
+    excess = pl.DataFrame(rows, schema=EXCESS_COLUMNS, orient="row")
+    return excess.sort("score", "X", "Y")
 
 
-def excess_table(
-    table: pd.DataFrame, train_split: str, heldout_split: str
-) -> pd.DataFrame:
-    """Training minus unseen exact-match rate per X and Y.
-
-    The 95% interval for the difference combines the two Wilson intervals
-    (Newcombe, 1998, method 10).
-    """
-    keys = ["prompt_events", "continuation_events"]
-    seen = table[table.split == train_split].set_index(keys)
-    unseen = table[table.split == heldout_split].set_index(keys)
-    t = seen.join(unseen, lsuffix="_train", rsuffix="_unseen", how="inner")
-    p1, p2 = t.exact_match_train, t.exact_match_unseen
-    diff = p1 - p2
-    return pd.DataFrame(
-        {
-            "exact_match_train": p1,
-            "exact_match_unseen": p2,
-            "excess": diff,
-            "excess_lower": diff
-            - np.hypot(p1 - t.exact_match_lower_train, t.exact_match_upper_unseen - p2),
-            "excess_upper": diff
-            + np.hypot(t.exact_match_upper_train - p1, p2 - t.exact_match_lower_unseen),
-        }
-    ).reset_index()
+def membership_from_loss(train: np.ndarray, unseen: np.ndarray) -> pl.DataFrame:
+    """AUC for telling training from unseen patients by their loss (0.5 = not at
+    all), with the Hanley and McNeil (1982) 95% interval."""
+    n1, n2 = len(train), len(unseen)
+    auc = roc_auc_score([1] * n1 + [0] * n2, -np.concatenate([train, unseen]))
+    q1, q2 = auc / (2 - auc), 2 * auc**2 / (1 + auc)
+    var = auc * (1 - auc) + (n1 - 1) * (q1 - auc**2) + (n2 - 1) * (q2 - auc**2)
+    half = 1.96 * math.sqrt(var / (n1 * n2))
+    row = (n1, n2, train.mean(), unseen.mean(), auc, auc - half, auc + half)
+    return pl.DataFrame([row], schema=LOSS_COLUMNS, orient="row")
 
 
-def plot_curves(
-    table: pd.DataFrame, path: Path, train_split: str, heldout_split: str
-) -> None:
-    """Exact-match rate against Y: one colour per X, solid = training, dashed = unseen."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(6.6, 3.9))
-    prompts = sorted(table.prompt_events.unique())
-    for colour, x in zip(plt.cm.viridis(np.linspace(0.1, 0.85, len(prompts))), prompts):
-        for split, style in ((train_split, "-"), (heldout_split, "--")):
-            part = table[(table.prompt_events == x) & (table.split == split)]
-            label = f"X = {x:,}" if split == train_split else None
-            ax.plot(
-                part.continuation_events,
-                part.exact_match,
-                style,
-                color=colour,
-                marker="o",
-                markersize=3,
-                label=label,
-            )
-    ax.plot([], [], "k-", label="Training patients")
-    ax.plot([], [], "k--", label="Unseen patients")
-    ax.set(
-        xlabel="Events to reproduce after the prompt (Y)",
-        ylabel="Patients reproduced exactly",
+def write_summary(excess: pl.DataFrame, loss: pl.DataFrame, min_patients: int) -> str:
+    """Each score's largest excess among (X, Y) with at least ``min_patients``
+    scored patients per group, and the loss AUC."""
+    lines = [
+        "Largest excess of training over unseen patients (95% CI), among X, Y "
+        f"with at least {min_patients} scored patients in each group:"
+    ]
+    enough = pl.min_horizontal("patients_train", "patients_unseen") >= min_patients
+    for name in SCORES:
+        cells = excess.filter(pl.col("score") == name)
+        large = cells.filter(enough)
+        if large.is_empty():
+            lines.append(f"  {name:12s} no X, Y with enough patients")
+            continue
+        r = large.sort("excess", descending=True).row(0, named=True)
+        lines.append(
+            f"  {name:12s} {r['excess']:+.3f} ({r['lower']:+.3f} to {r['upper']:+.3f}) "
+            f"at X = {r['X']}, Y = {r['Y']} (n = {r['patients_train']} / "
+            f"{r['patients_unseen']}; {cells.height - large.height} smaller left out)"
+        )
+    r = loss.row(0, named=True)
+    lines.append(
+        f"Loss AUC, training vs unseen: {r['auc']:.3f} "
+        f"({r['auc_lower']:.3f} to {r['auc_upper']:.3f})"
     )
-    ax.set_xscale("log", base=2)
-    ax.set_title(
-        "Exact reproduction of a patient's next Y events after an X-event prompt",
-        fontsize=9,
-    )
-    ax.legend(fontsize=6.5, frameon=False, ncol=2)
-    fig.tight_layout()
-    fig.savefig(path, dpi=200)
+    return "\n".join(lines)
+
+
+# -- Command line -----------------------------------------------------------------
 
 
 def main() -> None:
-    """Command-line entry point."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--data-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--train-split", default="train")
-    parser.add_argument("--heldout-split", default="tuning")
-    parser.add_argument(
-        "--prompt-events", type=int, nargs="+", default=[16, 64, 256, 1024, 4096]
-    )
-    parser.add_argument(
-        "--continuation-events", type=int, nargs="+", default=[1, 2, 4, 8, 16, 32, 64]
-    )
-    parser.add_argument(
-        "--max-patients", type=int, default=2000, help="per split and prompt length"
-    )
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument(
-        "--device", default="cuda" if torch.cuda.is_available() else "cpu"
-    )
+    add = parser.add_argument
+    add("--checkpoint", type=Path, required=True)
+    add("--data-dir", type=Path, required=True)
+    add("--output-dir", type=Path, required=True)
+    add("--train-split", default="train")
+    add("--heldout-split", default="tuning")
+    add("--population", type=Path, help="population csv used in pretraining, if any")
+    add("--cutoff-date", type=date.fromisoformat, help="training.cutoff_date, if set")
+    add("--prompt-events", type=int, nargs="+", default=PROMPTS)
+    add("--continuation-events", type=int, nargs="+", default=CONTINUATIONS)
+    add("--max-patients", type=int, default=2000, help="per split and prompt length")
+    add("--min-patients", type=int, default=50, help="per group, for summary.txt")
+    add("--batch-size", type=int, default=8, help="lower it if out of GPU memory")
+    add("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
     model = load_model(args.checkpoint, args.device)
     context = model.hparams["max_seqlen"]
-    longest = max(args.prompt_events) + max(args.continuation_events)
-    if longest > context:
-        parser.error(
-            f"prompt + continuation reaches {longest} events, "
-            f"but the model reads at most {context}."
-        )
-    splits = {
-        s: load_subjects(args.data_dir, s)
-        for s in (args.train_split, args.heldout_split)
+    if max(args.prompt_events) + max(args.continuation_events) > context + 1:
+        parser.error(f"prompt + continuation exceeds the {context + 1}-event window.")
+
+    # The patients and windows exactly as pretraining saw them.
+    splits = (args.train_split, args.heldout_split)
+    subjects = {
+        s: torch.load(args.data_dir / f"subject_data_{s}.pt", weights_only=False)
+        for s in splits
     }
-    table = memorization_table(
+    if args.population:
+        ids = pl.read_csv(args.population)["subject_id"].to_list()
+        subjects = {s: filter_subject_data(v, ids) for s, v in subjects.items()}
+    background = (subjects[args.train_split][0]["segment"] == 1).sum()
+    day = args.cutoff_date
+    cutoff = {"year": day.year, "month": day.month, "day": day.day} if day else None
+    windows = {
+        s: training_windows(v, context, background, cutoff) for s, v in subjects.items()
+    }
+
+    # Codes that count: no special tokens. Rare: held by < 0.1% of training patients.
+    vocabulary = torch.load(args.data_dir / "vocabulary.pt", weights_only=False)
+    countable = {i for token, i in vocabulary.items() if not token.startswith("[")}
+    train = windows[args.train_split]
+    held = Counter(code for w in train for code in set(w["code"].tolist()))
+    limit = RARE_CODE_SHARE * len(train)
+    rare = {code for code, n in held.items() if n < limit} & countable
+
+    scores = score_all_patients(
         model,
-        splits,
+        windows,
         args.prompt_events,
         sorted(args.continuation_events),
         args.max_patients,
-        args.device,
+        countable,
+        rare,
         args.batch_size,
     )
-    excess = excess_table(table, args.train_split, args.heldout_split)
+    excess = excess_over_unseen(scores, *splits)
+    patients = [sample_patients(windows[s], 2, args.max_patients) for s in splits]
+    losses = [patient_losses(model, p, args.batch_size) for p in patients]
+    loss = membership_from_loss(*losses)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    table.to_csv(args.output_dir / "memorization.csv", index=False)
-    excess.to_csv(args.output_dir / "excess.csv", index=False)
-    plot_curves(
-        table,
-        args.output_dir / "memorization.png",
-        args.train_split,
-        args.heldout_split,
-    )
-    print(excess.to_string(index=False))
+    excess.write_csv(args.output_dir / "excess.csv")
+    loss.write_csv(args.output_dir / "loss_check.csv")
+    summary = write_summary(excess, loss, args.min_patients)
+    (args.output_dir / "summary.txt").write_text(summary + "\n")
+    print(summary)
 
 
 if __name__ == "__main__":
