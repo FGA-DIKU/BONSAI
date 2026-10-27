@@ -26,14 +26,14 @@ labels:
 training:
   max_len: 8192
   batch_size: 256
-  accumulate_grad_batches: 1 #previously called effective batch size
-  epochs: 10
+  accumulate_grad_batches: 1
+  epochs: 20
   learning_rate: 3e-5
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
     _target_: bonsai.functional.sampling.inverse_sqrt
   loss_weight_function: 
-  scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
+  scheduler_warmup_epochs: 0.2
   ckpt_every_n_epoch: 1
   limit_val_batches: 1.0
   limit_train_batches: 1.0
