@@ -25,7 +25,8 @@ training:
   scheduler_warmup_epochs: 0.2
   limit_val_batches: 1.0
   limit_train_batches: 1.0
-  value_loss_weight: 
+  loss_params:
+    value_loss_weight: 
   ckpt_every_n_epoch: 1
   cutoff_date: # Optional
   #   day: 1
