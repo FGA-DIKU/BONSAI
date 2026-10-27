@@ -31,7 +31,7 @@ training:
   learning_rate: 3e-5
   optimizer_epsilon: 1e-6
   sampling_weight_fn: 
-    _target_: bonsai.functional.sampling.effective_n_samples
+    _target_: bonsai.functional.sampling.inverse_sqrt
   loss_weight_function: 
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
