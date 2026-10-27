@@ -35,8 +35,8 @@ training:
   loss_weight_function: 
   scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
   ckpt_every_n_epoch: 1
-  limit_val_batches: 50
-  limit_train_batches: 50
+  limit_val_batches: 1.0
+  limit_train_batches: 1.0
   eval_monitor_metric: val/loss
   eval_monitor_mode: min
 
