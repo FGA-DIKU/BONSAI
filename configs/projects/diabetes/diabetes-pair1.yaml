@@ -61,4 +61,4 @@ cohort:
         criteria:
           all_row:
             - {column: code, value: [MEDICATION//A10, DIAGNOSIS//DE11], operator: startswith_any}
-            - {column: time, operator: lt, value_col: index_date}
+            - {column: time, operator: le, value_col: index_date}

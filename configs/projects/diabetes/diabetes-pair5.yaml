@@ -1,0 +1,64 @@
+# @package _global_
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset: phair_light
+
+paths: 
+  input_dir: FILL_OUT_THIS/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+index:
+  missing: drop
+  mode: match
+  args:
+    occurrence: first
+    criteria:
+      any:
+        - {column: code, value: [ MEDICATION//MC03], operator: startswith_any} 
+
+outcome:
+  mode: match
+  args:
+    occurrence: first
+    criteria:
+      all_row:
+        - {column: code, value: [DIAGNOSIS//DE871], operator: startswith_any}
+        - {column: time, operator: gt, value_col: index_date}
+
+censor:
+  mode: offset
+  args:
+    offset_by: 0d
+
+cohort:
+  conditional_criteria:
+    - action: exclude #exclude outcomes prior to index
+      args:
+        occurrence: all
+        criteria:
+          all_row:
+            - {column: code, value: [DIAGNOSIS//DE871], operator: startswith_any}
+            - {column: time, operator: lt, value_col: index_date}
+
+    # Our diabetes cohort exclude/include
+    - action: exclude
+      args: 
+        occurrence: all
+        criteria:
+          all_row:
+            - {column: code, value: [DIAGNOSIS//DE10], operator: startswith_any}
+            - {column: time, operator: lt, value_col: index_date}
+    - action: include
+      args:
+        occurrence: all
+        criteria:
+          all_row:
+            - {column: code, value: [MEDICATION//A10, DIAGNOSIS//DE11], operator: startswith_any}
+            - {column: time, operator: le, value_col: index_date}
