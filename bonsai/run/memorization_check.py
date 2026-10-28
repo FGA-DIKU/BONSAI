@@ -52,12 +52,27 @@ SCORES = ("exact_match", "overlap", "rare_codes")
 RARE_CODE_SHARE = 0.001
 PROMPTS = (16, 64, 256, 1024, 4096)  # X
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
-LOSS_COLUMNS = (
-    "patients_train patients_unseen loss_train loss_unseen auc auc_lower auc_upper"
-).split()
-EXCESS_COLUMNS = (
-    "score X Y patients_train patients_unseen train unseen excess lower upper"
-).split()
+LOSS_COLUMNS = [
+    "patients_train",
+    "patients_unseen",
+    "loss_train",
+    "loss_unseen",
+    "auc",
+    "auc_lower",
+    "auc_upper",
+]
+EXCESS_COLUMNS = [
+    "score",
+    "X",
+    "Y",
+    "patients_train",
+    "patients_unseen",
+    "train",
+    "unseen",
+    "excess",
+    "lower",
+    "upper",
+]
 
 
 # -- Model and data ---------------------------------------------------------------
@@ -340,7 +355,9 @@ def write_summary(excess: pl.DataFrame, loss: pl.DataFrame, min_patients: int) -
         f"Loss AUC, training vs unseen: {r['auc']:.3f} "
         f"({r['auc_lower']:.3f} to {r['auc_upper']:.3f})"
     )
-    return memorization_conclusion(excess, loss, min_patients) + "\n\n" + "\n".join(lines)
+    return (
+        memorization_conclusion(excess, loss, min_patients) + "\n\n" + "\n".join(lines)
+    )
 
 
 # -- Command line -----------------------------------------------------------------
