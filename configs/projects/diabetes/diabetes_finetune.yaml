@@ -1,13 +1,56 @@
 # @package _global_
-defaults: 
-  - /finetune@
-  - /hardware/cpu@hardware
+defaults:
+  - /core/base_train@_global_
+  - /hardware/igpu6cpu@hardware
   - _self_
+
+dataset: phair_light_MEDS_data
+outcome: projects/diabetes/diabetes-su_hypo
+pretrain_path: [INSERT PATH TO PRETRAINED MODEL CHECKPOINT HERE]
+
+paths:
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  train_split: ${paths.dir}/subject_data_train.pt
+  val_split: ${paths.dir}/subject_data_tuning.pt
+  predict_split: ${paths.dir}/subject_data_held_out.pt
+  outcome: ${paths.dir}/outcomes/${outcome}.parquet
+  vocabulary: ${paths.dir}/vocabulary.pt
+  population: ${paths.dir}/cohorts/population_full.csv
+  ckpt_path: ${paths.dir}
 
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
-  start_include: 
+  start_include:
     days: 7 # start follow up (considering outcomes) time after index date (negative means before)
     hours: 0
-  end_include: 
+  end_include:
     days: 365
+
+training:
+  max_len: 8192
+  batch_size: 256
+  accumulate_grad_batches: 1 #previously called effective batch size
+  epochs: 20
+  learning_rate: 3e-4
+  optimizer_epsilon: 1e-6
+  sampling_weight_fn:
+    _target_: bonsai.functional.sampling.inverse_sqrt
+  loss_weight_function:
+  scheduler_warmup_epochs: 0.01 # DOUBLE CHECK THAT THIS IS DESIRED
+  ckpt_every_n_epoch: 1
+  limit_val_batches: 1.0
+  limit_train_batches: 1.0
+  eval_monitor_metric: val/AUROC #val/loss
+  eval_monitor_mode: max #min
+
+model:
+  # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.
+  _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
+  max_seq_len: ${training.max_len}
+  hidden_size: 256
+  num_layers: 4
+  dropout: 0.1
+  attention_dropout: 0.0
+  bias: false
+  causal: true
+  attn_type: flash
