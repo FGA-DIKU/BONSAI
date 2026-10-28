@@ -6,7 +6,6 @@ with the real record:
 
     exact_match  all Y events reproduced, in order
     overlap      share of the next Y real events also written, in any order
-    on_time      as overlap, but only codes written within 30 days of the real event
     rare_codes   share of the patient's rare codes (held by < 0.1% of training
                  patients) also written
 
@@ -16,7 +15,8 @@ The next-event loss of the two groups is compared too: an AUC of 0.5 means a
 patient's loss says nothing about whether the model trained on them.
 
 Records are the windows pretraining trained on. Only aggregates are written:
-``excess.csv``, ``loss_check.csv`` and ``summary.txt``. The summary uses only
+``excess.csv``, ``loss_check.csv`` and ``summary.txt``. The summary starts with
+a short exploratory conclusion about memorization and uses only
 (X, Y) with at least ``--min-patients`` scored patients per group, since long
 prompts leave few patients and noisy differences.
 
@@ -48,8 +48,7 @@ from bonsai.modules.networks.bonsai_nets import (
 )
 
 FIELDS = ("code", "age", "abspos", "segment", "numeric_value")
-SCORES = ("exact_match", "overlap", "on_time", "rare_codes")
-ON_TIME_YEARS = 30 / 365.25  # ages are in years
+SCORES = ("exact_match", "overlap", "rare_codes")
 RARE_CODE_SHARE = 0.001
 PROMPTS = (16, 64, 256, 1024, 4096)  # X
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
@@ -126,7 +125,8 @@ def generate(model, windows: list, prompt: int, steps: int, batch_size: int = 8)
     """[patients, steps] codes written greedily after ``prompt`` events.
 
     Each written code replaces the real one before the next step; times, ages
-    and values stay those of the real record.
+    and values stay those of the real record. These are conditioning inputs,
+    not predictions; the scores assess code reproduction only.
     """
     device, written = next(model.parameters()).device, []
     for start in range(0, len(windows), batch_size):
@@ -159,36 +159,32 @@ def patient_losses(model, windows: list, batch_size: int = 8) -> np.ndarray:
 # -- Scores -----------------------------------------------------------------------
 
 
-def count_reproduced(generated, truth, codes: set, ages=None, window=None):
+def count_reproduced(generated, truth, codes: set):
     """(real events reproduced, real events counted), over real codes in ``codes``.
 
     Order does not matter, but each written code stands in for one real event
-    only; with ``window``, it must also lie within ``window`` years of it.
+    only.
     """
     used = np.zeros(len(generated), dtype=bool)
     reproduced = counted = 0
-    for i, code in enumerate(truth):
+    for code in truth:
         if code not in codes:
             continue
         counted += 1
         matches = (generated == code) & ~used
-        if window is not None:
-            matches &= np.abs(ages - ages[i]) <= window
         if matches.any():
             used[matches.argmax()] = True
             reproduced += 1
     return reproduced, counted
 
 
-def score_patient(generated, truth, ages, countable: set, rare: set) -> dict:
-    """One patient's four scores (NaN when there is nothing to count)."""
+def score_patient(generated, truth, countable: set, rare: set) -> dict:
+    """One patient's three scores (NaN when there is nothing to count)."""
     hits, n = count_reproduced(generated, truth, countable)
-    on_time, _ = count_reproduced(generated, truth, countable, ages, ON_TIME_YEARS)
     rare_hits, rare_n = count_reproduced(generated, truth, rare)
     return {
         "exact_match": float((generated == truth).all()),
         "overlap": hits / n if n else math.nan,
-        "on_time": on_time / n if n else math.nan,
         "rare_codes": rare_hits / rare_n if rare_n else math.nan,
     }
 
@@ -215,10 +211,8 @@ def score_all_patients(
             generated = generate(model, patients, x, longest, batch_size)
             for written, w in zip(generated, patients):
                 truth = w["code"][x : x + longest].numpy()
-                ages = w["age"][x : x + longest].numpy()
                 for y in continuations:
-                    real = truth[:y], ages[:y]
-                    scores = score_patient(written[:y], *real, countable, rare)
+                    scores = score_patient(written[:y], truth[:y], countable, rare)
                     rows.append({"split": split, "X": x, "Y": y, **scores})
     return pl.DataFrame(rows)
 
@@ -282,6 +276,45 @@ def membership_from_loss(train: np.ndarray, unseen: np.ndarray) -> pl.DataFrame:
     return pl.DataFrame([row], schema=LOSS_COLUMNS, orient="row")
 
 
+def memorization_conclusion(
+    excess: pl.DataFrame, loss: pl.DataFrame, min_patients: int
+) -> str:
+    """Exploratory interpretation of reproduction excess and loss membership signal.
+
+    Intervals are pointwise across many X/Y comparisons, so this is a screening
+    conclusion, not a calibrated probability or a formal test of memorization.
+    """
+    enough = pl.min_horizontal("patients_train", "patients_unseen") >= min_patients
+    eligible = excess.filter(enough & pl.col("score").is_in(SCORES))
+    r = loss.row(0, named=True)
+    loss_enough = min(r["patients_train"], r["patients_unseen"]) >= min_patients
+    if eligible.is_empty() or not loss_enough:
+        return "Conclusion: inconclusive; too few scored patients for both checks."
+
+    signals = sorted(set(eligible.filter(pl.col("lower") > 0)["score"].to_list()))
+    loss_signal = r["auc_lower"] > 0.5
+    evidence = (
+        f"{len(signals)} of {eligible['score'].n_unique()} available reproduction "
+        f"metrics have a positive excess with a 95% interval above zero; "
+        f"loss AUC = {r['auc']:.3f} "
+        f"(95% CI {r['auc_lower']:.3f}–{r['auc_upper']:.3f})."
+    )
+    if signals and loss_signal:
+        verdict = "memorization appears likely under this check"
+    elif signals:
+        verdict = "possible memorization; reproduction and loss evidence are mixed"
+    elif loss_signal:
+        verdict = "training membership is detectable, but code memorization is unclear"
+    else:
+        verdict = "no clear evidence of memorization in this check"
+    return (
+        f"Conclusion: {verdict}. {evidence} "
+        "Exploratory: intervals are not adjusted for multiple comparisons, and "
+        "train/heldout differences can also reflect population differences. "
+        "A negative result does not establish that memorization is unlikely."
+    )
+
+
 def write_summary(excess: pl.DataFrame, loss: pl.DataFrame, min_patients: int) -> str:
     """Each score's largest excess among (X, Y) with at least ``min_patients``
     scored patients per group, and the loss AUC."""
@@ -307,7 +340,7 @@ def write_summary(excess: pl.DataFrame, loss: pl.DataFrame, min_patients: int) -
         f"Loss AUC, training vs unseen: {r['auc']:.3f} "
         f"({r['auc_lower']:.3f} to {r['auc_upper']:.3f})"
     )
-    return "\n".join(lines)
+    return memorization_conclusion(excess, loss, min_patients) + "\n\n" + "\n".join(lines)
 
 
 # -- Command line -----------------------------------------------------------------
