@@ -46,6 +46,7 @@ def main(cfg: DictConfig) -> None:
         masking_config=cfg.training.get("masking"),
         cutoff_date=cfg.training.cutoff_date,
         max_len=cfg.training.max_len,
+        ignore_target_tokens=cfg.training.get("ignore_target_tokens", []),
     )
 
     model = instantiate(cfg.model, vocab_size=len(data_module.vocabulary))
