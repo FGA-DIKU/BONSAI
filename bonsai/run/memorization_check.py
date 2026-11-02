@@ -31,29 +31,27 @@ Tensor storage is memory-mapped and transformed windows are lazy. Python metadat
 for each split still occupies RAM; max-patients caps retained inference samples,
 not that metadata. Global validation/rarity scans do not retain all windows.
 
-Default run: up to 1,000 patients per group, contexts 32/256/1024, horizons
+Default run: up to 5,000 patients per group, contexts 32/256/1024, horizons
 1/2/4/8/16/32/64, all three modes. Shorter horizons reuse the longest decoded
 continuation. DATA_DIR contains subject_data_{train,tuning}.pt and vocabulary.pt.
 Use the original run config and a fresh output directory for each command.
 
-Preflight: five patients per group and a minimal grid. Exercises loading,
-all generation modes, loss scoring and report writing. INCONCLUSIVE is expected;
-keep the minimum-patient requirement unchanged, since this is an execution check.
+Timing preflight: 100 patients per group, the full grid and all modes. Use the
+same GPU and batch size as the main run. This checks the largest cell too.
+Check coverage.csv: short histories can reduce the actual sample in each cell.
+The preflight is a timing/execution check, not the final statistical assessment.
 
     python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
         --run-config hydra/config.yaml --data-dir DATA_DIR \\
-        --output-dir memorization_preflight --max-patients 5 \\
-        --prompt-events 32 --continuation-events 1 4
+        --output-dir memorization_preflight --max-patients 100 --batch-size 32
 
-Before the main run, test the largest cell at your intended batch size (here 32).
-This processes at most one batch per group in each mode, if enough patients
-qualify. Check coverage.csv, GPU memory and runtime; reduce batch size if needed.
-It still performs the full-data validation/rarity scans, as does the preflight.
-
-    python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
-        --run-config hydra/config.yaml --data-dir DATA_DIR \\
-        --output-dir memorization_capacity --max-patients 32 --batch-size 32 \\
-        --prompt-events 1024 --continuation-events 64
+summary.txt and run_manifest.json record setup, generation/scoring and loss
+timings, plus a rough 5,000-patient estimate: setup + 50 * (generation + loss)
+for a 100-patient preflight. Setup includes full-data validation/rarity scans.
+The estimate excludes report writing and assumes enough eligible patients,
+similar history lengths, identical hardware/grid/batch size and steady throughput.
+Partial batches, GPU warm-up and repeated sampling scans can overestimate cost;
+different loss-window lengths or resource contention can shift it either way.
 
 Main run (use the batch size verified above; 32 is an example, default is 8):
 
@@ -72,6 +70,7 @@ import inspect
 import json
 import math
 import sys
+import time
 import warnings
 from bisect import bisect_left
 from collections import Counter
@@ -105,6 +104,7 @@ INSPECTION_HORIZON = 32
 PARTIAL_REPRODUCTION = 0.9
 PROMPTS = (32, 256, 1024)  # X; primary check plus medium/long-context probes
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
+FINAL_PATIENTS = 5000
 LOSS_COLUMNS = [
     "patients_train",
     "patients_unseen",
@@ -796,7 +796,12 @@ def parse_args():
     add("--cutoff-date", type=date.fromisoformat, help="training.cutoff_date, if set")
     add("--prompt-events", type=int, nargs="+", default=PROMPTS)
     add("--continuation-events", type=int, nargs="+", default=CONTINUATIONS)
-    add("--max-patients", type=int, default=1000, help="per split and prompt length")
+    add(
+        "--max-patients",
+        type=int,
+        default=FINAL_PATIENTS,
+        help="per split and prompt length",
+    )
     add("--min-patients", type=int, default=50, help="per group, for summary.txt")
     add("--batch-size", type=int, default=8, help="lower it if out of GPU memory")
     add("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -926,6 +931,26 @@ def training_settings(args) -> None:
         ) from error
 
 
+def runtime_estimate(timings, sample_cap):
+    """Separate full-dataset setup from approximately patient-scaled inference."""
+    estimated = timings["setup_seconds"] + FINAL_PATIENTS / sample_cap * (
+        timings["generation_scoring_seconds"] + timings["loss_seconds"]
+    )
+    return {
+        **timings,
+        "target_patients_per_group": FINAL_PATIENTS,
+        "estimated_target_seconds": estimated,
+        "assumptions": "Rough projection for identical grid/hardware/batch size; assumes eligible patients and representative history lengths. Excludes report writing; see coverage.csv.",
+    }
+
+
+def timing_clock(device):
+    """Wait for outstanding CUDA work before recording wall time."""
+    if str(device).startswith("cuda"):
+        torch.cuda.synchronize(device)
+    return time.perf_counter()
+
+
 def write_outputs(
     excess, loss, output_dir: Path, min_patients: int, tails, manifest, coverage=None
 ) -> None:
@@ -965,11 +990,21 @@ def write_outputs(
     )
     summary += "\nCheckpoint SHA-256: " + manifest["checkpoint_sha256"]
     summary += "\n" + manifest["comparison_note"]
+    if timing := manifest.get("timing"):
+        summary += (
+            f"\n\nMeasured: setup {timing['setup_seconds'] / 60:.1f} min; "
+            f"generation/scoring {timing['generation_scoring_seconds'] / 60:.1f} min; "
+            f"loss {timing['loss_seconds'] / 60:.1f} min."
+            f"\nEstimated {FINAL_PATIENTS:,}-patient/group run: "
+            f"{timing['estimated_target_seconds'] / 3600:.2f} hours.\n"
+            + timing["assumptions"]
+        )
     (output_dir / "summary.txt").write_text(summary + "\n")
     print(summary)
 
 
 def main() -> None:
+    started = time.perf_counter()
     load_dotenv()  # Match the training entry point when Hydra references .env paths.
     parser, args = parse_args()
 
@@ -1037,6 +1072,7 @@ def main() -> None:
     vocabulary = torch.load(args.data_dir / "vocabulary.pt", weights_only=False)
     validate_windows(windows, vocabulary, model)
     countable, rare = code_groups(vocabulary, windows[args.train_split])
+    setup_done = timing_clock(args.device)
 
     # 2. Greedily continue codes over the X/Y grid; compare training vs unseen patients.
     scores = pl.concat(
@@ -1067,6 +1103,8 @@ def main() -> None:
         args.min_patients,
     )
 
+    generation_done = timing_clock(args.device)
+
     # 3. Independently compare the groups' next-code losses (membership AUC).
     patients = [
         sample_patients(
@@ -1082,6 +1120,7 @@ def main() -> None:
         print(f"Teacher-forced loss: {split}, patients={len(part)}", flush=True)
         losses.append(patient_losses(model, part, args.batch_size))
     loss = membership_from_loss(*losses)
+    loss_done = timing_clock(args.device)
 
     # 4. Export aggregate diagnostics, never an automatic sharing approval.
     if file_hash(args.checkpoint) != checkpoint_sha256:
@@ -1094,6 +1133,14 @@ def main() -> None:
         "run_config_sha256": file_hash(args.run_config) if args.run_config else None,
         "settings": vars(args),
         "effective_context": context,
+        "timing": runtime_estimate(
+            {
+                "setup_seconds": setup_done - started,
+                "generation_scoring_seconds": generation_done - setup_done,
+                "loss_seconds": loss_done - generation_done,
+            },
+            args.max_patients,
+        ),
         "vocabulary_sha256": file_hash(args.data_dir / "vocabulary.pt"),
         "software": {
             "python": sys.version.split()[0],
