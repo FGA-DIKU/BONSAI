@@ -31,9 +31,35 @@ Tensor storage is memory-mapped and transformed windows are lazy. Python metadat
 for each split still occupies RAM; max-patients caps retained inference samples,
 not that metadata. Global validation/rarity scans do not retain all windows.
 
+Default run: up to 1,000 patients per group, contexts 32/256/1024, horizons
+1/2/4/8/16/32/64, all three modes. Shorter horizons reuse the longest decoded
+continuation. DATA_DIR contains subject_data_{train,tuning}.pt and vocabulary.pt.
+Use the original run config and a fresh output directory for each command.
+
+Preflight: five patients per group and a minimal grid. Exercises loading,
+all generation modes, loss scoring and report writing. INCONCLUSIVE is expected;
+keep the minimum-patient requirement unchanged, since this is an execution check.
+
     python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
-        --data-dir <dir with subject_data_{train,tuning}.pt and vocabulary.pt> \\
-        --output-dir memorization
+        --run-config hydra/config.yaml --data-dir DATA_DIR \\
+        --output-dir memorization_preflight --max-patients 5 \\
+        --prompt-events 32 --continuation-events 1 4
+
+Before the main run, test the largest cell at your intended batch size (here 32).
+This processes at most one batch per group in each mode, if enough patients
+qualify. Check coverage.csv, GPU memory and runtime; reduce batch size if needed.
+It still performs the full-data validation/rarity scans, as does the preflight.
+
+    python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
+        --run-config hydra/config.yaml --data-dir DATA_DIR \\
+        --output-dir memorization_capacity --max-patients 32 --batch-size 32 \\
+        --prompt-events 1024 --continuation-events 64
+
+Main run (use the batch size verified above; 32 is an example, default is 8):
+
+    python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
+        --run-config hydra/config.yaml --data-dir DATA_DIR \\
+        --output-dir memorization --batch-size 32
 """
 
 # Flow: load windows -> generate/score the X/Y grid -> compare group means ->
@@ -77,7 +103,7 @@ RARE_CODE_SHARE = 0.001
 # Conservative inspection triggers, not thresholds for approving model sharing.
 INSPECTION_HORIZON = 32
 PARTIAL_REPRODUCTION = 0.9
-PROMPTS = (16, 32, 64, 128, 256)  # X; includes the promised 32 -> 32 check
+PROMPTS = (32, 256, 1024)  # X; primary check plus medium/long-context probes
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
 LOSS_COLUMNS = [
     "patients_train",
@@ -770,7 +796,7 @@ def parse_args():
     add("--cutoff-date", type=date.fromisoformat, help="training.cutoff_date, if set")
     add("--prompt-events", type=int, nargs="+", default=PROMPTS)
     add("--continuation-events", type=int, nargs="+", default=CONTINUATIONS)
-    add("--max-patients", type=int, default=2000, help="per split and prompt length")
+    add("--max-patients", type=int, default=1000, help="per split and prompt length")
     add("--min-patients", type=int, default=50, help="per group, for summary.txt")
     add("--batch-size", type=int, default=8, help="lower it if out of GPU memory")
     add("--device", default="cuda" if torch.cuda.is_available() else "cpu")
