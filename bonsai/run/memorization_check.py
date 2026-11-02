@@ -14,6 +14,14 @@ non-code embeddings; true_features supplies real continuation features; forward_
 holds age/time fixed, advances segments after [SEP], and leaves generated numeric
 inputs missing. No one convention is definitive. CSV rows identify each mode.
 
+For checkpoints trained without SEP loss, add --sep-excluded-from-training-loss
+to BOTH preflight and main commands below. The primary true_features run then
+supplies real SEP positions, predicts/appends all other tokens, and excludes
+supplied SEP from scores. Loss also excludes SEP targets. The other modes keep
+free generation as supplementary checks. X/Y remain sequence-position counts,
+including separators, rather than counts of clinical tokens. This conditional
+check reveals future structure; it is not unrestricted extraction.
+
 Records are partly predictable, so each score is compared with patients
 not used for gradient updates. An excess is a diagnostic signal, not proof of
 memorization. Tuning patients may have influenced checkpoint selection.
@@ -23,7 +31,8 @@ patient's loss has no average ranking advantage for training membership.
 Windows follow pretraining's transforms using the recovered training settings.
 Outputs are ``excess.csv``, ``loss_check.csv``, ``patient_tails.csv``,
 ``coverage.csv``, ``run_manifest.json`` and ``summary.txt``. Individual records
-and scores are not exported. The summary is for human review.
+and scores are not exported in reports. The optional local cache contains patient
+windows and must stay on the data server. The summary is for human review.
 A pass requires enough patients in every requested
 context/horizon cell in all three modes; unavailable cells are explicit.
 A single inspection trigger still warrants checking even with few patients.
@@ -35,6 +44,13 @@ Default run: up to 5,000 patients per group, contexts 32/256/1024, horizons
 1/2/4/8/16/32/64, all three modes. Shorter horizons reuse the longest decoded
 continuation. DATA_DIR contains subject_data_{train,tuning}.pt and vocabulary.pt.
 Use the original run config and a fresh output directory for each command.
+Add --evaluation-cache /local/path/memorization_cache.pt to both commands to
+prepare/reuse sampled windows. The first run still scans the source splits once
+and prepares up to --cache-patients (default 5000) per context/loss pool, even
+when --max-patients is 100. Later runs load only cached windows and rarity groups.
+Sources (path/size/mtime), population/vocabulary hashes and window/grid/SEP
+settings must match; use a new cache path when they change. Cache writes are
+atomic. Seeded subsets are nested within each cached pool. Reports record reuse.
 
 Timing preflight: 100 patients per group, the full grid and all modes. Use the
 same GPU and batch size as the main run. This checks the largest cell too.
@@ -43,11 +59,14 @@ The preflight is a timing/execution check, not the final statistical assessment.
 
     python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
         --run-config hydra/config.yaml --data-dir DATA_DIR \\
-        --output-dir memorization_preflight --max-patients 100 --batch-size 32
+        --output-dir memorization_preflight --max-patients 100 --batch-size 32 \\
+        --evaluation-cache /local/path/memorization_cache.pt
 
 summary.txt and run_manifest.json record setup, generation/scoring and loss
 timings, plus a rough 5,000-patient estimate: setup + 50 * (generation + loss)
 for a 100-patient preflight. Setup includes full-data validation/rarity scans.
+With a newly created cache this projection includes one-time cache preparation;
+later runs reuse it and should have a smaller setup cost.
 The estimate excludes report writing and assumes enough eligible patients,
 similar history lengths, identical hardware/grid/batch size and steady throughput.
 Partial batches, GPU warm-up and repeated sampling scans can overestimate cost;
@@ -57,7 +76,8 @@ Main run (use the batch size verified above; 32 is an example, default is 8):
 
     python -m bonsai.run.memorization_check --checkpoint best.ckpt \\
         --run-config hydra/config.yaml --data-dir DATA_DIR \\
-        --output-dir memorization --batch-size 32
+        --output-dir memorization --batch-size 32 \\
+        --evaluation-cache /local/path/memorization_cache.pt
 """
 
 # Flow: load windows -> generate/score the X/Y grid -> compare group means ->
@@ -86,6 +106,13 @@ from omegaconf import OmegaConf
 from sklearn.metrics import roc_auc_score
 from torch.nn.utils.rnn import pad_sequence
 
+from bonsai.functional.memorization_cache import (
+    CachedWindows,
+    build_pools,
+    read_cache,
+    save_cache,
+    source_stamp,
+)
 from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
@@ -219,9 +246,16 @@ def training_windows(
 
 
 def sample_patients(
-    windows, min_events: int, max_patients: int, *, require_targets=False
+    windows,
+    min_events: int,
+    max_patients: int,
+    *,
+    require_targets=False,
+    exclude_target=None,
 ) -> list:
     """Uniform seeded reservoir: retain <=max_patients indices, not all eligible windows."""
+    if isinstance(windows, CachedWindows):
+        return windows.sample(min_events, max_patients, require_targets)
     rng, chosen, eligible = np.random.default_rng(0), [], 0
     for index in range(len(windows)):
         length = (
@@ -237,7 +271,10 @@ def sample_patients(
                 if isinstance(windows, TrainingWindows)
                 else windows[index]["code"]
             )
-            if not bool((codes[1:] != 0).any()):
+            valid = codes[1:] != 0
+            if exclude_target is not None:
+                valid &= codes[1:] != exclude_target
+            if not bool(valid.any()):
                 continue
         eligible += 1
         if len(chosen) < max_patients:
@@ -289,6 +326,7 @@ def generate(
     *,
     mode="forward_fill",
     sep_token_id=None,
+    supply_sep=False,
 ) -> np.ndarray:
     """Append greedy predictions; never feed back real continuation codes.
 
@@ -300,6 +338,8 @@ def generate(
     """
     if mode not in MODES:
         raise ValueError(f"Unknown generation mode: {mode}")
+    if supply_sep and (mode != "true_features" or sep_token_id is None):
+        raise ValueError("Supplied SEP requires true_features and a SEP token ID.")
     device = next(model.parameters()).device
     written = []
     for start in range(0, len(windows), batch_size):
@@ -329,6 +369,13 @@ def generate(
                     "Nonfinite generation logits; no valid result can be reported."
                 )
             next_code = logits.argmax(-1, keepdim=True)
+            if supply_sep:
+                # Only separator positions are revealed, never future clinical codes.
+                is_sep = torch.tensor(
+                    [int(window["code"][position]) == sep_token_id for window in part],
+                    device=device,
+                ).unsqueeze(1)
+                next_code = torch.where(is_sep, sep_token_id, next_code)
             previous_code = batch["code"][:, -1:]
             for field in FIELDS[1:]:
                 if field not in batch:
@@ -348,7 +395,9 @@ def generate(
 
 
 @torch.inference_mode()
-def patient_losses(model, windows: list, batch_size: int = 8) -> np.ndarray:
+def patient_losses(
+    model, windows: list, batch_size: int = 8, *, exclude_target=None
+) -> np.ndarray:
     """Mean next-code cross-entropy per patient; numeric-value MSE is out of scope."""
     device, losses = next(model.parameters()).device, []
     for start in range(0, len(windows), batch_size):
@@ -358,6 +407,8 @@ def patient_losses(model, windows: list, batch_size: int = 8) -> np.ndarray:
         for row, window in enumerate(part):
             targets = window["code"][1:].to(device)
             valid = targets != 0
+            if exclude_target is not None:
+                valid &= targets != exclude_target
             states = hidden[row, : len(targets)][valid]
             targets = targets[valid]
             if not len(targets):
@@ -402,7 +453,7 @@ def score_patient(generated, truth, countable: set, rare: set) -> dict:
     hits, n = count_reproduced(generated, truth, countable)
     rare_hits, rare_n = count_reproduced(generated, truth, rare)
     return {
-        "exact_match": float((generated == truth).all()),
+        "exact_match": float((generated == truth).all()) if len(truth) else math.nan,
         "overlap": hits / n if n else math.nan,
         "rare_codes": rare_hits / rare_n if rare_n else math.nan,
     }
@@ -420,6 +471,7 @@ def score_all_patients(
     context=None,
     mode="forward_fill",
     sep_token_id=None,
+    supply_sep=False,
 ) -> pl.DataFrame:
     """Score eligible horizons; group patients by available length to reuse decoding."""
     rows = []
@@ -450,20 +502,26 @@ def score_all_patients(
                     batch_size,
                     mode=mode,
                     sep_token_id=sep_token_id,
+                    **({"supply_sep": True} if supply_sep else {}),
                 )
                 for written, window in zip(generated, part):
                     for y in horizons:
                         if y <= longest:
                             truth = window["code"][x : x + y].numpy()
+                            prediction = written[:y]
+                            if supply_sep:
+                                predicted_positions = truth != sep_token_id
+                                truth = truth[predicted_positions]
+                                prediction = prediction[predicted_positions]
+                                if not len(truth):
+                                    continue  # Supplied separators are not predictions.
                             rows.append(
                                 {
                                     "mode": mode,
                                     "split": split,
                                     "X": x,
                                     "Y": y,
-                                    **score_patient(
-                                        written[:y], truth, countable, rare
-                                    ),
+                                    **score_patient(prediction, truth, countable, rare),
                                 }
                             )
     schema = {
@@ -735,7 +793,9 @@ def _mode_summary(
     )
 
 
-def write_summary(excess, loss, min_patients, tails=None, coverage=None) -> str:
+def write_summary(
+    excess, loss, min_patients, tails=None, coverage=None, sep_excluded=False
+) -> str:
     """All three modes need adequate primary coverage; a finding in any mode needs inspection."""
     summaries = {}
     for mode in MODES:
@@ -744,8 +804,16 @@ def write_summary(excess, loss, min_patients, tails=None, coverage=None) -> str:
         summaries[mode] = _mode_summary(part, loss, min_patients, mode_tails)
     if any(text.startswith("CHECK:") for text in summaries.values()):
         status = "CHECK: inspect the findings below before considering sharing."
-    elif any(text.startswith("INCONCLUSIVE:") for text in summaries.values()) or (
-        coverage is not None and coverage.filter(pl.col("status") != "complete").height
+    elif any(
+        text.startswith("INCONCLUSIVE:")
+        for mode, text in summaries.items()
+        if not sep_excluded or mode == "true_features"
+    ) or (
+        coverage is not None
+        and coverage.filter(
+            (pl.col("status") != "complete")
+            & ((pl.col("mode") == "true_features") if sep_excluded else pl.lit(True))
+        ).height
     ):
         status = "INCONCLUSIVE: required checks or requested grid cells lack sufficient coverage."
     else:
@@ -757,6 +825,13 @@ def write_summary(excess, loss, min_patients, tails=None, coverage=None) -> str:
         "forward_fill: fixed age/time, segments advance after SEP, generated numeric inputs missing (synthetic features).",
         "Loss comparison is teacher-forced and shared between modes. Checks passed is not sharing approval.",
     ]
+    if sep_excluded:
+        lines[2] = (
+            "true_features (PRIMARY CONDITIONAL CHECK): real future metadata and supplied SEP positions; supplied SEP excluded from scores."
+        )
+        lines.append(
+            "SEP targets excluded from loss. X/Y count sequence positions, including separators; SEP-only continuations have no score. Free-generation modes are supplementary: poor reproduction may reflect absent SEP supervision. Passing requires primary conditional coverage; any mode can trigger inspection."
+        )
     if coverage is not None:
         incomplete = coverage.filter(pl.col("status") != "complete")
         lines.append(
@@ -791,6 +866,22 @@ def parse_args():
         help="Original Hydra config; otherwise discovered above checkpoint",
     )
     add("--data-version", help="Source dataset version for the audit record")
+    add(
+        "--evaluation-cache",
+        type=Path,
+        help="Local patient-window cache: create once, reuse on later runs",
+    )
+    add(
+        "--cache-patients",
+        type=int,
+        default=FINAL_PATIENTS,
+        help="Patients per sampling pool to prepare when creating the cache (default 5000)",
+    )
+    add(
+        "--sep-excluded-from-training-loss",
+        action="store_true",
+        help="Exclude SEP loss targets and supply SEP positions in the primary true_features generation check",
+    )
     add("--context-length", type=int, help="Original training.max_len override")
     add("--population", type=Path, help="population csv used in pretraining, if any")
     add("--cutoff-date", type=date.fromisoformat, help="training.cutoff_date, if set")
@@ -817,8 +908,16 @@ def load_windows(data_dir, splits, context, population=None, cutoff_date=None) -
     cutoff = {"year": day.year, "month": day.month, "day": day.day} if day else None
     windows, seen, background = {}, set(), None
     for split in splits:
-        print(f"Mapping {split} tensor storage and indexing window lengths", flush=True)
+        started = time.perf_counter()
+        print(
+            f"Loading {split} metadata and mapping tensor storage (full split, not sample)",
+            flush=True,
+        )
         records = load_mapped(data_dir / f"subject_data_{split}.pt")
+        print(
+            f"{split}: loaded {len(records):,} records in {time.perf_counter() - started:.1f}s; filtering population/checking IDs",
+            flush=True,
+        )
         if cohort is not None:
             records = [record for record in records if record["subject_id"] in cohort]
         ids = [record["subject_id"] for record in records]
@@ -829,7 +928,14 @@ def load_windows(data_dir, splits, context, population=None, cutoff_date=None) -
         seen.update(ids)
         if background is None:
             background = int((records[0]["segment"] == 1).sum())
+        print(
+            f"{split}: indexing cutoff/window lengths for {len(records):,} retained patients",
+            flush=True,
+        )
         windows[split] = training_windows(records, context, background, cutoff)
+        print(
+            f"{split}: ready in {time.perf_counter() - started:.1f}s total", flush=True
+        )
     return windows
 
 
@@ -846,7 +952,11 @@ def validate_windows(windows, vocabulary, model) -> None:
         )
     required = FIELDS if model.hparams.get("value_embedding_mode") else FIELDS[:4]
     for split, records in windows.items():
-        for window in records:
+        scope = "cached sample" if isinstance(records, CachedWindows) else "full split"
+        print(f"Validating {split}: {len(records):,} windows ({scope})", flush=True)
+        for index, window in enumerate(records):
+            if index and index % 10000 == 0:
+                print(f"Validating {split}: {index:,}/{len(records):,}", flush=True)
             if any(field not in window for field in required):
                 raise ValueError(f"Missing required input feature in split {split}.")
             n = len(window["code"])
@@ -885,7 +995,19 @@ def validate_windows(windows, vocabulary, model) -> None:
 def code_groups(vocabulary: dict, train: list) -> tuple[set, set]:
     """Count non-special codes; mark those held by <0.1% of training windows' patients."""
     countable = {i for token, i in vocabulary.items() if not token.startswith("[")}
-    held = Counter(code for w in train for code in set(w["code"].tolist()))
+    print(
+        f"Counting code frequencies across {len(train):,} training windows", flush=True
+    )
+    held = Counter()
+    for index in range(len(train)):
+        # Frequencies need only censored/truncated codes, not copied features or
+        # normalized segments. Avoid materializing full windows for this scan.
+        window = (
+            train._trim(index) if isinstance(train, TrainingWindows) else train[index]
+        )
+        held.update(set(window["code"].tolist()))
+        if index and index % 10000 == 0:
+            print(f"Counting code frequencies: {index:,}/{len(train):,}", flush=True)
     limit = RARE_CODE_SHARE * len(train)
     rare = {code for code, n in held.items() if n < limit} & countable
 
@@ -914,20 +1036,28 @@ def training_settings(args) -> None:
             stacklevel=2,
         )
         return
-    cfg = OmegaConf.load(args.run_config)
+    setting = "run config file"
     try:
+        cfg = OmegaConf.load(args.run_config)
         if args.population is None:
+            setting = "paths.population (--population)"
             population = cfg.paths.get("population")
             args.population = Path(population) if population else None
-        if args.cutoff_date is None and cfg.training.get("cutoff_date"):
-            args.cutoff_date = date(
-                **OmegaConf.to_container(cfg.training.cutoff_date, resolve=True)
-            )
+        if args.cutoff_date is None:
+            setting = "training.cutoff_date (--cutoff-date YYYY-MM-DD)"
+            if cfg.training.get("cutoff_date"):
+                args.cutoff_date = date(
+                    **OmegaConf.to_container(cfg.training.cutoff_date, resolve=True)
+                )
         if args.context_length is None:
+            setting = "training.max_len (--context-length)"
             args.context_length = int(cfg.training.max_len)
     except Exception as error:
         raise ValueError(
-            "Cannot resolve original run settings; supply explicit population/cutoff/context overrides."
+            f"Cannot resolve original run settings from {args.run_config}: "
+            f"failed at {setting}. {type(error).__name__}: {error}\n"
+            "Restore the referenced training environment variables or supply the "
+            "corresponding explicit override using the original training value."
         ) from error
 
 
@@ -965,7 +1095,16 @@ def write_outputs(
     tails.write_csv(output_dir / "patient_tails.csv")
     if coverage is not None:
         coverage.write_csv(output_dir / "coverage.csv")
-    summary = write_summary(excess, loss, min_patients, tails, coverage)
+    summary = write_summary(
+        excess,
+        loss,
+        min_patients,
+        tails,
+        coverage,
+        sep_excluded=manifest.get("settings", {}).get(
+            "sep_excluded_from_training_loss", False
+        ),
+    )
     if manifest.get("settings", {}).get("run_config") is None:
         if summary.startswith("CHECKS PASSED:"):
             summary = (
@@ -980,6 +1119,11 @@ def write_outputs(
         "true_features": "Actual continuation age/time/segments/numeric inputs.",
         "forward_fill": "Fixed prompt age/time; segment increments after SEP; generated numeric inputs are NaN.",
     }
+    if manifest.get("settings", {}).get("sep_excluded_from_training_loss", False):
+        manifest["generation_modes"]["true_features"] = (
+            "PRIMARY CONDITIONAL: actual future metadata and supplied SEP positions; "
+            "all other tokens greedily predicted and appended; supplied SEP not scored."
+        )
     manifest["inspection_triggers"] = {
         "minimum_horizon": INSPECTION_HORIZON,
         "partial_overlap": PARTIAL_REPRODUCTION,
@@ -1066,12 +1210,101 @@ def main() -> None:
     ):
         parser.error("No requested context/horizon fits the model window.")
     splits = (args.train_split, args.heldout_split)
-    windows = load_windows(
-        args.data_dir, splits, context, args.population, args.cutoff_date
-    )
     vocabulary = torch.load(args.data_dir / "vocabulary.pt", weights_only=False)
-    validate_windows(windows, vocabulary, model)
-    countable, rare = code_groups(vocabulary, windows[args.train_split])
+    sep_id = vocabulary.get("[SEP]")
+    if args.sep_excluded_from_training_loss and sep_id is None:
+        parser.error("--sep-excluded-from-training-loss requires [SEP] in vocabulary.")
+    excluded_target = sep_id if args.sep_excluded_from_training_loss else None
+    cache_info = None
+    signature = None
+    if args.evaluation_cache:
+        if args.cache_patients < args.max_patients:
+            parser.error("--cache-patients must be at least --max-patients.")
+        signature = {
+            "sources": [
+                source_stamp(args.data_dir / f"subject_data_{split}.pt")
+                for split in splits
+            ],
+            "population_sha256": file_hash(args.population)
+            if args.population
+            else None,
+            "vocabulary_sha256": file_hash(args.data_dir / "vocabulary.pt"),
+            "context": context,
+            "cutoff": str(args.cutoff_date),
+            "prompts": args.prompt_events,
+            "horizons": args.continuation_events,
+            "excluded_target": excluded_target,
+            "data_version": args.data_version,
+            "seed": 0,
+            "rare_code_share": RARE_CODE_SHARE,
+        }
+    if args.evaluation_cache and args.evaluation_cache.exists():
+        print(f"Loading sampled evaluation cache: {args.evaluation_cache}", flush=True)
+        windows, countable, rare, capacity = read_cache(
+            args.evaluation_cache, signature, args.max_patients
+        )
+        validate_windows(windows, vocabulary, model)
+        cache_info = {
+            "path": str(args.evaluation_cache),
+            "reused": True,
+            "capacity": capacity,
+            "signature": signature,
+        }
+    else:
+        windows = load_windows(
+            args.data_dir, splits, context, args.population, args.cutoff_date
+        )
+        validate_windows(windows, vocabulary, model)
+        countable, rare = code_groups(vocabulary, windows[args.train_split])
+        if args.evaluation_cache:
+            minimum_lengths = sorted(
+                {
+                    x + min(y for y in args.continuation_events if x + y <= context + 1)
+                    for x in args.prompt_events
+                    if any(x + y <= context + 1 for y in args.continuation_events)
+                }
+            )
+            print(
+                f"Preparing evaluation cache: up to {args.cache_patients:,} patients per pool",
+                flush=True,
+            )
+            pools = build_pools(
+                windows,
+                minimum_lengths,
+                args.cache_patients,
+                sample_patients,
+                excluded_target,
+                generation_limit=max(
+                    x + y
+                    for x in args.prompt_events
+                    for y in args.continuation_events
+                    if x + y <= context + 1
+                ),
+            )
+            # Detect source changes during the expensive preparation before publishing.
+            if signature["sources"] != [
+                source_stamp(args.data_dir / f"subject_data_{split}.pt")
+                for split in splits
+            ]:
+                raise ValueError(
+                    "Source files changed during evaluation-cache preparation."
+                )
+            save_cache(
+                args.evaluation_cache,
+                signature,
+                args.cache_patients,
+                pools,
+                countable,
+                rare,
+            )
+            windows = {split: CachedWindows(pool) for split, pool in pools.items()}
+            cache_info = {
+                "path": str(args.evaluation_cache),
+                "reused": False,
+                "capacity": args.cache_patients,
+                "signature": signature,
+            }
+            print(f"Evaluation cache saved: {args.evaluation_cache}", flush=True)
     setup_done = timing_clock(args.device)
 
     # 2. Greedily continue codes over the X/Y grid; compare training vs unseen patients.
@@ -1089,6 +1322,8 @@ def main() -> None:
                 context=context,
                 mode=mode,
                 sep_token_id=vocabulary.get("[SEP]"),
+                supply_sep=args.sep_excluded_from_training_loss
+                and mode == "true_features",
             )
             for mode in MODES
         ]
@@ -1112,13 +1347,16 @@ def main() -> None:
             2,
             args.max_patients,
             require_targets=True,
+            exclude_target=excluded_target,
         )
         for s in splits
     ]
     losses = []
     for split, part in zip(splits, patients):
         print(f"Teacher-forced loss: {split}, patients={len(part)}", flush=True)
-        losses.append(patient_losses(model, part, args.batch_size))
+        losses.append(
+            patient_losses(model, part, args.batch_size, exclude_target=excluded_target)
+        )
     loss = membership_from_loss(*losses)
     loss_done = timing_clock(args.device)
 
@@ -1133,6 +1371,13 @@ def main() -> None:
         "run_config_sha256": file_hash(args.run_config) if args.run_config else None,
         "settings": vars(args),
         "effective_context": context,
+        "evaluation_cache": cache_info,
+        "separator_policy": {
+            "excluded_from_training_loss": args.sep_excluded_from_training_loss,
+            "loss_excluded_target_id": excluded_target,
+            "true_features_supplies_sep": args.sep_excluded_from_training_loss,
+            "horizon_units": "sequence positions including SEP",
+        },
         "timing": runtime_estimate(
             {
                 "setup_seconds": setup_done - started,
@@ -1149,8 +1394,12 @@ def main() -> None:
             "numpy": np.__version__,
         },
         "sampling_seed": 0,
-        "sampling_method": "uniform reservoir over eligible patient indices",
-        "host_memory": "memory-mapped tensor storage; lazy bounded windows; full Python metadata still loaded",
+        "sampling_method": "uniform reservoir pools; nested seeded subsets when cache enabled"
+        if cache_info
+        else "uniform reservoir over eligible patient indices",
+        "host_memory": "sampled bounded windows from evaluation cache"
+        if cache_info
+        else "memory-mapped tensor storage; lazy bounded windows; full Python metadata still loaded",
         "precision": "bf16 backbone / fp32 logits"
         if str(args.device).startswith("cuda")
         else "fp32",
