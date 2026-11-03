@@ -16,10 +16,10 @@ import numpy as np
 
 @dataclass(frozen=True)
 class SamplingSettings:
-    patients_per_split: int = 5000
+    patients_per_split: int = 10000
     random_fraction: float = 0.8
-    reference_patients: int = 20000
-    calibration_patients: int = 5000
+    reference_patients: int = 100000
+    calibration_patients: int = 20000
     span: int = 32
     minimum_clinical_tokens: int = 8
     quantile: float = 0.9

@@ -88,7 +88,7 @@ for each split still occupies RAM; max-patients caps retained inference samples,
 not that metadata. Selected windows are validated. The existing rare-code metric
 still requires one full-training code-frequency scan on first preparation.
 
-Default run: 5,000 fixed IDs per split (4,000 random + 1,000 uncommon), 10,000
+Default run: 10,000 fixed IDs per split (8,000 random + 2,000 uncommon), 20,000
 evaluated patients total, contexts 32/256/1024, horizons
 1/2/4/8/16/32/64, all three modes. Shorter horizons reuse the longest decoded
 continuation. DATA_DIR contains subject_data_{train,tuning}.pt and vocabulary.pt.
@@ -96,13 +96,13 @@ Use the original run config and a fresh output directory for each command.
 Add --evaluation-cache /local/path/memorization_cache.pt to both commands to
 prepare/reuse sampled windows. Use a NEW cache path for the fixed design; older
 per-prompt pools cannot reconstruct a fair uncommon cohort. First preparation
-maps source metadata, fits code-pair counts on 20,000 reference training patients,
-and calibrates cutoffs/bands on 5,000 separate training patients. Both sets are
+maps source metadata, fits code-pair counts on 100,000 reference training patients,
+and calibrates cutoffs/bands on 20,000 separate training patients. Both sets are
 excluded from evaluation. Candidates are scored on bounded code-only spans;
 no BONSAI predictions are used. Reference transitions count once per patient.
 Uncommon groups share cutoffs and quotas by available boundaries and rarity band.
 Candidate shortages are reported, never filled by weakening rarity thresholds.
-The fixed cache is prepared at --cache-patients capacity (default 5000 per split)
+The fixed cache is prepared at --cache-patients capacity (default 10000 per split)
 even for a 100-patient timing run. Later runs load only cached evaluated windows.
 Sources (path/size/mtime), population/vocabulary hashes and window/grid/SEP
 settings must match; use a new cache path when they change. Cache writes are
@@ -129,7 +129,7 @@ The preflight is a timing/execution check, not the final statistical assessment.
         --evaluation-cache /local/path/memorization_cache.pt
 
 summary.txt and run_manifest.json record setup, generation/scoring and loss
-timings, plus a rough 5,000-patient estimate: setup + 50 * (generation + loss)
+timings, plus a rough 10,000-patient estimate: setup + 100 * (generation + loss)
 for a 100-patient preflight. Setup includes full-data validation/rarity scans.
 With a newly created cache this projection includes one-time cache preparation;
 later runs reuse it and should have a smaller setup cost.
@@ -207,7 +207,7 @@ MIN_UNIQUE_OVERLAP_TOKENS = (
 )
 PROMPTS = (32, 256, 1024)  # X; primary check plus medium/long-context probes
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
-FINAL_PATIENTS = 5000
+FINAL_PATIENTS = 10000
 LOSS_COLUMNS = [
     "patients_train",
     "patients_unseen",
@@ -1171,8 +1171,8 @@ def parse_args():
         help="fixed: one random/uncommon cohort per split; legacy: separate uniform pools per prompt/loss",
     )
     add("--random-fraction", type=float, default=0.8)
-    add("--rarity-reference-patients", type=int, default=20000)
-    add("--rarity-calibration-patients", type=int, default=5000)
+    add("--rarity-reference-patients", type=int, default=100000)
+    add("--rarity-calibration-patients", type=int, default=20000)
     add("--rarity-span", type=int, default=32)
     add("--rarity-min-clinical-tokens", type=int, default=8)
     add("--rarity-quantile", type=float, default=0.9)
@@ -1203,7 +1203,7 @@ def parse_args():
         "--cache-patients",
         type=int,
         default=FINAL_PATIENTS,
-        help="Fixed patients per split to cache; legacy per sampling pool (default 5000)",
+        help="Fixed patients per split to cache; legacy per sampling pool (default 10000)",
     )
     add(
         "--sep-excluded-from-training-loss",

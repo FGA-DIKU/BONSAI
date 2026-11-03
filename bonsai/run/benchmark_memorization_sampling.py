@@ -78,6 +78,7 @@ def main():
     args = parser.parse_args()
     settings = replace(
         SamplingSettings(),
+        patients_per_split=5000,
         reference_patients=args.reference_patients,
         calibration_patients=args.calibration_patients,
         candidate_limit=args.candidate_limit,
