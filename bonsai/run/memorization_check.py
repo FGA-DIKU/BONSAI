@@ -29,10 +29,31 @@ The next-event loss of the two groups is compared too: an AUC of 0.5 means a
 patient's loss has no average ranking advantage for training membership.
 
 Windows follow pretraining's transforms using the recovered training settings.
+patient_flag_rates.csv reports flagged/evaluated patients and percentage per
+split/mode/context/horizon, counting each patient once even if both triggers
+fire. Short horizons below the inspection threshold have no flag percentage.
+patient_tails.csv also includes percentage columns for each reproduction metric.
 Outputs are ``excess.csv``, ``loss_check.csv``, ``patient_tails.csv``,
 ``coverage.csv``, ``run_manifest.json`` and ``summary.txt``. Individual records
 and scores are not exported in reports. The optional local cache contains patient
 windows and must stay on the data server. The summary is for human review.
+To inspect individual cases, add --export-patient-inspection. This additionally
+writes patient_scores.csv (every scored ID/cell, metrics, flags),
+flagged_trajectories.jsonl (every patient-level exact/overlap trigger),
+unflagged_examples.jsonl (seeded sample of up to 3 unflagged examples per cell;
+change with --unflagged-examples-per-cell), and patient_losses.csv. These files
+contain patient data and must stay on the server. Trajectories include decoded
+prompt, reference, prediction, true features and supplied SEP positions (zero-based
+offsets within the continuation). History is the evaluated window, not the full
+lifetime record. "Unflagged" means no configured reproduction trigger, not safe
+or non-memorized; short horizons are below the inspection threshold. Group-level
+excess/AUC signals do not identify particular patients as memorized.
+Existing reports have no stored predictions: rerun with the same cache/settings
+and this flag in a fresh output directory to obtain inspection exports.
+Read a saved example with python -m bonsai.run.inspect_memorization
+--report-dir memorization --subject-id 123 (optional --mode/--context/--horizon).
+Optional plots after completion (no inference): install with pip install '.[plots]'
+then python -m bonsai.run.plot_memorization --report-dir memorization.
 A pass requires enough patients in every requested
 context/horizon cell in all three modes; unavailable cells are explicit.
 A single inspection trigger still warrants checking even with few patients.
@@ -112,6 +133,10 @@ from bonsai.functional.memorization_cache import (
     read_cache,
     save_cache,
     source_stamp,
+)
+from bonsai.functional.memorization_inspection import (
+    PatientInspection,
+    write_patient_losses,
 )
 from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
@@ -472,6 +497,7 @@ def score_all_patients(
     mode="forward_fill",
     sep_token_id=None,
     supply_sep=False,
+    inspection=None,
 ) -> pl.DataFrame:
     """Score eligible horizons; group patients by available length to reuse decoding."""
     rows = []
@@ -515,13 +541,26 @@ def score_all_patients(
                                 prediction = prediction[predicted_positions]
                                 if not len(truth):
                                     continue  # Supplied separators are not predictions.
+                            metrics = score_patient(prediction, truth, countable, rare)
+                            if inspection is not None:
+                                inspection.record(
+                                    window,
+                                    written,
+                                    split,
+                                    mode,
+                                    x,
+                                    y,
+                                    metrics,
+                                    supply_sep,
+                                    sep_token_id,
+                                )
                             rows.append(
                                 {
                                     "mode": mode,
                                     "split": split,
                                     "X": x,
                                     "Y": y,
-                                    **score_patient(prediction, truth, countable, rare),
+                                    **metrics,
                                 }
                             )
     schema = {
@@ -592,7 +631,45 @@ def patient_tails(scores: pl.DataFrame) -> pl.DataFrame:
             .sum()
             .alias("patients_scoring_ge_90pct"),
         )
+        .with_columns(
+            (100 * pl.col("patients_scoring_1") / pl.col("patients")).alias(
+                "percent_scoring_1"
+            ),
+            (100 * pl.col("patients_scoring_ge_90pct") / pl.col("patients")).alias(
+                "percent_scoring_ge_90pct"
+            ),
+        )
         .sort("mode", "split", "X", "Y", "score")
+    )
+
+
+def patient_flag_rates(scores):
+    """Per-cell union of the patient-level triggers: never count one patient twice.
+
+    Denominator is evaluated patients, not the full cohort. Below the inspection
+    horizon flags are not assessed; percentages are null, rather than reassuring 0.
+    """
+    applicable = pl.col("Y") >= INSPECTION_HORIZON
+    exact = (pl.col("exact_match") == 1).fill_null(False)
+    overlap = (
+        pl.col("overlap").is_finite() & (pl.col("overlap") >= PARTIAL_REPRODUCTION)
+    ).fill_null(False)
+    return (
+        scores.group_by("mode", "split", "X", "Y")
+        .agg(
+            pl.len().alias("patients"),
+            ((exact | overlap) & applicable).sum().alias("patients_flagged"),
+            (exact & applicable).sum().alias("patients_exact_flagged"),
+            (overlap & applicable).sum().alias("patients_overlap_flagged"),
+        )
+        .with_columns(
+            applicable.alias("inspection_applicable"),
+            pl.when(applicable)
+            .then(100 * pl.col("patients_flagged") / pl.col("patients"))
+            .otherwise(None)
+            .alias("percent_flagged"),
+        )
+        .sort("mode", "split", "X", "Y")
     )
 
 
@@ -733,7 +810,8 @@ def memorization_conclusion(excess, loss, min_patients, tails=None) -> str:
             )
             details.append(
                 f"  {row['mode']}/{row['split']}: X={row['X']}, Y={row['Y']}, {row['score']}: "
-                f"{row[column]}/{row['patients']} patients triggered inspection."
+                f"{row[column]}/{row['patients']} patients "
+                f"({100 * row[column] / row['patients']:.2f}%) triggered inspection."
             )
         if flags.height > 8:
             details.append("  Additional flagged cells are in patient_tails.csv.")
@@ -866,6 +944,17 @@ def parse_args():
         help="Original Hydra config; otherwise discovered above checkpoint",
     )
     add("--data-version", help="Source dataset version for the audit record")
+    add(
+        "--export-patient-inspection",
+        action="store_true",
+        help="Write local patient IDs/scores, every flagged trajectory, and unflagged examples (contains patient data)",
+    )
+    add(
+        "--unflagged-examples-per-cell",
+        type=int,
+        default=3,
+        help="Uniform unflagged trajectory examples per split/mode/context/horizon, seed 0",
+    )
     add(
         "--evaluation-cache",
         type=Path,
@@ -1082,10 +1171,29 @@ def timing_clock(device):
 
 
 def write_outputs(
-    excess, loss, output_dir: Path, min_patients: int, tails, manifest, coverage=None
+    excess,
+    loss,
+    output_dir: Path,
+    min_patients: int,
+    tails,
+    manifest,
+    coverage=None,
+    flag_rates=None,
 ) -> None:
     """Write aggregate diagnostics and artifact/settings provenance; no patient records."""
-    if output_dir.exists() and any(output_dir.iterdir()):
+    inspection_files = (
+        {
+            "patient_scores.csv",
+            "flagged_trajectories.jsonl",
+            "unflagged_examples.jsonl",
+            "patient_losses.csv",
+        }
+        if manifest.get("patient_inspection")
+        else set()
+    )
+    if output_dir.exists() and any(
+        p.name not in inspection_files for p in output_dir.iterdir()
+    ):
         raise FileExistsError(
             "Use a fresh output directory so old reports cannot be mistaken for this run."
         )
@@ -1093,6 +1201,8 @@ def write_outputs(
     excess.write_csv(output_dir / "excess.csv")
     loss.write_csv(output_dir / "loss_check.csv")
     tails.write_csv(output_dir / "patient_tails.csv")
+    if flag_rates is not None:
+        flag_rates.write_csv(output_dir / "patient_flag_rates.csv")
     if coverage is not None:
         coverage.write_csv(output_dir / "coverage.csv")
     summary = write_summary(
@@ -1105,6 +1215,15 @@ def write_outputs(
             "sep_excluded_from_training_loss", False
         ),
     )
+    if flag_rates is not None:
+        summary += "\n\nPatient-level flag rates (per cell; not percentages memorized; do not sum across cells):"
+        for row in flag_rates.filter(pl.col("inspection_applicable")).iter_rows(
+            named=True
+        ):
+            summary += (
+                f"\n  {row['mode']}/{row['split']}: X={row['X']}, Y={row['Y']}: "
+                f"{row['patients_flagged']}/{row['patients']} ({row['percent_flagged']:.2f}%) flagged."
+            )
     if manifest.get("settings", {}).get("run_config") is None:
         if summary.startswith("CHECKS PASSED:"):
             summary = (
@@ -1134,6 +1253,8 @@ def write_outputs(
     )
     summary += "\nCheckpoint SHA-256: " + manifest["checkpoint_sha256"]
     summary += "\n" + manifest["comparison_note"]
+    if manifest.get("patient_inspection"):
+        summary += "\nPatient inspection (contains patient data): patient_scores.csv, flagged_trajectories.jsonl, unflagged_examples.jsonl, patient_losses.csv. Group-level excess/AUC flags do not classify specific patients as memorized."
     if timing := manifest.get("timing"):
         summary += (
             f"\n\nMeasured: setup {timing['setup_seconds'] / 60:.1f} min; "
@@ -1151,6 +1272,8 @@ def main() -> None:
     started = time.perf_counter()
     load_dotenv()  # Match the training entry point when Hydra references .env paths.
     parser, args = parse_args()
+    if args.unflagged_examples_per_cell < 0:
+        parser.error("--unflagged-examples-per-cell must be nonnegative.")
 
     if args.output_dir.exists() and (
         not args.output_dir.is_dir() or any(args.output_dir.iterdir())
@@ -1308,6 +1431,17 @@ def main() -> None:
     setup_done = timing_clock(args.device)
 
     # 2. Greedily continue codes over the X/Y grid; compare training vs unseen patients.
+    inspection = (
+        PatientInspection(
+            args.output_dir,
+            vocabulary,
+            args.unflagged_examples_per_cell,
+            INSPECTION_HORIZON,
+            PARTIAL_REPRODUCTION,
+        )
+        if args.export_patient_inspection
+        else None
+    )
     scores = pl.concat(
         [
             score_all_patients(
@@ -1324,10 +1458,13 @@ def main() -> None:
                 sep_token_id=vocabulary.get("[SEP]"),
                 supply_sep=args.sep_excluded_from_training_loss
                 and mode == "true_features",
+                inspection=inspection,
             )
             for mode in MODES
         ]
     )
+    if inspection is not None:
+        inspection.close()
     excess = excess_over_unseen(scores, *splits)
     coverage = grid_coverage(
         scores,
@@ -1358,6 +1495,8 @@ def main() -> None:
             patient_losses(model, part, args.batch_size, exclude_target=excluded_target)
         )
     loss = membership_from_loss(*losses)
+    if inspection is not None:
+        write_patient_losses(args.output_dir, splits, patients, losses)
     loss_done = timing_clock(args.device)
 
     # 4. Export aggregate diagnostics, never an automatic sharing approval.
@@ -1372,6 +1511,14 @@ def main() -> None:
         "settings": vars(args),
         "effective_context": context,
         "evaluation_cache": cache_info,
+        "patient_inspection": {
+            "unflagged_examples_per_cell": args.unflagged_examples_per_cell,
+            "seed": 0,
+            "scope": "evaluated windows, not complete lifetime histories",
+            "flags": "same per-patient exact/overlap triggers as patient_tails.csv; not individual memorization labels",
+        }
+        if args.export_patient_inspection
+        else None,
         "separator_policy": {
             "excluded_from_training_loss": args.sep_excluded_from_training_loss,
             "loss_excluded_target_id": excluded_target,
@@ -1418,6 +1565,7 @@ def main() -> None:
         patient_tails(scores),
         manifest,
         coverage,
+        patient_flag_rates(scores),
     )
 
 
