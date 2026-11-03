@@ -76,24 +76,47 @@ Read a saved example with python -m bonsai.run.inspect_memorization
 --report-dir memorization --subject-id 123 (optional --mode/--context/--horizon).
 Optional plots after completion (no inference): install with pip install '.[plots]'
 then python -m bonsai.run.plot_memorization --report-dir memorization.
-A pass requires enough patients in every requested
-context/horizon cell in all three modes; unavailable cells are explicit.
-A single inspection trigger still warrants checking even with few patients.
+The default fixed design compares random, uncommon and combined cohorts.
+CHECKS PASSED requires adequate cell/metric counts, all excess intervals including
+zero, and loss-AUC intervals including 0.5 in all three cohort reports. Any
+interval excluding its null needs review; missing evidence is INCONCLUSIVE.
+These pointwise diagnostic intervals are not an equivalence or privacy guarantee.
+Individual reproduction triggers remain audit evidence and do not independently
+fail this comparison gate. --sampling-design legacy retains the earlier gate.
 Tensor storage is memory-mapped and transformed windows are lazy. Python metadata
 for each split still occupies RAM; max-patients caps retained inference samples,
-not that metadata. Global validation/rarity scans do not retain all windows.
+not that metadata. Selected windows are validated. The existing rare-code metric
+still requires one full-training code-frequency scan on first preparation.
 
-Default run: up to 5,000 patients per group, contexts 32/256/1024, horizons
+Default run: 5,000 fixed IDs per split (4,000 random + 1,000 uncommon), 10,000
+evaluated patients total, contexts 32/256/1024, horizons
 1/2/4/8/16/32/64, all three modes. Shorter horizons reuse the longest decoded
 continuation. DATA_DIR contains subject_data_{train,tuning}.pt and vocabulary.pt.
 Use the original run config and a fresh output directory for each command.
 Add --evaluation-cache /local/path/memorization_cache.pt to both commands to
-prepare/reuse sampled windows. The first run still scans the source splits once
-and prepares up to --cache-patients (default 5000) per context/loss pool, even
-when --max-patients is 100. Later runs load only cached windows and rarity groups.
+prepare/reuse sampled windows. Use a NEW cache path for the fixed design; older
+per-prompt pools cannot reconstruct a fair uncommon cohort. First preparation
+maps source metadata, fits code-pair counts on 20,000 reference training patients,
+and calibrates cutoffs/bands on 5,000 separate training patients. Both sets are
+excluded from evaluation. Candidates are scored on bounded code-only spans;
+no BONSAI predictions are used. Reference transitions count once per patient.
+Uncommon groups share cutoffs and quotas by available boundaries and rarity band.
+Candidate shortages are reported, never filled by weakening rarity thresholds.
+The fixed cache is prepared at --cache-patients capacity (default 5000 per split)
+even for a 100-patient timing run. Later runs load only cached evaluated windows.
 Sources (path/size/mtime), population/vocabulary hashes and window/grid/SEP
 settings must match; use a new cache path when they change. Cache writes are
 atomic. Seeded subsets are nested within each cached pool. Reports record reuse.
+sampling_report.json records selection/cold-start timings and shortages;
+sampling_patients.csv contains local patient IDs/selection provenance, and
+sampling_balance.csv summarizes score/history-length distributions by cohort.
+Root reports are combined; cohorts/random/ and cohorts/uncommon/ reuse the same
+inference for separate comparisons. Combined/uncommon estimates are enriched,
+not population-prevalence estimates. Candidate max scores are calibrated by
+boundary availability, so more eligible contexts do not provide free looks.
+To benchmark the REAL population without generation, add --prepare-sampling-only
+--device cpu to the command below with a fresh output directory. This still pays
+source loading and the full rare-code metric scan once, and prepares the cache.
 
 Timing preflight: 100 patients per group, the full grid and all modes. Use the
 same GPU and batch size as the main run. This checks the largest cell too.
