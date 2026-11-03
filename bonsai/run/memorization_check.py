@@ -824,13 +824,14 @@ def difference_in_means(train: np.ndarray, unseen: np.ndarray, is_proportion: bo
         # event; its mean contribution cannot exceed that probability. Allocate
         # 2.5% per group. Interior constants use a conservative bounded-score bound.
         def interval(mean, n):
-            missing = -math.expm1(math.log(.025) / n)
+            missing = -math.expm1(math.log(0.025) / n)
             if mean == 0:
-                return 0., missing
+                return 0.0, missing
             if mean == 1:
-                return 1 - missing, 1.
+                return 1 - missing, 1.0
             radius = math.sqrt(math.log(80) / (2 * n))
-            return max(0., mean - radius), min(1., mean + radius)
+            return max(0.0, mean - radius), min(1.0, mean + radius)
+
         lo1, hi1 = interval(p1, len(train))
         lo2, hi2 = interval(p2, len(unseen))
         return p1 - p2, lo1 - hi2, hi1 - lo2
@@ -1202,7 +1203,7 @@ def parse_args():
         "--cache-patients",
         type=int,
         default=FINAL_PATIENTS,
-        help="Patients per sampling pool to prepare when creating the cache (default 5000)",
+        help="Fixed patients per split to cache; legacy per sampling pool (default 5000)",
     )
     add(
         "--sep-excluded-from-training-loss",
@@ -1218,7 +1219,7 @@ def parse_args():
         "--max-patients",
         type=int,
         default=FINAL_PATIENTS,
-        help="per split and prompt length",
+        help="per split, fixed across the grid; legacy per prompt length",
     )
     add("--min-patients", type=int, default=50, help="per group, for summary.txt")
     add("--batch-size", type=int, default=8, help="lower it if out of GPU memory")
@@ -1329,7 +1330,11 @@ def code_groups(vocabulary: dict, train: list) -> tuple[set, set]:
     for index in range(len(train)):
         # Frequencies need only censored/truncated codes, not copied features or
         # normalized segments. Avoid materializing full windows for this scan.
-        codes = train.prefix_codes(index, train.max_len) if isinstance(train, TrainingWindows) else train[index]["code"]
+        codes = (
+            train.prefix_codes(index, train.max_len)
+            if isinstance(train, TrainingWindows)
+            else train[index]["code"]
+        )
         held.update(set(codes.tolist()))
         if index and index % 10000 == 0:
             print(f"Counting code frequencies: {index:,}/{len(train):,}", flush=True)
@@ -1557,8 +1562,10 @@ def build_fixed_windows(windows, args, context, countable, excluded_target, voca
 
     def read_codes(split, index, stop):
         codes = windows[split].prefix_codes(index, stop)
-        if codes.ndim != 1 or codes.dtype != torch.long or (
-            len(codes) and (codes.min() < 0 or codes.max() >= vocab_size)
+        if (
+            codes.ndim != 1
+            or codes.dtype != torch.long
+            or (len(codes) and (codes.min() < 0 or codes.max() >= vocab_size))
         ):
             raise ValueError(
                 "Invalid code IDs/dtype in a rarity reference or candidate window."
@@ -1786,6 +1793,7 @@ def main() -> None:
         parser.error("No requested context/horizon fits the model window.")
     splits = (args.train_split, args.heldout_split)
     vocabulary = torch.load(args.data_dir / "vocabulary.pt", weights_only=False)
+    validate_windows({}, vocabulary, model)
     sep_id = vocabulary.get("[SEP]")
     if args.sep_excluded_from_training_loss and sep_id is None:
         parser.error("--sep-excluded-from-training-loss requires [SEP] in vocabulary.")
