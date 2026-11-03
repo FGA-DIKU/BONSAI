@@ -795,6 +795,22 @@ def difference_in_means(train: np.ndarray, unseen: np.ndarray, is_proportion: bo
         below, above = math.hypot(p1 - l1, u2 - p2), math.hypot(u1 - p1, p2 - l2)
         return p1 - p2, p1 - p2 - below, p1 - p2 + above
     variance = train.var(ddof=1) / len(train) + unseen.var(ddof=1) / len(unseen)
+    if variance == 0:
+        # All-zero overlap must not imply zero uncertainty about rare successes.
+        # At boundaries, bound the probability of any unobserved nonzero/error
+        # event; its mean contribution cannot exceed that probability. Allocate
+        # 2.5% per group. Interior constants use a conservative bounded-score bound.
+        def interval(mean, n):
+            missing = -math.expm1(math.log(.025) / n)
+            if mean == 0:
+                return 0., missing
+            if mean == 1:
+                return 1 - missing, 1.
+            radius = math.sqrt(math.log(80) / (2 * n))
+            return max(0., mean - radius), min(1., mean + radius)
+        lo1, hi1 = interval(p1, len(train))
+        lo2, hi2 = interval(p2, len(unseen))
+        return p1 - p2, lo1 - hi2, hi1 - lo2
     half = 1.96 * math.sqrt(variance)
     return p1 - p2, p1 - p2 - half, p1 - p2 + half
 
