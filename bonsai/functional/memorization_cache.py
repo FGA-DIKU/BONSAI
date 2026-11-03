@@ -34,6 +34,43 @@ class CachedWindows:
         return [self.rows[indices[int(index)]] for index in sorted(order)]
 
 
+class FixedCohortWindows(CachedWindows):
+    """One fixed ID set across prompts and loss; filter eligibility after selection."""
+
+    def __init__(self, payload):
+        self.rows = payload["rows"]
+        self.members = payload["members"]
+        self.random_fraction = payload["random_fraction"]
+        self.excluded_target = payload["excluded_target"]
+
+    def sample(self, min_events, maximum, require_targets):
+        chosen = []
+        for cohort in ("random", "uncommon"):
+            indices = [
+                i for i, row in enumerate(self.rows) if row["sampling_cohort"] == cohort
+            ]
+            target = (
+                round(maximum * self.random_fraction)
+                if cohort == "random"
+                else maximum - round(maximum * self.random_fraction)
+            )
+            order = np.random.default_rng(0).permutation(len(indices))[:target]
+            chosen.extend(indices[int(i)] for i in order)
+        result = []
+        for index in sorted(chosen):
+            row = self.rows[index]
+            if len(row["code"]) < min_events:
+                continue
+            if require_targets:
+                valid = row["code"][1:] != 0
+                if self.excluded_target is not None:
+                    valid &= row["code"][1:] != self.excluded_target
+                if not bool(valid.any()):
+                    continue
+            result.append(row)
+        return result
+
+
 def source_stamp(path):
     path = Path(path).resolve()
     stat = path.stat()
@@ -78,7 +115,7 @@ def build_pools(
     return result
 
 
-def save_cache(path, signature, capacity, pools, countable, rare):
+def save_cache(path, signature, capacity, pools, countable, rare, sampling=None):
     """Atomic publication; interrupted preparation leaves no apparently valid cache."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,12 +124,13 @@ def save_cache(path, signature, capacity, pools, countable, rare):
     try:
         torch.save(
             {
-                "version": 1,
+                "version": 2 if sampling is not None else 1,
                 "signature": signature,
                 "capacity": capacity,
                 "pools": pools,
                 "countable": countable,
                 "rare": rare,
+                "sampling": sampling,
             },
             temporary,
         )
@@ -103,7 +141,7 @@ def save_cache(path, signature, capacity, pools, countable, rare):
 
 def read_cache(path, signature, requested):
     payload = torch.load(path, map_location="cpu", weights_only=False, mmap=True)
-    if payload.get("version") != 1 or payload.get("signature") != signature:
+    if payload.get("version") not in (1, 2) or payload.get("signature") != signature:
         raise ValueError(
             "Evaluation cache settings/source files differ. Use a new cache path."
         )
@@ -111,8 +149,14 @@ def read_cache(path, signature, requested):
         raise ValueError(
             "Evaluation cache capacity is too small. Use a new cache path with a larger --cache-patients."
         )
+    windows = {
+        split: (FixedCohortWindows(pool) if "members" in pool else CachedWindows(pool))
+        for split, pool in payload["pools"].items()
+    }
+    for dataset in windows.values():
+        dataset.sampling_audit = payload.get("sampling")
     return (
-        {split: CachedWindows(pool) for split, pool in payload["pools"].items()},
+        windows,
         payload["countable"],
         payload["rare"],
         payload["capacity"],

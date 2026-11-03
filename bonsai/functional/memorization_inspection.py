@@ -41,6 +41,7 @@ class PatientInspection:
                 "subject_id",
                 "split",
                 "mode",
+                "sampling_cohort",
                 "X",
                 "Y",
                 "scored_positions",
@@ -48,6 +49,7 @@ class PatientInspection:
                 "overlap",
                 "rare_codes",
                 "unique_predicted_tokens",
+                "unique_reference_tokens",
                 "flagged",
                 "flag_reasons",
             ],
@@ -74,6 +76,7 @@ class PatientInspection:
                 "subject_id": window["subject_id"],
                 "split": split,
                 "mode": mode,
+                "sampling_cohort": window.get("sampling_cohort", "all"),
                 "X": x,
                 "Y": y,
                 "scored_positions": y - len(supplied),
@@ -112,6 +115,7 @@ class PatientInspection:
             "subject_id": window["subject_id"],
             "split": split,
             "mode": mode,
+            "sampling_cohort": window.get("sampling_cohort", "all"),
             "X": x,
             "Y": y,
             "flagged": bool(reasons),
@@ -150,9 +154,16 @@ def write_patient_losses(directory, splits, patients, losses):
     """Loss is a membership ranking signal; do not label individual losses as flags."""
     with (directory / "patient_losses.csv").open("x", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["split", "subject_id", "mean_next_code_loss"])
+        writer.writerow(
+            ["split", "subject_id", "sampling_cohort", "mean_next_code_loss"]
+        )
         for split, records, values in zip(splits, patients, losses):
             writer.writerows(
-                (split, row["subject_id"], float(value))
+                (
+                    split,
+                    row["subject_id"],
+                    row.get("sampling_cohort", "all"),
+                    float(value),
+                )
                 for row, value in zip(records, values)
             )

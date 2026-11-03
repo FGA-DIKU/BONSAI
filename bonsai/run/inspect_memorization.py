@@ -16,9 +16,13 @@ from pathlib import Path
 
 
 def examples(directory, subject_id, mode=None, context=None, horizon=None):
+    diversity_filter = None
+    analysis_cohort = None
     manifest_path = directory / "run_manifest.json"
     if manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text())
+        diversity_filter = manifest.get("diversity_filter")
+        analysis_cohort = manifest.get("analysis_cohort")
         source = manifest.get("reanalysis", {}).get("source_trajectory_exports")
         if source:
             directory = Path(source)
@@ -29,6 +33,26 @@ def examples(directory, subject_id, mode=None, context=None, horizon=None):
         with path.open() as stream:
             for line in stream:
                 row = json.loads(line)
+                if analysis_cohort and row.get("sampling_cohort") != analysis_cohort:
+                    continue
+                if diversity_filter:
+                    basis = diversity_filter["basis"]
+                    count = row["scores"].get(f"unique_{basis}_tokens")
+                    if count is None:
+                        sequence = (
+                            "true_continuation"
+                            if basis == "reference"
+                            else "predicted_continuation"
+                        )
+                        count = len(
+                            {
+                                token
+                                for token in row[sequence]["tokens"]
+                                if not token.startswith("[")
+                            }
+                        )
+                    if count < diversity_filter["minimum_unique_tokens"]:
+                        continue
                 if (
                     (subject_id is None or str(row["subject_id"]) == subject_id)
                     and (mode is None or row["mode"] == mode)
@@ -51,9 +75,10 @@ def format_example(row, width=120, minimum_unique=3):
         )
     lines = [
         "=" * width,
-        f"Patient {row['subject_id']} | {row['split']} | {row['mode']} | X={row['X']} Y={row['Y']}",
+        f"Patient {row['subject_id']} | {row['split']} | {row['mode']} | cohort={row.get('sampling_cohort', 'all')} | X={row['X']} Y={row['Y']}",
         "Stored flags: " + (", ".join(row["flag_reasons"]) or "none at this cell"),
         f"Distinct predicted clinical codes: {unique} (overlap threshold: {minimum_unique})",
+        f"Distinct reference clinical codes: {row['scores'].get('unique_reference_tokens', len({token for token in row['true_continuation']['tokens'] if not token.startswith('[')}))}",
     ]
     review_flags = []
     if row["Y"] >= 32:

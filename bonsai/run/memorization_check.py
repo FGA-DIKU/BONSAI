@@ -44,6 +44,12 @@ After a run, use python -m bonsai.run.reanalyze_memorization --report-dir RESULT
 complete patient_scores.csv diversity counts, without inference. Original
 trajectories stay in RESULTS; lowering thresholds can flag patients whose
 trajectories were not saved. Use a distinct REVIEW directory to preserve provenance.
+New inference exports also record unique_reference_tokens. Post-run reanalysis
+can use --min-diversity-tokens N --diversity-basis reference (or predicted) to
+write both unfiltered and diversity_filtered/ reproduction comparisons. Metrics,
+excess and intervals are recomputed, with exclusions/denominators reported;
+loss/AUC remains unfiltered. Old scores without reference counts cannot support
+complete reference-based filtering without a new inference export.
 Outputs are ``excess.csv``, ``loss_check.csv``, ``patient_tails.csv``,
 ``coverage.csv``, ``run_manifest.json`` and ``summary.txt``. Individual records
 and scores are not exported in reports. The optional local cache contains patient
@@ -131,6 +137,7 @@ import time
 import warnings
 from bisect import bisect_left
 from collections import Counter
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
@@ -145,6 +152,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from bonsai.functional.memorization_cache import (
     CachedWindows,
+    FixedCohortWindows,
     build_pools,
     read_cache,
     save_cache,
@@ -154,6 +162,7 @@ from bonsai.functional.memorization_inspection import (
     PatientInspection,
     write_patient_losses,
 )
+from bonsai.functional.memorization_sampling import SamplingSettings, select_cohorts
 from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
@@ -269,6 +278,21 @@ class TrainingWindows(PretrainDataset):
         window = {field: raw[field][:end] for field in FIELDS if field in raw}
         window["subject_id"] = raw["subject_id"]
         return truncate_subject(window, self.max_len, self.background_length)
+
+    def prefix_codes(self, index, stop):
+        """Read only code positions needed for selection, respecting training truncation."""
+        end = int(self.ends[index])
+        codes = self.subjects[index]["code"]
+        if end <= self.max_len:
+            return codes[: min(end, stop)]
+        background = min(self.background_length, stop)
+        tail = end - (self.max_len - self.background_length)
+        return torch.cat(
+            (
+                codes[:background],
+                codes[tail : tail + max(0, min(stop, self.max_len) - background)],
+            )
+        )
 
     def __getitem__(self, index):
         window = self._trim(index)
@@ -501,6 +525,7 @@ def score_patient(generated, truth, countable: set, rare: set) -> dict:
         "overlap": hits / n if n else math.nan,
         "rare_codes": rare_hits / rare_n if rare_n else math.nan,
         "unique_predicted_tokens": len(set(generated.tolist()) & countable),
+        "unique_reference_tokens": len(set(truth.tolist()) & countable),
     }
 
 
@@ -580,6 +605,9 @@ def score_all_patients(
                                     "split": split,
                                     "X": x,
                                     "Y": y,
+                                    "sampling_cohort": window.get(
+                                        "sampling_cohort", "all"
+                                    ),
                                     **metrics,
                                 }
                             )
@@ -588,8 +616,10 @@ def score_all_patients(
         "split": pl.String,
         "X": pl.Int64,
         "Y": pl.Int64,
+        "sampling_cohort": pl.String,
         **{name: pl.Float64 for name in SCORES},
         "unique_predicted_tokens": pl.Int64,
+        "unique_reference_tokens": pl.Int64,
     }
     return pl.DataFrame(rows, schema=schema)
 
@@ -727,6 +757,18 @@ def patient_flag_rates(scores, minimum_unique=MIN_UNIQUE_OVERLAP_TOKENS):
             .then(100 * pl.col("patients_flagged") / pl.col("patients"))
             .otherwise(None)
             .alias("percent_flagged"),
+            pl.when(applicable)
+            .then(100 * pl.col("patients_exact_flagged") / pl.col("patients"))
+            .otherwise(None)
+            .alias("percent_exact_flagged"),
+            pl.when(pl.col("patients_exact_flagged") > 0)
+            .then(
+                100
+                * pl.col("patients_flagged_low_diversity")
+                / pl.col("patients_exact_flagged")
+            )
+            .otherwise(None)
+            .alias("percent_low_diversity_among_exact"),
         )
         .sort("mode", "split", "X", "Y")
     )
@@ -779,10 +821,28 @@ def excess_over_unseen(
     return excess.sort("mode", "score", "X", "Y")
 
 
-def membership_from_loss(train: np.ndarray, unseen: np.ndarray) -> pl.DataFrame:
+def membership_from_loss(
+    train: np.ndarray, unseen: np.ndarray, *, allow_insufficient=False
+) -> pl.DataFrame:
     """AUC for telling training from unseen patients by their loss (0.5 = not at
     all), with the Hanley and McNeil (1982) 95% interval."""
     n1, n2 = len(train), len(unseen)
+    if min(n1, n2) < 2 and allow_insufficient:
+        return pl.DataFrame(
+            [
+                (
+                    n1,
+                    n2,
+                    float(train.mean()) if n1 else math.nan,
+                    float(unseen.mean()) if n2 else math.nan,
+                    math.nan,
+                    math.nan,
+                    math.nan,
+                )
+            ],
+            schema=LOSS_COLUMNS,
+            orient="row",
+        )
     if min(n1, n2) < 2 or not np.isfinite(train).all() or not np.isfinite(unseen).all():
         raise ValueError(
             "Loss comparison needs at least two finite patient losses per group."
@@ -987,6 +1047,57 @@ def write_summary(
     return "\n".join(lines)
 
 
+def comparison_summary(excess, loss, min_patients, tails, coverage):
+    """Predefined diagnostic gate: each estimable interval must include its null.
+
+    Pointwise intervals screen for differences, not equivalence. Individual
+    reproduced trajectories remain audit evidence, not standalone gate failures.
+    """
+    enough = pl.min_horizontal("patients_train", "patients_unseen") >= min_patients
+    finite = pl.col("lower").is_finite() & pl.col("upper").is_finite()
+    findings = excess.filter(
+        enough & finite & ((pl.col("lower") > 0) | (pl.col("upper") < 0))
+    )
+    expected = (
+        coverage.select("mode", "X", "Y")
+        .unique()
+        .join(pl.DataFrame({"score": list(SCORES)}), how="cross")
+    )
+    assessed = excess.filter(enough & finite).select("mode", "X", "Y", "score")
+    missing = expected.join(assessed, on=["mode", "X", "Y", "score"], how="anti")
+    r = loss.row(0, named=True)
+    loss_ready = min(r["patients_train"], r["patients_unseen"]) >= min_patients and all(
+        math.isfinite(r[k]) for k in ("auc", "auc_lower", "auc_upper")
+    )
+    loss_flag = loss_ready and not r["auc_lower"] <= 0.5 <= r["auc_upper"]
+    incomplete = coverage.filter(pl.col("status") != "complete")
+    if findings.height or loss_flag:
+        status = "CHECK: a train–comparison interval excludes its null; inspect the listed differences."
+    elif missing.height or incomplete.height or not loss_ready:
+        status = "INCONCLUSIVE: some required comparisons lack adequate coverage or estimable intervals."
+    else:
+        status = "CHECKS PASSED: all required excess intervals include zero and loss AUC includes 0.5."
+    lines = [
+        status,
+        "Pointwise diagnostic intervals; passing does not establish equivalence or absence of memorization.",
+        f"Generation comparisons assessed: {assessed.height}/{expected.height}; incomplete grid cells: {incomplete.height}.",
+        f"Loss AUC: {r['auc']:.3f} ({r['auc_lower']:.3f} to {r['auc_upper']:.3f}); patients={r['patients_train']}/{r['patients_unseen']}.",
+    ]
+    for row in findings.iter_rows(named=True):
+        lines.append(
+            f"  {row['mode']} X={row['X']} Y={row['Y']} {row['score']}: excess={row['excess']:+.4f} ({row['lower']:+.4f}, {row['upper']:+.4f}); n={row['patients_train']}/{row['patients_unseen']}"
+        )
+    if missing.height:
+        lines.append(
+            "Missing/underpowered metrics (including rare-code denominators) are not counted as passed; see excess.csv and coverage.csv."
+        )
+    if tails is not None:
+        lines.append(
+            f"Patient-level reproduction triggers: {inspection_flags(tails).height} cells; audit trajectories separately. They do not independently determine this comparison gate."
+        )
+    return "\n".join(lines)
+
+
 # -- 6. Command line, data loading and pipeline -----------------------------------------------------------------
 
 
@@ -1013,6 +1124,25 @@ def parse_args():
         help="Minimum distinct predicted clinical codes for overlap flags (default 3)",
     )
     add("--data-version", help="Source dataset version for the audit record")
+    add(
+        "--sampling-design",
+        choices=("fixed", "legacy"),
+        default="fixed",
+        help="fixed: one random/uncommon cohort per split; legacy: separate uniform pools per prompt/loss",
+    )
+    add("--random-fraction", type=float, default=0.8)
+    add("--rarity-reference-patients", type=int, default=20000)
+    add("--rarity-calibration-patients", type=int, default=5000)
+    add("--rarity-span", type=int, default=32)
+    add("--rarity-min-clinical-tokens", type=int, default=8)
+    add("--rarity-quantile", type=float, default=0.9)
+    add("--rarity-min-calibration", type=int, default=50)
+    add("--rarity-candidate-limit", type=int, default=100000)
+    add(
+        "--prepare-sampling-only",
+        action="store_true",
+        help="Prepare/cache fixed cohorts and write population timing/selection diagnostics; no model inference",
+    )
     add(
         "--export-patient-inspection",
         action="store_true",
@@ -1160,10 +1290,8 @@ def code_groups(vocabulary: dict, train: list) -> tuple[set, set]:
     for index in range(len(train)):
         # Frequencies need only censored/truncated codes, not copied features or
         # normalized segments. Avoid materializing full windows for this scan.
-        window = (
-            train._trim(index) if isinstance(train, TrainingWindows) else train[index]
-        )
-        held.update(set(window["code"].tolist()))
+        codes = train.prefix_codes(index, train.max_len) if isinstance(train, TrainingWindows) else train[index]["code"]
+        held.update(set(codes.tolist()))
         if index and index % 10000 == 0:
             print(f"Counting code frequencies: {index:,}/{len(train):,}", flush=True)
     limit = RARE_CODE_SHARE * len(train)
@@ -1260,6 +1388,12 @@ def write_outputs(
         if manifest.get("patient_inspection")
         else set()
     )
+    if manifest.get("sampling_design") == "fixed":
+        inspection_files |= {
+            "sampling_report.json",
+            "sampling_patients.csv",
+            "sampling_balance.csv",
+        }
     if output_dir.exists() and any(
         p.name not in inspection_files for p in output_dir.iterdir()
     ):
@@ -1284,6 +1418,17 @@ def write_outputs(
             "sep_excluded_from_training_loss", False
         ),
     )
+    if manifest.get("sampling_design") == "fixed":
+        summary = comparison_summary(excess, loss, min_patients, tails, coverage)
+        summary += "\nModes retain their original assumptions; with SEP exclusion, true_features supplies future metadata and SEP positions (conditional stress test)."
+        if not manifest.get("sampling_complete", True):
+            if summary.startswith("CHECKS PASSED:"):
+                summary = (
+                    "INCONCLUSIVE: uncommon selection quotas/calibration are incomplete.\n"
+                    + summary.partition("\n")[2]
+                )
+            summary += "\nSampling incomplete: inspect sampling_report.json; quotas/cutoffs were not weakened to fill the cohort."
+        summary += "\nCombined/uncommon estimates describe enriched stress samples, not population prevalence. The random cohort supplies the population-facing comparison."
     if flag_rates is not None:
         summary += "\n\nPatient-level flag rates (per cell; not percentages memorized; do not sum across cells):"
         for row in flag_rates.filter(pl.col("inspection_applicable")).iter_rows(
@@ -1293,6 +1438,12 @@ def write_outputs(
                 f"\n  {row['mode']}/{row['split']}: X={row['X']}, Y={row['Y']}: "
                 f"{row['patients_flagged']}/{row['patients']} ({row['percent_flagged']:.2f}%) flagged; "
                 f"low diversity (<{row['minimum_unique_overlap_tokens']} codes): {row['patients_low_diversity']}/{row['patients']} ({row['percent_low_diversity']:.2f}%); low-diversity flags: {row['patients_flagged_low_diversity']}; unknown: {row['patients_diversity_unknown']}."
+            )
+            among = row["percent_low_diversity_among_exact"]
+            summary += (
+                f"\n    exact match = {row['patients_exact_flagged']}/{row['patients']} ({row['percent_exact_flagged']:.2f}%); "
+                f"low diversity among exact = {row['patients_flagged_low_diversity']}/{row['patients_exact_flagged']} "
+                f"({f'{among:.2f}%' if among is not None else 'not applicable'})."
             )
     if manifest.get("settings", {}).get("run_config") is None:
         if summary.startswith("CHECKS PASSED:"):
@@ -1341,10 +1492,197 @@ def write_outputs(
     print(summary)
 
 
+def fixed_settings(args):
+    return SamplingSettings(
+        patients_per_split=args.cache_patients
+        if args.evaluation_cache
+        else args.max_patients,
+        random_fraction=args.random_fraction,
+        reference_patients=args.rarity_reference_patients,
+        calibration_patients=args.rarity_calibration_patients,
+        span=args.rarity_span,
+        minimum_clinical_tokens=args.rarity_min_clinical_tokens,
+        quantile=args.rarity_quantile,
+        minimum_calibration=args.rarity_min_calibration,
+        candidate_limit=args.rarity_candidate_limit,
+    )
+
+
+def build_fixed_windows(windows, args, context, countable, excluded_target, vocab_size):
+    settings = fixed_settings(args)
+    prompts = [x for x in args.prompt_events if x + settings.span <= context + 1]
+    if not prompts:
+        raise ValueError(
+            "No rarity span fits the model window; reduce --rarity-span or adjust prompts."
+        )
+
+    def read_codes(split, index, stop):
+        codes = windows[split].prefix_codes(index, stop)
+        if codes.ndim != 1 or codes.dtype != torch.long or (
+            len(codes) and (codes.min() < 0 or codes.max() >= vocab_size)
+        ):
+            raise ValueError(
+                "Invalid code IDs/dtype in a rarity reference or candidate window."
+            )
+        return codes.numpy()
+
+    minimum_length = min(
+        x + y
+        for x in args.prompt_events
+        for y in args.continuation_events
+        if x + y <= context + 1
+    )
+    selected, audit = select_cohorts(
+        {split: rows.lengths for split, rows in windows.items()},
+        read_codes,
+        countable,
+        prompts,
+        minimum_length,
+        settings,
+        excluded_target,
+    )
+    pools = {}
+    for split, members in selected.items():
+        rows = []
+        for member in members:
+            row = windows[split][member["index"]]
+            row["sampling_cohort"] = member["cohort"]
+            rows.append(row)
+            member["subject_id"] = row["subject_id"]
+            member["window_length"] = len(row["code"])
+        pools[split] = {
+            "rows": rows,
+            "members": members,
+            "random_fraction": settings.random_fraction,
+            "excluded_target": excluded_target,
+        }
+    return pools, audit
+
+
+def write_sampling_overview(output_dir, windows, audit, maximum):
+    """Local ID-level selection provenance plus aggregate balance/coverage checks."""
+    overview = {
+        key: value
+        for key, value in audit.items()
+        if key not in ("reference_indices", "calibration_indices")
+    }
+    overview["reference_patients_reserved"] = len(audit["reference_indices"])
+    overview["calibration_patients_reserved"] = len(audit["calibration_indices"])
+    (output_dir / "sampling_report.json").write_text(
+        json.dumps(overview, indent=2) + "\n"
+    )
+    records = []
+    for split, dataset in windows.items():
+        selected_ids = {row["subject_id"] for row in dataset.sample(0, maximum, False)}
+        for member in dataset.members:
+            if member["subject_id"] in selected_ids:
+                records.append(
+                    {
+                        "split": split,
+                        **{k: v for k, v in member.items() if k != "index"},
+                    }
+                )
+    frame = pl.DataFrame(records)
+    frame.write_csv(output_dir / "sampling_patients.csv")
+    balance = frame.group_by("split", "cohort", "rarity_mask", "rarity_stratum").agg(
+        pl.len().alias("patients"),
+        pl.col("rarity_score").median().alias("median_surprise"),
+        pl.col("rarity_score").quantile(0.1).alias("p10_surprise"),
+        pl.col("rarity_score").quantile(0.9).alias("p90_surprise"),
+        pl.col("window_length").median().alias("median_window_length"),
+    )
+    balance.sort("split", "cohort", "rarity_mask", "rarity_stratum").write_csv(
+        output_dir / "sampling_balance.csv"
+    )
+
+
+def write_cohort_reports(args, scores, patients, losses, manifest, context):
+    """Reuse inference for random, uncommon and combined reports; no extra decoding."""
+    splits = (args.train_split, args.heldout_split)
+    statuses = {"combined": manifest["checks_status"]}
+    for cohort in ("random", "uncommon"):
+        part = scores.filter(pl.col("sampling_cohort") == cohort)
+        arrays = [
+            np.array(
+                [
+                    value
+                    for row, value in zip(records, values)
+                    if row["sampling_cohort"] == cohort
+                ]
+            )
+            for records, values in zip(patients, losses)
+        ]
+        subset_manifest = json.loads(json.dumps(manifest, default=str))
+        subset_manifest["analysis_cohort"] = cohort
+        subset_manifest["patient_inspection"] = None
+        subset_manifest.pop("timing", None)
+        subset_manifest["reanalysis"] = {
+            "source_trajectory_exports": str(args.output_dir.resolve())
+        }
+        if cohort == "random":
+            subset_manifest["sampling_complete"] = True
+        destination = args.output_dir / "cohorts" / cohort
+        subset_manifest["settings"]["output_dir"] = str(destination)
+        coverage = grid_coverage(
+            part,
+            args.prompt_events,
+            args.continuation_events,
+            splits,
+            context,
+            args.min_patients,
+        )
+        write_outputs(
+            excess_over_unseen(part, *splits),
+            membership_from_loss(*arrays, allow_insufficient=True),
+            destination,
+            args.min_patients,
+            patient_tails(part, args.min_unique_overlap_tokens),
+            subset_manifest,
+            coverage,
+            patient_flag_rates(part, args.min_unique_overlap_tokens),
+        )
+        statuses[cohort] = subset_manifest["checks_status"]
+        if args.export_patient_inspection:
+            for name in ("patient_scores.csv", "patient_losses.csv"):
+                pl.scan_csv(args.output_dir / name).filter(
+                    pl.col("sampling_cohort") == cohort
+                ).sink_csv(destination / name)
+    if "CHECK" in statuses.values():
+        overall = "CHECK: at least one random, uncommon or combined comparison requires investigation."
+    elif "INCONCLUSIVE" in statuses.values():
+        overall = "INCONCLUSIVE: some random, uncommon or combined comparisons lack adequate evidence."
+    else:
+        overall = "CHECKS PASSED: all required random, uncommon and combined comparisons include their nulls."
+    manifest["cohort_statuses"] = statuses
+    manifest["checks_status"] = overall.split(":", 1)[0]
+    manifest["evidence_summary"] = overall
+    (args.output_dir / "run_manifest.json").write_text(
+        json.dumps(manifest, indent=2, default=str) + "\n"
+    )
+    path = args.output_dir / "summary.txt"
+    old = path.read_text()
+    path.write_text(
+        overall
+        + "\n"
+        + "Cohort statuses: "
+        + ", ".join(f"{name}={status}" for name, status in statuses.items())
+        + "\nCombined-sample details follow:\n"
+        + old.partition("\n")[2]
+    )
+    print(overall, flush=True)
+
+
 def main() -> None:
     started = time.perf_counter()
     load_dotenv()  # Match the training entry point when Hydra references .env paths.
     parser, args = parse_args()
+    if args.prepare_sampling_only and args.sampling_design != "fixed":
+        parser.error("--prepare-sampling-only requires --sampling-design fixed.")
+    if args.sampling_design == "fixed":
+        try:
+            fixed_settings(args).validate()
+        except ValueError as error:
+            parser.error(str(error))
     if args.min_unique_overlap_tokens < 1:
         parser.error("--min-unique-overlap-tokens must be positive.")
     if args.unflagged_examples_per_cell < 0:
@@ -1414,6 +1752,7 @@ def main() -> None:
         parser.error("--sep-excluded-from-training-loss requires [SEP] in vocabulary.")
     excluded_target = sep_id if args.sep_excluded_from_training_loss else None
     cache_info = None
+    sampling_audit = None
     signature = None
     if args.evaluation_cache:
         if args.cache_patients < args.max_patients:
@@ -1436,12 +1775,16 @@ def main() -> None:
             "seed": 0,
             "rare_code_share": RARE_CODE_SHARE,
         }
+    if signature is not None and args.sampling_design == "fixed":
+        signature["sampling_design"] = "fixed_v1"
+        signature["sampling_settings"] = asdict(fixed_settings(args))
     if args.evaluation_cache and args.evaluation_cache.exists():
         print(f"Loading sampled evaluation cache: {args.evaluation_cache}", flush=True)
         windows, countable, rare, capacity = read_cache(
             args.evaluation_cache, signature, args.max_patients
         )
         validate_windows(windows, vocabulary, model)
+        sampling_audit = next(iter(windows.values())).sampling_audit
         cache_info = {
             "path": str(args.evaluation_cache),
             "reused": True,
@@ -1449,37 +1792,61 @@ def main() -> None:
             "signature": signature,
         }
     else:
-        windows = load_windows(
+        load_started = time.perf_counter()
+        source_windows = load_windows(
             args.data_dir, splits, context, args.population, args.cutoff_date
         )
-        validate_windows(windows, vocabulary, model)
-        countable, rare = code_groups(vocabulary, windows[args.train_split])
-        if args.evaluation_cache:
-            minimum_lengths = sorted(
-                {
-                    x + min(y for y in args.continuation_events if x + y <= context + 1)
-                    for x in args.prompt_events
-                    if any(x + y <= context + 1 for y in args.continuation_events)
-                }
-            )
-            print(
-                f"Preparing evaluation cache: up to {args.cache_patients:,} patients per pool",
-                flush=True,
-            )
-            pools = build_pools(
-                windows,
-                minimum_lengths,
-                args.cache_patients,
-                sample_patients,
+        load_seconds = time.perf_counter() - load_started
+        if args.sampling_design == "fixed":
+            countable = {
+                i for token, i in vocabulary.items() if not token.startswith("[")
+            }
+            pools, sampling_audit = build_fixed_windows(
+                source_windows,
+                args,
+                context,
+                countable,
                 excluded_target,
-                generation_limit=max(
-                    x + y
-                    for x in args.prompt_events
-                    for y in args.continuation_events
-                    if x + y <= context + 1
-                ),
+                model.hparams["vocab_size"],
             )
-            # Detect source changes during the expensive preparation before publishing.
+            sampling_audit["population_load_index_seconds"] = load_seconds
+            windows = {split: FixedCohortWindows(pool) for split, pool in pools.items()}
+            validate_windows(windows, vocabulary, model)
+        else:
+            windows = source_windows
+            validate_windows(windows, vocabulary, model)
+            pools = None
+        frequency_started = time.perf_counter()
+        countable, rare = code_groups(vocabulary, source_windows[args.train_split])
+        if sampling_audit is not None:
+            sampling_audit["global_rare_code_metric_scan_seconds"] = (
+                time.perf_counter() - frequency_started
+            )
+        if args.evaluation_cache:
+            if pools is None:
+                minimum_lengths = sorted(
+                    {
+                        x
+                        + min(
+                            y for y in args.continuation_events if x + y <= context + 1
+                        )
+                        for x in args.prompt_events
+                        if any(x + y <= context + 1 for y in args.continuation_events)
+                    }
+                )
+                pools = build_pools(
+                    source_windows,
+                    minimum_lengths,
+                    args.cache_patients,
+                    sample_patients,
+                    excluded_target,
+                    generation_limit=max(
+                        x + y
+                        for x in args.prompt_events
+                        for y in args.continuation_events
+                        if x + y <= context + 1
+                    ),
+                )
             if signature["sources"] != [
                 source_stamp(args.data_dir / f"subject_data_{split}.pt")
                 for split in splits
@@ -1494,8 +1861,16 @@ def main() -> None:
                 pools,
                 countable,
                 rare,
+                sampling_audit,
             )
-            windows = {split: CachedWindows(pool) for split, pool in pools.items()}
+            windows = {
+                split: (
+                    FixedCohortWindows(pool)
+                    if sampling_audit is not None
+                    else CachedWindows(pool)
+                )
+                for split, pool in pools.items()
+            }
             cache_info = {
                 "path": str(args.evaluation_cache),
                 "reused": False,
@@ -1503,6 +1878,22 @@ def main() -> None:
                 "signature": signature,
             }
             print(f"Evaluation cache saved: {args.evaluation_cache}", flush=True)
+        del source_windows
+    if sampling_audit is not None:
+        write_sampling_overview(
+            args.output_dir, windows, sampling_audit, args.max_patients
+        )
+    if args.prepare_sampling_only:
+        (args.output_dir / "sampling_preparation.txt").write_text(
+            f"Sampling preparation only; no model inference. Total setup: {time.perf_counter() - started:.1f} seconds.\n"
+            "See sampling_report.json for source-loading, reference/calibration/candidate, and global rare-code scan timings.\n"
+            "See sampling_patients.csv and sampling_balance.csv for cohorts and balance. This is not a memorization verdict.\n"
+        )
+        print(
+            f"Sampling preparation complete; no inference. Reports: {args.output_dir}",
+            flush=True,
+        )
+        return
     setup_done = timing_clock(args.device)
 
     # 2. Greedily continue codes over the X/Y grid; compare training vs unseen patients.
@@ -1570,7 +1961,9 @@ def main() -> None:
         losses.append(
             patient_losses(model, part, args.batch_size, exclude_target=excluded_target)
         )
-    loss = membership_from_loss(*losses)
+    loss = membership_from_loss(
+        *losses, allow_insufficient=args.sampling_design == "fixed"
+    )
     if inspection is not None:
         write_patient_losses(args.output_dir, splits, patients, losses)
     loss_done = timing_clock(args.device)
@@ -1587,6 +1980,13 @@ def main() -> None:
         "settings": vars(args),
         "effective_context": context,
         "evaluation_cache": cache_info,
+        "sampling_design": args.sampling_design,
+        "sampling_complete": all(
+            part["complete"] for part in sampling_audit["splits"].values()
+        )
+        and sampling_audit["calibration_reliable"]
+        if sampling_audit is not None
+        else True,
         "patient_inspection": {
             "unflagged_examples_per_cell": args.unflagged_examples_per_cell,
             "seed": 0,
@@ -1643,6 +2043,12 @@ def main() -> None:
         coverage,
         patient_flag_rates(scores, args.min_unique_overlap_tokens),
     )
+    if args.sampling_design == "fixed":
+        write_cohort_reports(args, scores, patients, losses, manifest, context)
+        with (args.output_dir / "summary.txt").open("a") as stream:
+            stream.write(
+                "\nCohort comparisons: this directory is the combined sample; cohorts/random/ and cohorts/uncommon/ contain separate reports using the same inference.\n"
+            )
     if inspection is not None:
         from bonsai.run.inspect_memorization import write_audit
 
