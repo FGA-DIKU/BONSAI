@@ -25,6 +25,9 @@ def plot_reports(report_dir, output_dir):
     manifest = json.loads((report_dir / "run_manifest.json").read_text())
     train = manifest["settings"]["train_split"]
     heldout = manifest["settings"]["heldout_split"]
+    minimum_unique = manifest.get("inspection_triggers", {}).get(
+        "minimum_unique_predicted_clinical_tokens_for_overlap", 3
+    )
     conditional = manifest.get("separator_policy", {}).get(
         "true_features_supplies_sep", False
     )
@@ -98,8 +101,12 @@ def plot_reports(report_dir, output_dir):
             (
                 axes[0, 1],
                 "overlap",
-                "patients_scoring_ge_90pct",
-                "At least 90% overlap (%)",
+                "patients_high_overlap_diverse"
+                if "patients_high_overlap_diverse" in tails.columns
+                else "patients_scoring_ge_90pct",
+                f"At least 90% overlap, ≥{minimum_unique} unique codes (%)"
+                if "patients_high_overlap_diverse" in tails.columns
+                else "At least 90% overlap (%)",
             ),
         ):
             for context in contexts:

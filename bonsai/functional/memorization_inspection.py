@@ -17,13 +17,20 @@ class PatientInspection:
     """
 
     def __init__(
-        self, directory, vocabulary, examples, minimum_horizon, overlap_threshold
+        self,
+        directory,
+        vocabulary,
+        examples,
+        minimum_horizon,
+        overlap_threshold,
+        minimum_unique_overlap=3,
     ):
         self.directory = directory
         self.tokens = {identifier: token for token, identifier in vocabulary.items()}
         self.examples = examples
         self.minimum_horizon = minimum_horizon
         self.overlap_threshold = overlap_threshold
+        self.minimum_unique_overlap = minimum_unique_overlap
         self.rng = np.random.default_rng(0)
         self.seen = defaultdict(int)
         self.samples = defaultdict(list)
@@ -40,6 +47,7 @@ class PatientInspection:
                 "exact_match",
                 "overlap",
                 "rare_codes",
+                "unique_predicted_tokens",
                 "flagged",
                 "flag_reasons",
             ],
@@ -52,7 +60,10 @@ class PatientInspection:
         if y >= self.minimum_horizon:
             if scores["exact_match"] == 1:
                 reasons.append("exact_continuation")
-            if scores["overlap"] >= self.overlap_threshold:
+            if (
+                scores["overlap"] >= self.overlap_threshold
+                and scores["unique_predicted_tokens"] >= self.minimum_unique_overlap
+            ):
                 reasons.append("overlap_ge_threshold")
         truth = window["code"][x : x + y].tolist()
         supplied = [

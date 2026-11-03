@@ -33,6 +33,17 @@ patient_flag_rates.csv reports flagged/evaluated patients and percentage per
 split/mode/context/horizon, counting each patient once even if both triggers
 fire. Short horizons below the inspection threshold have no flag percentage.
 patient_tails.csv also includes percentage columns for each reproduction metric.
+Patient-level overlap triggers require >=90% overlap and at least 3 distinct
+predicted non-special codes. Raw overlap scores and group mean comparisons are
+unchanged; exact-match triggers do not require this diversity threshold.
+Set --min-unique-overlap-tokens N (default 3) to change the diversity threshold.
+Flag-rate CSV/summary include low-diversity counts and percentages with the
+evaluated-patient denominator; exact matches can still flag at low diversity.
+After a run, use python -m bonsai.run.reanalyze_memorization --report-dir RESULTS
+--output-dir REVIEW --min-unique-overlap-tokens N to recompute flags/rates from
+complete patient_scores.csv diversity counts, without inference. Original
+trajectories stay in RESULTS; lowering thresholds can flag patients whose
+trajectories were not saved. Use a distinct REVIEW directory to preserve provenance.
 Outputs are ``excess.csv``, ``loss_check.csv``, ``patient_tails.csv``,
 ``coverage.csv``, ``run_manifest.json`` and ``summary.txt``. Individual records
 and scores are not exported in reports. The optional local cache contains patient
@@ -42,6 +53,11 @@ writes patient_scores.csv (every scored ID/cell, metrics, flags),
 flagged_trajectories.jsonl (every patient-level exact/overlap trigger),
 unflagged_examples.jsonl (seeded sample of up to 3 unflagged examples per cell;
 change with --unflagged-examples-per-cell), and patient_losses.csv. These files
+also produce audit.txt automatically: the human-readable file to open in vim.
+It contains an index, flagged cases first, comparison before history, foldable
+history sections, and manual review-note spaces. In vim use
+:set foldmethod=marker foldlevel=1 to collapse long histories.
+These files
 contain patient data and must stay on the server. Trajectories include decoded
 prompt, reference, prediction, true features and supplied SEP positions (zero-based
 offsets within the continuation). History is the evaluated window, not the full
@@ -154,6 +170,9 @@ RARE_CODE_SHARE = 0.001
 # Conservative inspection triggers, not thresholds for approving model sharing.
 INSPECTION_HORIZON = 32
 PARTIAL_REPRODUCTION = 0.9
+MIN_UNIQUE_OVERLAP_TOKENS = (
+    3  # Distinct predicted non-special codes; SEP does not count.
+)
 PROMPTS = (32, 256, 1024)  # X; primary check plus medium/long-context probes
 CONTINUATIONS = (1, 2, 4, 8, 16, 32, 64)  # Y
 FINAL_PATIENTS = 5000
@@ -481,6 +500,7 @@ def score_patient(generated, truth, countable: set, rare: set) -> dict:
         "exact_match": float((generated == truth).all()) if len(truth) else math.nan,
         "overlap": hits / n if n else math.nan,
         "rare_codes": rare_hits / rare_n if rare_n else math.nan,
+        "unique_predicted_tokens": len(set(generated.tolist()) & countable),
     }
 
 
@@ -569,6 +589,7 @@ def score_all_patients(
         "X": pl.Int64,
         "Y": pl.Int64,
         **{name: pl.Float64 for name in SCORES},
+        "unique_predicted_tokens": pl.Int64,
     }
     return pl.DataFrame(rows, schema=schema)
 
@@ -607,15 +628,22 @@ def grid_coverage(scores, prompts, horizons, splits, context, min_patients):
     return pl.DataFrame(rows)
 
 
-def patient_tails(scores: pl.DataFrame) -> pl.DataFrame:
+def patient_tails(
+    scores: pl.DataFrame, minimum_unique=MIN_UNIQUE_OVERLAP_TOKENS
+) -> pl.DataFrame:
     """Describe per-patient tails without exporting individual scores or identifiers.
 
     p95/max and counts scoring 1 expose concentrated reproduction hidden by means.
     These are descriptive summaries, not a calibrated membership attack or gate.
     """
+    # Older score tables lack diversity counts; retain their original flag rule.
+    if "unique_predicted_tokens" not in scores.columns:
+        scores = scores.with_columns(
+            pl.lit(minimum_unique).alias("unique_predicted_tokens")
+        )
     values = scores.unpivot(
         on=SCORES,
-        index=["mode", "split", "X", "Y"],
+        index=["mode", "split", "X", "Y", "unique_predicted_tokens"],
         variable_name="score",
         value_name="value",
     ).filter(pl.col("value").is_finite())
@@ -630,6 +658,13 @@ def patient_tails(scores: pl.DataFrame) -> pl.DataFrame:
             (pl.col("value") >= PARTIAL_REPRODUCTION)
             .sum()
             .alias("patients_scoring_ge_90pct"),
+            (
+                (pl.col("score") == "overlap")
+                & (pl.col("value") >= PARTIAL_REPRODUCTION)
+                & (pl.col("unique_predicted_tokens") >= minimum_unique)
+            )
+            .sum()
+            .alias("patients_high_overlap_diverse"),
         )
         .with_columns(
             (100 * pl.col("patients_scoring_1") / pl.col("patients")).alias(
@@ -643,7 +678,7 @@ def patient_tails(scores: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def patient_flag_rates(scores):
+def patient_flag_rates(scores, minimum_unique=MIN_UNIQUE_OVERLAP_TOKENS):
     """Per-cell union of the patient-level triggers: never count one patient twice.
 
     Denominator is evaluated patients, not the full cohort. Below the inspection
@@ -654,16 +689,40 @@ def patient_flag_rates(scores):
     overlap = (
         pl.col("overlap").is_finite() & (pl.col("overlap") >= PARTIAL_REPRODUCTION)
     ).fill_null(False)
+    if "unique_predicted_tokens" in scores.columns:
+        overlap &= pl.col("unique_predicted_tokens") >= minimum_unique
+    diversity = (
+        pl.col("unique_predicted_tokens")
+        if "unique_predicted_tokens" in scores.columns
+        else pl.lit(None, dtype=pl.Int64)
+    )
     return (
         scores.group_by("mode", "split", "X", "Y")
         .agg(
             pl.len().alias("patients"),
+            (diversity < minimum_unique)
+            .fill_null(False)
+            .sum()
+            .alias("patients_low_diversity"),
+            (
+                diversity.is_null().sum()
+                if "unique_predicted_tokens" in scores.columns
+                else pl.len()
+            ).alias("patients_diversity_unknown"),
+            ((exact | overlap) & applicable & (diversity < minimum_unique))
+            .fill_null(False)
+            .sum()
+            .alias("patients_flagged_low_diversity"),
             ((exact | overlap) & applicable).sum().alias("patients_flagged"),
             (exact & applicable).sum().alias("patients_exact_flagged"),
             (overlap & applicable).sum().alias("patients_overlap_flagged"),
         )
         .with_columns(
             applicable.alias("inspection_applicable"),
+            pl.lit(minimum_unique).alias("minimum_unique_overlap_tokens"),
+            (100 * pl.col("patients_low_diversity") / pl.col("patients")).alias(
+                "percent_low_diversity"
+            ),
             pl.when(applicable)
             .then(100 * pl.col("patients_flagged") / pl.col("patients"))
             .otherwise(None)
@@ -748,15 +807,17 @@ def membership_from_loss(train: np.ndarray, unseen: np.ndarray) -> pl.DataFrame:
 
 
 def inspection_flags(tails: pl.DataFrame) -> pl.DataFrame:
-    """Flag any exact or >=90% unordered reproduction at horizons >=32, even at n=1."""
+    """Flag exact or diverse >=90% overlap at horizons >=32, even at n=1."""
+    overlap_count = (
+        "patients_high_overlap_diverse"
+        if "patients_high_overlap_diverse" in tails.columns
+        else "patients_scoring_ge_90pct"
+    )
     return tails.filter(
         (pl.col("Y") >= INSPECTION_HORIZON)
         & (
             ((pl.col("score") == "exact_match") & (pl.col("patients_scoring_1") > 0))
-            | (
-                (pl.col("score") == "overlap")
-                & (pl.col("patients_scoring_ge_90pct") > 0)
-            )
+            | ((pl.col("score") == "overlap") & (pl.col(overlap_count) > 0))
         )
     )
 
@@ -806,6 +867,8 @@ def memorization_conclusion(excess, loss, min_patients, tails=None) -> str:
             column = (
                 "patients_scoring_1"
                 if row["score"] == "exact_match"
+                else "patients_high_overlap_diverse"
+                if "patients_high_overlap_diverse" in row
                 else "patients_scoring_ge_90pct"
             )
             details.append(
@@ -942,6 +1005,12 @@ def parse_args():
         "--run-config",
         type=Path,
         help="Original Hydra config; otherwise discovered above checkpoint",
+    )
+    add(
+        "--min-unique-overlap-tokens",
+        type=int,
+        default=MIN_UNIQUE_OVERLAP_TOKENS,
+        help="Minimum distinct predicted clinical codes for overlap flags (default 3)",
     )
     add("--data-version", help="Source dataset version for the audit record")
     add(
@@ -1222,7 +1291,8 @@ def write_outputs(
         ):
             summary += (
                 f"\n  {row['mode']}/{row['split']}: X={row['X']}, Y={row['Y']}: "
-                f"{row['patients_flagged']}/{row['patients']} ({row['percent_flagged']:.2f}%) flagged."
+                f"{row['patients_flagged']}/{row['patients']} ({row['percent_flagged']:.2f}%) flagged; "
+                f"low diversity (<{row['minimum_unique_overlap_tokens']} codes): {row['patients_low_diversity']}/{row['patients']} ({row['percent_low_diversity']:.2f}%); low-diversity flags: {row['patients_flagged_low_diversity']}; unknown: {row['patients_diversity_unknown']}."
             )
     if manifest.get("settings", {}).get("run_config") is None:
         if summary.startswith("CHECKS PASSED:"):
@@ -1246,6 +1316,9 @@ def write_outputs(
     manifest["inspection_triggers"] = {
         "minimum_horizon": INSPECTION_HORIZON,
         "partial_overlap": PARTIAL_REPRODUCTION,
+        "minimum_unique_predicted_clinical_tokens_for_overlap": manifest.get(
+            "settings", {}
+        ).get("min_unique_overlap_tokens", MIN_UNIQUE_OVERLAP_TOKENS),
         "any_exact_continuation": True,
     }
     (output_dir / "run_manifest.json").write_text(
@@ -1272,6 +1345,8 @@ def main() -> None:
     started = time.perf_counter()
     load_dotenv()  # Match the training entry point when Hydra references .env paths.
     parser, args = parse_args()
+    if args.min_unique_overlap_tokens < 1:
+        parser.error("--min-unique-overlap-tokens must be positive.")
     if args.unflagged_examples_per_cell < 0:
         parser.error("--unflagged-examples-per-cell must be nonnegative.")
 
@@ -1438,6 +1513,7 @@ def main() -> None:
             args.unflagged_examples_per_cell,
             INSPECTION_HORIZON,
             PARTIAL_REPRODUCTION,
+            minimum_unique_overlap=args.min_unique_overlap_tokens,
         )
         if args.export_patient_inspection
         else None
@@ -1562,11 +1638,25 @@ def main() -> None:
         loss,
         args.output_dir,
         args.min_patients,
-        patient_tails(scores),
+        patient_tails(scores, args.min_unique_overlap_tokens),
         manifest,
         coverage,
-        patient_flag_rates(scores),
+        patient_flag_rates(scores, args.min_unique_overlap_tokens),
     )
+    if inspection is not None:
+        from bonsai.run.inspect_memorization import write_audit
+
+        print("Writing vim-ready patient audit: audit.txt", flush=True)
+        write_audit(
+            args.output_dir,
+            args.output_dir / "audit.txt",
+            args.min_unique_overlap_tokens,
+        )
+        with (args.output_dir / "summary.txt").open("a") as stream:
+            stream.write(
+                "\nOpen audit.txt in vim for indexed patient cases, comparisons, histories and review notes.\n"
+            )
+        print(f"Patient audit ready: {args.output_dir / 'audit.txt'}", flush=True)
 
 
 if __name__ == "__main__":
