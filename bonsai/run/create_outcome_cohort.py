@@ -64,8 +64,19 @@ def main(cfg: DictConfig) -> None:
             refs["outcome_date"] = get_outcome_dates(df, cfg.outcome, refs)
             refs["censor_date"] = get_censor_dates(df, cfg.censor, refs)
 
-            stats["index_matches"] += refs["index_date"]["subject_id"].n_unique()
-            stats["outcome_matches"] += refs["outcome_date"]["subject_id"].n_unique()
+            stats["index_matches"] += (
+                refs["index_date"]
+                .filter(pl.col("index_date").is_not_null())
+                ["subject_id"]
+                .n_unique()
+            )
+            
+            stats["outcome_matches"] += (
+                refs["outcome_date"]
+                .filter(pl.col("outcome_date").is_not_null())
+                ["subject_id"]
+                .n_unique()
+            )
 
             shard_cohort = get_cohort(df, cfg.cohort, refs)
 
