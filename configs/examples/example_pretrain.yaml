@@ -10,3 +10,6 @@ training:
   epochs: 10
   limit_val_batches: 10
   limit_train_batches: 10
+
+model:
+  attn_type: sdpa

@@ -24,3 +24,4 @@ lightning_module:
 model:
   _target_: bonsai.modules.networks.bonsai_nets.BonsaiValuePretrain
   value_embedding_mode: film
+  attn_type: sdpa
