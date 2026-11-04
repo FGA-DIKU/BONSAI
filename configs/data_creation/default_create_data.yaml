@@ -20,4 +20,4 @@ numeric_column: "numeric_value_normalized"
 tokenizer:
   vocabulary:
   cutoffs:
-  sep_tokens: true
+  sep_tokens: false
