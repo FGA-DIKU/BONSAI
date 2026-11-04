@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - /pretrain@_global_
+  - _self_
+
+training:
+  epochs: 20
+  scheduler_warmup_epochs: 0.1
+
+model:
+  attn_type: flash
