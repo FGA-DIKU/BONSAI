@@ -21,7 +21,7 @@ index:
     occurrence: first
     criteria:
       any:
-        - {column: code, value: [ MEDICATION//MA10BK], operator: startswith_any} 
+        - {column: code, value: [ MEDICATION//A10BK], operator: startswith_any} 
 
 outcome:
   mode: match
