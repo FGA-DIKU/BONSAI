@@ -1,8 +1,9 @@
-defaults: 
-  - core/base_train@
-  - hardware/1gpu6cpu@hardware
+# @package _global_
+defaults:
+  - /core/base_train@_global_
+  - /hardware/1gpu6cpu@hardware
   - _self_
-  
+
 dataset: 
 
 paths:

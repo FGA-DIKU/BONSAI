@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - /core/base_train@_global_
-  - /hardware/igpu6cpu@hardware
+  - /hardware/1gpu6cpu@hardware
   - _self_
 
 dataset: phair_light_MEDS_data
@@ -16,7 +16,7 @@ paths:
   outcome: ${paths.dir}/outcomes/${outcome}.parquet
   vocabulary: ${paths.dir}/vocabulary.pt
   population: ${paths.dir}/cohorts/population_full.csv
-  ckpt_path: ${paths.dir}
+  ckpt_path: 
 
 labels:
   # we will convert outcomes to binary based on whether at least one outcome is in the follow up window
@@ -46,7 +46,7 @@ training:
 model:
   # For numeric values, switch to BonsaiValueFinetune and set value_embedding_mode.
   _target_: bonsai.modules.networks.bonsai_nets.BonsaiFinetune
-  max_seq_len: ${training.max_len}
+  max_seqlen: ${training.max_len}
   hidden_size: 256
   num_layers: 4
   dropout: 0.1
