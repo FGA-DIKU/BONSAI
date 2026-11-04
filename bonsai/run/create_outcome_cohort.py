@@ -66,15 +66,13 @@ def main(cfg: DictConfig) -> None:
 
             stats["index_matches"] += (
                 refs["index_date"]
-                .filter(pl.col("index_date").is_not_null())
-                ["subject_id"]
+                .filter(pl.col("index_date").is_not_null())["subject_id"]
                 .n_unique()
             )
-            
+
             stats["outcome_matches"] += (
                 refs["outcome_date"]
-                .filter(pl.col("outcome_date").is_not_null())
-                ["subject_id"]
+                .filter(pl.col("outcome_date").is_not_null())["subject_id"]
                 .n_unique()
             )
 
