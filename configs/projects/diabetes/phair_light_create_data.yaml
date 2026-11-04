@@ -11,7 +11,7 @@ splits:
 dataset: 
 
 paths: 
-  input_dir: example_data/${dataset}
+  input_dir: [INSERT PATH TO RAW MEDS DATA HERE]
   output_dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
 
 exclude_regex: 
@@ -21,4 +21,4 @@ numeric_column: null
 tokenizer:
   vocabulary:
   cutoffs:
-  sep_tokens: true
+  sep_tokens: false
