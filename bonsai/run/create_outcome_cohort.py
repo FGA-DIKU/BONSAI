@@ -22,8 +22,7 @@ Plugins.instance().register(DataCreationSearchpathPlugin)
 
 def add_count(stats, key, df):
     stats[key][0] += len(df)
-    stats[key][1] += df["subject_id"].drop_nulls().n_unique()
-
+    stats[key][1] += df["subject_id"].n_unique()
 
 @hydra.main(
     config_path=get_config_path(),
