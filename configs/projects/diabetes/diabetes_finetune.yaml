@@ -19,9 +19,6 @@ labels:
 
 training:
   epochs: 20
-  learning_rate: 3e-4
-  limit_val_batches: 1.0
-  limit_train_batches: 1.0
   eval_monitor_metric: val/AUROC
   eval_monitor_mode: max
 
