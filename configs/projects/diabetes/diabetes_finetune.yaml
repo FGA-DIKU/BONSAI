@@ -1,11 +1,11 @@
 # @package _global_
 defaults:
-  - /finetune@_global_
+  - /finetune
   - _self_
 
 dataset: phair_light_MEDS_data
-outcome: projects/diabetes/diabetes-su_hypo
-pretrain_path: [INSERT PATH TO PRETRAINED MODEL CHECKPOINT HERE]
+outcome: projects/diabetes/???
+pretrain_path: 
 
 paths:
   ckpt_path: null
@@ -18,9 +18,5 @@ labels:
     days: 365
 
 training:
-  epochs: 20
   eval_monitor_metric: val/AUROC
   eval_monitor_mode: max
-
-model:
-  attn_type: flash
