@@ -50,4 +50,4 @@ model:
   attention_dropout: 0.0
   bias: false
   causal: true
-  attn_type: sdpa
+  attn_type: flash
