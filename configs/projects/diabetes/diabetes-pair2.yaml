@@ -29,7 +29,7 @@ outcome:
     occurrence: first
     criteria:
       all_row:
-        - {column: code, value: [DIAGNOSIS//DE111], operator: startswith_any}
+        - {column: code, value: [DIAGNOSIS//DE111, DIAGNOSIS//DE131, DIAGNOSIS//DE141], operator: startswith_any}
         - {column: time, operator: gt, value_col: index_date}
 
 censor:
@@ -44,7 +44,7 @@ cohort:
         occurrence: all
         criteria:
           all_row:
-            - {column: code, value: [DIAGNOSIS//DE111], operator: startswith_any}
+            - {column: code, value: [DIAGNOSIS//DE111, DIAGNOSIS//DE131, DIAGNOSIS//DE141], operator: startswith_any}
             - {column: time, operator: lt, value_col: index_date}
 
     # Our diabetes cohort exclude/include

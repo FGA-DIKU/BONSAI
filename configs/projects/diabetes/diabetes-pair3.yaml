@@ -44,7 +44,7 @@ cohort:
         occurrence: all
         criteria:
           all_row:
-            - {column: code, value: [DIAGNOSIS//DN18], operator: startswith_any} # TODO: Double check this
+            - {column: code, value: [DIAGNOSIS//DN17, DIAGNOSIS//DE86, DIAGNOSIS//DN18], operator: startswith_any}
             - {column: time, operator: lt, value_col: index_date}
 
     # Our diabetes cohort exclude/include
