@@ -24,6 +24,7 @@ class PatientInspection:
         minimum_horizon,
         overlap_threshold,
         minimum_unique_overlap=3,
+        stream_unflagged=False,
     ):
         self.directory = directory
         self.tokens = {identifier: token for token, identifier in vocabulary.items()}
@@ -31,6 +32,11 @@ class PatientInspection:
         self.minimum_horizon = minimum_horizon
         self.overlap_threshold = overlap_threshold
         self.minimum_unique_overlap = minimum_unique_overlap
+        self.unflagged_stream = (
+            (directory / "unflagged_examples.partial.jsonl").open("x")
+            if stream_unflagged
+            else None
+        )
         self.rng = np.random.default_rng(0)
         self.seen = defaultdict(int)
         self.samples = defaultdict(list)
@@ -87,7 +93,7 @@ class PatientInspection:
         )
         key = (split, mode, x, y)
         slot = None
-        if not reasons:
+        if not reasons and self.unflagged_stream is None:
             self.seen[key] += 1
             if len(self.samples[key]) < self.examples:
                 slot = len(self.samples[key])
@@ -131,8 +137,19 @@ class PatientInspection:
             "later_available_reference": sequence(window["code"][x + y :].tolist()),
             "scored_positions": y - len(supplied),
         }
+        if "audit_selection" in window:
+            row["audit_selection"] = window["audit_selection"]
+        if "rare_code_evidence" in window:
+            row["rare_code_evidence"] = window["rare_code_evidence"]
+        if "public_seed" in window:
+            row["public_seed"] = window["public_seed"]
+            row["reference_offset"] = window["reference_offset"]
+            row["reference_history"] = sequence(window["reference_history"].tolist())
+            row["generation_row"] = window["generation_row"]
         if reasons:
             self.flag_file.write(json.dumps(row, allow_nan=False) + "\n")
+        elif self.unflagged_stream is not None:
+            self.unflagged_stream.write(json.dumps(row, allow_nan=False) + "\n")
         elif slot == len(self.samples[key]):
             self.samples[key].append(row)
         else:
@@ -144,10 +161,16 @@ class PatientInspection:
         (self.directory / "flagged_trajectories.partial.jsonl").rename(
             self.directory / "flagged_trajectories.jsonl"
         )
-        with (self.directory / "unflagged_examples.jsonl").open("x") as stream:
-            for key in sorted(self.samples):
-                for row in self.samples[key]:
-                    stream.write(json.dumps(row, allow_nan=False) + "\n")
+        if self.unflagged_stream is not None:
+            self.unflagged_stream.close()
+            (self.directory / "unflagged_examples.partial.jsonl").rename(
+                self.directory / "unflagged_examples.jsonl"
+            )
+        else:
+            with (self.directory / "unflagged_examples.jsonl").open("x") as stream:
+                for key in sorted(self.samples):
+                    for row in self.samples[key]:
+                        stream.write(json.dumps(row, allow_nan=False) + "\n")
 
 
 def write_patient_losses(directory, splits, patients, losses):

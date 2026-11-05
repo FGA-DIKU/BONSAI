@@ -16,7 +16,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class SamplingSettings:
-    patients_per_split: int = 10000
+    patients_per_split: int = 100000
     random_fraction: float = 0.8
     reference_patients: int = 100000
     calibration_patients: int = 20000
@@ -25,7 +25,7 @@ class SamplingSettings:
     quantile: float = 0.9
     smoothing: float = 10.0
     minimum_calibration: int = 50
-    candidate_limit: int = 100000
+    candidate_limit: int = 1000000
     seed: int = 0
 
     def validate(self):

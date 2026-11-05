@@ -13,7 +13,7 @@ import numpy as np
 import polars as pl
 
 
-def plot_reports(report_dir, output_dir):
+def plot_reports(report_dir, output_dir, include_patient_distributions=False):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -21,7 +21,11 @@ def plot_reports(report_dir, output_dir):
 
     excess = pl.read_csv(report_dir / "excess.csv")
     tails = pl.read_csv(report_dir / "patient_tails.csv")
-    loss = pl.read_csv(report_dir / "loss_check.csv").row(0, named=True)
+    loss = (
+        pl.read_csv(report_dir / "loss_check.csv").row(0, named=True)
+        if (report_dir / "loss_check.csv").is_file()
+        else None
+    )
     manifest = json.loads((report_dir / "run_manifest.json").read_text())
     train = manifest["settings"]["train_split"]
     heldout = manifest["settings"]["heldout_split"]
@@ -31,6 +35,14 @@ def plot_reports(report_dir, output_dir):
     conditional = manifest.get("separator_policy", {}).get(
         "true_features_supplies_sep", False
     )
+    scope = (
+        "Primary / "
+        if manifest.get("analysis_role") == "primary_patient_code_only"
+        else "Supplemental / "
+    ) + manifest.get("analysis_cohort", "combined")
+    if manifest.get("diversity_filter"):
+        subset = manifest["diversity_filter"]
+        scope += f" / ≥{subset['minimum_unique_tokens']} unique {subset['basis']} codes"
     output_dir.mkdir(parents=True, exist_ok=True)
     metrics = ("exact_match", "overlap", "rare_codes")
     for mode in sorted(excess["mode"].unique()):
@@ -46,6 +58,8 @@ def plot_reports(report_dir, output_dir):
             if conditional and mode == "true_features"
             else ""
         )
+        if manifest.get("analysis_role") == "primary_patient_code_only":
+            title += " (probability sampling; public DOB seed)"
         fig, axes = plt.subplots(2, 3, figsize=(15, 8), squeeze=False)
         for column, metric in enumerate(metrics):
             for context in contexts:
@@ -90,7 +104,9 @@ def plot_reports(report_dir, output_dir):
                 axis.grid(alpha=0.2)
         axes[0, 0].legend(fontsize=8)
         axes[1, 0].legend(fontsize=8)
-        fig.suptitle(title + " — missing/undersampled cells: see coverage.csv")
+        fig.suptitle(
+            scope + " / " + title + " — missing/undersampled cells: see coverage.csv"
+        )
         fig.tight_layout()
         fig.savefig(output_dir / f"{mode}_metrics.png", dpi=180)
         plt.close(fig)
@@ -131,32 +147,48 @@ def plot_reports(report_dir, output_dir):
             axis.set_xscale("log", base=2)
             axis.grid(alpha=0.2)
         axes[0, 0].legend(fontsize=8)
-        fig.suptitle(title + " — proportions per cell, not percentages memorized")
+        fig.suptitle(
+            scope + " / " + title + " — proportions per cell, not percentages memorized"
+        )
         fig.tight_layout()
         fig.savefig(output_dir / f"{mode}_patient_rates.png", dpi=180)
         plt.close(fig)
 
-    fig, axis = plt.subplots(figsize=(7, 3))
-    axis.hlines(0, loss["auc_lower"], loss["auc_upper"], linewidth=3)
-    axis.plot(loss["auc"], 0, "o")
-    axis.axvline(0.5, color="grey", linestyle="--")
-    axis.set(
-        xlim=(0, 1),
-        yticks=[],
-        xlabel="Loss membership AUC (95% approximate CI)",
-        title="Lower loss ranks training membership; chance = 0.5",
-    )
-    fig.tight_layout()
-    fig.savefig(output_dir / "loss_auc.png", dpi=180)
-    plt.close(fig)
+    if loss is not None:
+        fig, axis = plt.subplots(figsize=(7, 3))
+        axis.hlines(0, loss["auc_lower"], loss["auc_upper"], linewidth=3)
+        axis.plot(loss["auc"], 0, "o")
+        axis.axvline(0.5, color="grey", linestyle="--")
+        axis.set(
+            xlim=(0, 1),
+            yticks=[],
+            xlabel="Loss membership AUC (95% approximate CI)",
+            title=scope + "\nLower loss ranks training membership; chance = 0.5",
+        )
+        fig.tight_layout()
+        fig.savefig(output_dir / "loss_auc.png", dpi=180)
+        plt.close(fig)
+
+    from bonsai.run.memorization_diagnostic_plots import plot_diagnostics
+
+    plot_diagnostics(report_dir, output_dir, include_patient_distributions)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--include-patient-distributions",
+        action="store_true",
+        help="Also plot saved per-patient loss distributions, reading split/loss columns only; no inference",
+    )
     args = parser.parse_args()
-    plot_reports(args.report_dir, args.output_dir or args.report_dir / "plots")
+    plot_reports(
+        args.report_dir,
+        args.output_dir or args.report_dir / "plots",
+        args.include_patient_distributions,
+    )
 
 
 if __name__ == "__main__":

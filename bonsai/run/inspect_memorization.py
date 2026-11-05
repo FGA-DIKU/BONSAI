@@ -16,16 +16,27 @@ from pathlib import Path
 
 
 def examples(directory, subject_id, mode=None, context=None, horizon=None):
-    diversity_filter = None
+    diversity_filters = []
     analysis_cohort = None
     manifest_path = directory / "run_manifest.json"
     if manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text())
-        diversity_filter = manifest.get("diversity_filter")
+        diversity_filters = manifest.get("diversity_filters") or (
+            [manifest["diversity_filter"]] if manifest.get("diversity_filter") else []
+        )
         analysis_cohort = manifest.get("analysis_cohort")
-        source = manifest.get("reanalysis", {}).get("source_trajectory_exports")
-        if source:
+        visited = {directory.resolve()}
+        while source := manifest.get("reanalysis", {}).get("source_trajectory_exports"):
             directory = Path(source)
+            if directory.resolve() in visited:
+                raise ValueError(
+                    "Cyclic trajectory-source provenance; cannot locate original exports."
+                )
+            visited.add(directory.resolve())
+            manifest_path = directory / "run_manifest.json"
+            manifest = (
+                json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+            )
     for name in ("flagged_trajectories.jsonl", "unflagged_examples.jsonl"):
         path = directory / name
         if not path.is_file():
@@ -35,7 +46,8 @@ def examples(directory, subject_id, mode=None, context=None, horizon=None):
                 row = json.loads(line)
                 if analysis_cohort and row.get("sampling_cohort") != analysis_cohort:
                     continue
-                if diversity_filter:
+                excluded = False
+                for diversity_filter in diversity_filters:
                     basis = diversity_filter["basis"]
                     count = row["scores"].get(f"unique_{basis}_tokens")
                     if count is None:
@@ -52,7 +64,10 @@ def examples(directory, subject_id, mode=None, context=None, horizon=None):
                             }
                         )
                     if count < diversity_filter["minimum_unique_tokens"]:
-                        continue
+                        excluded = True
+                        break
+                if excluded:
+                    continue
                 if (
                     (subject_id is None or str(row["subject_id"]) == subject_id)
                     and (mode is None or row["mode"] == mode)
@@ -80,6 +95,25 @@ def format_example(row, width=120, minimum_unique=3):
         f"Distinct predicted clinical codes: {unique} (overlap threshold: {minimum_unique})",
         f"Distinct reference clinical codes: {row['scores'].get('unique_reference_tokens', len({token for token in row['true_continuation']['tokens'] if not token.startswith('[')}))}",
     ]
+    if seed := row.get("public_seed"):
+        lines.extend(
+            [
+                f"Public model input: {seed['token']} (ID {seed['id']}); patient context=0; no patient features.",
+                f"Stored assigned draw row: {row['generation_row']}; true continuation starts at original record offset {row['reference_offset']} after DOB.",
+            ]
+        )
+    if selection := row.get("audit_selection"):
+        lines.extend(
+            [
+                f"Selection: {selection['reason']} for group-level {selection['metric']} audit.",
+                f"Original saved score={selection['saved_score']:.6f}; {'stored draw' if selection.get('stored_draw') else 'replay'} score={selection['replayed_score']:.6f}.",
+                f"{'Stored draw' if selection.get('stored_draw') else 'Replay'} matches saved scores: {selection['replay_matches_saved_scores']}.",
+            ]
+        )
+        if not selection["replay_matches_saved_scores"]:
+            lines.append(
+                "REPLAY DISAGREEMENT: this continuation is a new replay, not verified as the original prediction."
+            )
     review_flags = []
     if row["Y"] >= 32:
         if row["scores"].get("exact_match") == 1:
@@ -100,6 +134,34 @@ def format_example(row, width=120, minimum_unique=3):
         lines.append(
             f"  {name:14s}: {'not scored' if value is None else f'{100 * value:.2f}%'}"
         )
+    if evidence := row.get("rare_code_evidence"):
+        lines.extend(
+            [
+                "",
+                "RARE-CODE MATCHES (unordered occurrence counts)",
+                f"Matched {evidence['matched_rare_occurrences']}/{evidence['true_rare_occurrences']} true rare occurrences; generated rare occurrences={evidence['predicted_rare_occurrences']}.",
+            ]
+        )
+        for code in evidence["codes"]:
+            label = (
+                "MATCHED"
+                if code["matched_occurrences"]
+                else "MISSED"
+                if code["true_occurrences"]
+                else "GENERATED ONLY"
+            )
+            lines.append(f"  {label}: {code['token']} (ID {code['code_id']})")
+            lines.append(
+                f"    true={code['true_occurrences']} predicted={code['predicted_occurrences']} matched={code['matched_occurrences']}"
+            )
+            if code["training_patient_count"] is not None:
+                lines.append(
+                    f"    Training holders: {code['training_patient_count']}/{code['training_patients']} ({100 * code['training_patient_fraction']:.6f}%)."
+                )
+            else:
+                lines.append(
+                    "    Training holders: unavailable; exact counts were not retained in this cache."
+                )
     lines.extend(textwrap.wrap("History scope: " + row["scope"], width))
 
     def metadata(features, position):
@@ -112,9 +174,23 @@ def format_example(row, width=120, minimum_unique=3):
             parts.append(f"{field}={value if value is not None else 'missing'}")
         return "  ".join(parts)
 
-    history = ["", "PROMPT HISTORY (true inputs) {{{2", "-" * width]
+    history = [
+        "",
+        "PUBLIC INPUT AND REFERENCE HISTORY {{{2"
+        if row.get("public_seed")
+        else "PROMPT HISTORY (true inputs) {{{2",
+        "-" * width,
+    ]
     history.extend(
-        textwrap.wrap("Decoded prompt: " + " | ".join(row["prompt"]["tokens"]), width)
+        textwrap.wrap(
+            "Decoded prompt: "
+            + (
+                row["public_seed"]["token"] + " (public token only)"
+                if row.get("public_seed")
+                else " | ".join(row["prompt"]["tokens"])
+            ),
+            width,
+        )
     )
     for position, token in enumerate(row["prompt"]["tokens"]):
         history.extend(
@@ -127,6 +203,14 @@ def format_example(row, width=120, minimum_unique=3):
                 initial_indent="       ",
                 subsequent_indent="       ",
             )
+        )
+    if row.get("reference_history"):
+        history.extend(
+            [
+                "",
+                "REFERENCE HISTORY — NEVER MODEL INPUT",
+                *textwrap.wrap(" | ".join(row["reference_history"]["tokens"]), width),
+            ]
         )
     lines.extend(
         [
@@ -189,6 +273,9 @@ def write_audit(directory, output_file, minimum_unique=3, width=120):
     for number, row in enumerate(examples(directory, None), 1):
         category = "FLAGGED" if row["flagged"] else "UNFLAGGED EXAMPLE"
         counts[category] += 1
+        if row.get("audit_selection", {}).get("reason") == "rare_code_match_review":
+            counts["RARE-CODE REVIEW"] += 1
+            category = "RARE-CODE REVIEW"
         patients.add((row["split"], str(row["subject_id"])))
         unique = row["scores"].get("unique_predicted_tokens", "unknown")
         index.append(
@@ -199,7 +286,7 @@ def write_audit(directory, output_file, minimum_unique=3, width=120):
             "BONSAI PATIENT AUDIT",
             "Contains patient data. Keep this file on the data server.",
             f"Exported cases: {len(index)}; distinct patients represented: {len(patients)}.",
-            f"Flagged cases: {counts['FLAGGED']}; sampled unflagged cases: {counts['UNFLAGGED EXAMPLE']}.",
+            f"Individual reproduction flags: {counts['FLAGGED']}; no individual flag: {counts['UNFLAGGED EXAMPLE']}; rare-code review cases: {counts['RARE-CODE REVIEW']}.",
             f"Overlap diversity threshold: at least {minimum_unique} distinct predicted clinical codes.",
             "Cases are patient/context/horizon/mode combinations, not distinct patients.",
             "Flags suggest review, not proof of memorization. Low-diversity exact matches remain visible.",
@@ -216,12 +303,31 @@ def write_audit(directory, output_file, minimum_unique=3, width=120):
             "  /LOW DIVERSITY                      Find simple/repetitive continuations.",
             "  /REVIEW NOTE                        Find the blank note area in each case.",
             "",
-            "CASE INDEX (flagged exports first, then sampled unflagged examples)",
+            "CASE INDEX (individual flags first, then other exported review examples)",
         ]
+        manifest_path = directory / "run_manifest.json"
+        metadata = (
+            json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+        )
+        if cell := metadata.get("cell_audit"):
+            header[1:1] = [
+                f"GROUP-LEVEL CELL AUDIT: {cell['mode']} X={cell['X']} Y={cell['Y']} metric={cell['metric']} cohort={cell['cohort']}",
+                "Selection: "
+                + cell["selection"]
+                + ". These examples are not population estimates.",
+                "Trajectories are regenerated; saved-score agreement checks consistency, not token-identical original predictions.",
+                f"Replay mismatches: {cell['replay_mismatches']}; check original/replayed score labels in each case.",
+                "Read summary.txt for the distribution of ALL contributing patients and the saved-score excess.",
+            ]
         for line in header + index:
             stream.write("\n".join(textwrap.wrap(line, width) or [""]) + "\n")
         for number, row in enumerate(examples(directory, None), 1):
             category = "FLAGGED AT EXPORT" if row["flagged"] else "UNFLAGGED EXAMPLE"
+            reason = row.get("audit_selection", {}).get("reason")
+            if reason == "rare_code_match_review":
+                category = "RARE-CODE REVIEW"
+            elif reason == "zero_score_control":
+                category = "ZERO-SCORE CONTROL"
             stream.write(
                 f"\nCASE {number:06d} | Patient {row['subject_id']} | {category} "
                 + "{{{1\n"

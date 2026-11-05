@@ -5,6 +5,8 @@ Only sampled, bounded windows are stored. Full-training rarity groups are retain
 separately so their definition does not change when reusing the sample.
 """
 
+import hashlib
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -77,6 +79,47 @@ def source_stamp(path):
     return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
+def cohort_identity(records):
+    """Stable fingerprint of selected split/ID/cohort membership, without token data."""
+    digest = hashlib.sha256()
+    for split, part in sorted(records.items()):
+        for identifier, cohort in sorted(
+            (str(row["subject_id"]), row["sampling_cohort"]) for row in part
+        ):
+            digest.update(
+                (
+                    json.dumps((split, identifier, cohort), separators=(",", ":"))
+                    + "\n"
+                ).encode()
+            )
+    return digest.hexdigest()
+
+
+def load_fixed_references(manifest, maximum, cache_override=None):
+    """Use the same nested fixed IDs as supplemental contexts; never fit/reselect."""
+    cache = manifest.get("evaluation_cache") or {}
+    if not cache.get("signature"):
+        raise ValueError(
+            "A source run with --evaluation-cache is required. Prepare a fixed-cohort cache first."
+        )
+    path = cache_override or Path(cache["path"])
+    print(
+        f"Loading fixed reference cache: {path} (up to {maximum:,} patients per split; no raw-population loading)",
+        flush=True,
+    )
+    datasets, countable, rare, _ = read_cache(path, cache["signature"], maximum)
+    if not all(
+        isinstance(dataset, FixedCohortWindows) for dataset in datasets.values()
+    ):
+        raise ValueError(
+            "Context-zero checks require the fixed random/uncommon cohorts, not legacy pools."
+        )
+    records = {
+        split: dataset.sample(0, maximum, False) for split, dataset in datasets.items()
+    }
+    return records, countable, rare, {**cache, "path": str(Path(path).resolve())}
+
+
 def build_pools(
     windows, minimum_lengths, capacity, sampler, excluded_target, generation_limit=None
 ):
@@ -115,7 +158,9 @@ def build_pools(
     return result
 
 
-def save_cache(path, signature, capacity, pools, countable, rare, sampling=None):
+def save_cache(
+    path, signature, capacity, pools, countable, rare, sampling=None, rare_metadata=None
+):
     """Atomic publication; interrupted preparation leaves no apparently valid cache."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +176,7 @@ def save_cache(path, signature, capacity, pools, countable, rare, sampling=None)
                 "countable": countable,
                 "rare": rare,
                 "sampling": sampling,
+                "rare_metadata": rare_metadata,
             },
             temporary,
         )
@@ -155,6 +201,7 @@ def read_cache(path, signature, requested):
     }
     for dataset in windows.values():
         dataset.sampling_audit = payload.get("sampling")
+        dataset.rare_metadata = payload.get("rare_metadata")
     return (
         windows,
         payload["countable"],

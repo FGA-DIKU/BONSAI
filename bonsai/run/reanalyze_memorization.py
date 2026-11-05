@@ -20,16 +20,15 @@ from pathlib import Path
 
 import polars as pl
 
-from bonsai.run.memorization_check import (
+from bonsai.functional.memorization_metrics import (
     INSPECTION_HORIZON,
     PARTIAL_REPRODUCTION,
     excess_over_unseen,
     grid_coverage,
     patient_flag_rates,
     patient_tails,
-    write_cohort_reports,
-    write_outputs,
 )
+from bonsai.run.memorization_check import write_cohort_reports, write_outputs
 
 
 def reanalyze(
@@ -160,6 +159,13 @@ def reanalyze(
             "minimum_unique_tokens": minimum_diversity,
             "scope": "generation continuation, per patient/cell; loss AUC remains the unfiltered comparison",
         }
+        prior_filters = manifest.get("diversity_filters") or (
+            [manifest["diversity_filter"]] if manifest.get("diversity_filter") else []
+        )
+        subset_manifest["diversity_filters"] = [
+            *prior_filters,
+            subset_manifest["diversity_filter"],
+        ]
         subset_dir = output_dir / "diversity_filtered"
         subset_manifest["settings"]["output_dir"] = str(subset_dir)
         settings = manifest["settings"]
@@ -172,6 +178,9 @@ def reanalyze(
             splits,
             manifest["effective_context"],
             settings["min_patients"],
+            minimum_diversity=max(
+                f["minimum_unique_tokens"] for f in subset_manifest["diversity_filters"]
+            ),
         )
         write_outputs(
             excess_over_unseen(filtered, *splits),
@@ -210,6 +219,10 @@ def reanalyze(
                 stream.write(
                     "Filtering on predictions conditions on model behaviour; use as descriptive sensitivity analysis, not the primary comparison.\n"
                 )
+
+    from bonsai.run.report_memorization import write_report
+
+    write_report(output_dir)
 
 
 def main():
