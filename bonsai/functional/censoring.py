@@ -1,5 +1,4 @@
 from bisect import bisect_left
-from typing import Optional
 
 import torch
 
@@ -7,7 +6,7 @@ import torch
 def censor_subject(
     subject: dict[str, torch.Tensor],
     censor_date_abspos: float,
-    predict_token_id: Optional[int] = None,
+    predict_token_id: int | None = None,
 ) -> dict:
     """
     Censors a subject's data by truncating all attributes at the censor date,

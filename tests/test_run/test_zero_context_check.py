@@ -199,6 +199,41 @@ class TestZeroContext(unittest.TestCase):
                 "Cohort statuses:", (root / "zero/primary_summary.txt").read_text()
             )
             self.assertIn("random:", (root / "zero/primary_summary.txt").read_text())
+            falloff = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "bonsai.run.zero_context_falloff",
+                    "--report-dir",
+                    str(root / "zero"),
+                    "--output-dir",
+                    str(root / "zero/falloff"),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(falloff.returncode, 0, falloff.stderr)
+            dense = pl.read_csv(root / "zero/falloff/every_step.csv")
+            self.assertEqual(set(dense["Y"]), set(range(1, 65)))
+            combined = dense.filter(
+                (pl.col("cohort") == "combined") & (pl.col("score") == "exact_match")
+            )
+            fixed = combined.filter(pl.col("view") == "fixed")
+            self.assertEqual(set(fixed["patients_train"]), {5})
+            available = combined.filter(pl.col("view") == "all_available")
+            self.assertEqual(
+                available.filter(pl.col("Y") == 1)["patients_train"].item(), 10
+            )
+            self.assertEqual(
+                available.filter(pl.col("Y") == 17)["patients_train"].item(), 5
+            )
+            self.assertTrue((fixed["excess"] == 1).all())
+            self.assertTrue(excess.equals(pl.read_csv(root / "zero/excess.csv")))
+            from bonsai.run.report_memorization import write_report
+
+            overview = write_report(root / "zero", root / "overview")
+            self.assertIn("every_step.csv", overview.read_text())
             audited = subprocess.run(
                 [
                     sys.executable,

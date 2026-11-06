@@ -23,6 +23,20 @@ supplemental checks, and decode only to their longest eligible horizon.
 
 ## Use one cohort for both runs
 
+To run the complete pipeline, edit the custom settings at the top of
+[`scripts/run_memorization.sh`](../scripts/run_memorization.sh), then run:
+
+```bash
+bash scripts/run_memorization.sh
+```
+
+The script defaults to **100,000 patients per split**. It runs supplemental
+checks, the primary context-zero check, diversity reanalysis and the combined
+report in sequence, stopping on errors. Each step has a log in `OUTPUT_DIR`,
+which also retains a copy of the configured script. Standard figures are generated
+at the end, with optional every-step curves in the fall-off stage; set
+`GENERATE_PLOTS=false` for text/CSV reports only.
+
 For **100,000 patients total**, use 50,000 per split: 40,000 random plus 10,000
 uncommon in training and the same allocation in tuning. For 200,000 total, use
 100,000 per split. The size flag is always **per split**.
@@ -123,6 +137,34 @@ python -m bonsai.run.report_memorization \
   --primary-report /path/to/new/context_zero_100k_total \
   --output-dir /path/to/new/combined_report
 ```
+
+## Every-step fall-off from existing predictions
+
+No GPU inference is needed. Using the completed **unfiltered combined**
+context-zero report, run:
+
+```bash
+python -m bonsai.run.zero_context_falloff \
+  --report-dir /path/to/context_zero_results \
+  --output-dir /path/to/context_zero_results/falloff --plots
+```
+
+Omit `--plots` for table/text only. `every_step.csv` and `report.txt` report all
+saved steps for exact-prefix match, occurrence-limited overlap, rare-code recall
+and accuracy at the individual position. They include train/tuning means,
+train-minus-tuning excess, pointwise intervals and metric-specific denominators.
+Three optional figures cover combined/random/uncommon cohorts. The combined
+report links to these outputs when they are saved in `context_zero_results/falloff`.
+The run script enables this stage with `EVERY_STEP_FALLOFF=true`.
+
+The `fixed` view retains only patients with references and saved draws through
+the maximum horizon. The `all_available` view uses shorter draws too; its patient
+membership can change with the step. Rare-code denominators can change even in
+the fixed view as the first true rare code appears. All views are unfiltered;
+these descriptive curves add no pass/fail tests and do not alter existing gates.
+The default maximum is the stored matrix width; `--max-horizon 128`, for example,
+defines a fixed cohort eligible through 128, provided those predictions exist.
+Stored `-1` padding is never scored. Missing steps are not regenerated.
 
 ## Runtime and sensitivity
 

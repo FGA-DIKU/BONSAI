@@ -1,11 +1,12 @@
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import List, Dict, Iterable
-import torch
+
 import polars as pl
+import torch
 
 
-def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
+def prepare_subject_data(split_path: Path) -> list[dict[str, torch.Tensor]]:
     """Load tokenized data and prepare it in the format needed for the models (subject_data)."""
     all_tokenized = []
     for shard in split_path.glob("*.parquet"):
@@ -28,7 +29,7 @@ def prepare_subject_data(split_path: Path) -> List[Dict[str, torch.Tensor]]:
     return all_tokenized
 
 
-def filter_subject_data(subject_data: List[dict], cohort: Iterable[int]) -> List[dict]:
+def filter_subject_data(subject_data: list[dict], cohort: Iterable[int]) -> list[dict]:
     """Filter subject_data to only include subjects in the cohort."""
     pre = len(subject_data)
     cohort_set = set(cohort)  # Convert to set for faster lookup

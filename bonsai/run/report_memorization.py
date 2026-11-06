@@ -193,6 +193,17 @@ def write_report(
             *(primary_report / "primary_summary.txt").read_text().splitlines(),
             "",
         ]
+        falloff = primary_report / "falloff"
+        if (falloff / "provenance.json").is_file():
+            primary_lines.extend(
+                [
+                    "EVERY-STEP DESCRIPTIVE CURVES (do not affect check statuses):",
+                    f"Table: {falloff / 'every_step.csv'}",
+                    f"Readable report: {falloff / 'report.txt'}",
+                    f"Optional figures: {falloff / 'falloff_combined.png'} (also random/uncommon).",
+                    "",
+                ]
+            )
     if not directories and not primary_lines:
         raise ValueError(
             "No completed memorization reports found (excess.csv required)."

@@ -252,13 +252,25 @@ def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, flo
 def difference_in_means(train: np.ndarray, unseen: np.ndarray, is_proportion: bool):
     """Mean of ``train`` minus mean of ``unseen`` with a 95% interval: Newcombe
     (1998, method 10) for exact match (yes/no), otherwise normal (Welch)."""
-    p1, p2 = train.mean(), unseen.mean()
+    return difference_from_summary(
+        train.mean(),
+        train.var(ddof=1),
+        len(train),
+        unseen.mean(),
+        unseen.var(ddof=1),
+        len(unseen),
+        is_proportion,
+    )
+
+
+def difference_from_summary(p1, v1, n1, p2, v2, n2, is_proportion):
+    """Same intervals from means/sample variances; supports bounded-memory scans."""
     if is_proportion:
-        l1, u1 = wilson_interval(int(train.sum()), len(train))
-        l2, u2 = wilson_interval(int(unseen.sum()), len(unseen))
+        l1, u1 = wilson_interval(round(p1 * n1), n1)
+        l2, u2 = wilson_interval(round(p2 * n2), n2)
         below, above = math.hypot(p1 - l1, u2 - p2), math.hypot(u1 - p1, p2 - l2)
         return p1 - p2, p1 - p2 - below, p1 - p2 + above
-    variance = train.var(ddof=1) / len(train) + unseen.var(ddof=1) / len(unseen)
+    variance = v1 / n1 + v2 / n2
     if variance == 0:
         # All-zero overlap must not imply zero uncertainty about rare successes.
         # At boundaries, bound the probability of any unobserved nonzero/error
@@ -273,8 +285,8 @@ def difference_in_means(train: np.ndarray, unseen: np.ndarray, is_proportion: bo
             radius = math.sqrt(math.log(80) / (2 * n))
             return max(0.0, mean - radius), min(1.0, mean + radius)
 
-        lo1, hi1 = interval(p1, len(train))
-        lo2, hi2 = interval(p2, len(unseen))
+        lo1, hi1 = interval(p1, n1)
+        lo2, hi2 = interval(p2, n2)
         return p1 - p2, lo1 - hi2, hi1 - lo2
     half = 1.96 * math.sqrt(variance)
     return p1 - p2, p1 - p2 - half, p1 - p2 + half
