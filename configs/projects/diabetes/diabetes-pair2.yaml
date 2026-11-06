@@ -3,7 +3,7 @@ defaults:
   - /core/base_create@
   - _self_
 
-dataset: phair_light
+dataset: phair_light_MEDS_data
 
 paths: 
   input_dir: FILL_OUT_THIS/${dataset}
