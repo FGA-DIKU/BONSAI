@@ -3,7 +3,7 @@ defaults:
   - /core/base_create@
   - _self_
 
-dataset: phair_light
+dataset: phair_light_MEDS_data
 
 paths: 
   input_dir: FILL_OUT_THIS/${dataset}
@@ -21,7 +21,7 @@ index:
     occurrence: first
     criteria:
       any:
-        - {column: code, value: [ MEDICATION//A10BB ], operator: startswith_any} 
+        - {column: code, value: [ MEDICATION//A10BK], operator: startswith_any} 
 
 outcome:
   mode: match
@@ -29,7 +29,7 @@ outcome:
     occurrence: first
     criteria:
       all_row:
-        - {column: code, value: [DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162], operator: startswith_any}
+        - {column: code, value: [DIAGNOSIS//DN17, DIAGNOSIS//DE86], operator: startswith_any}
         - {column: time, operator: gt, value_col: index_date}
 
 censor:
@@ -44,7 +44,7 @@ cohort:
         occurrence: all
         criteria:
           all_row:
-            - {column: code, value: [DIAGNOSIS//DE160, DIAGNOSIS//DE161, DIAGNOSIS//DE162], operator: startswith_any}
+            - {column: code, value: [DIAGNOSIS//DN17, DIAGNOSIS//DE86, DIAGNOSIS//DN18], operator: startswith_any}
             - {column: time, operator: lt, value_col: index_date}
 
     # Our diabetes cohort exclude/include
@@ -61,4 +61,4 @@ cohort:
         criteria:
           all_row:
             - {column: code, value: [MEDICATION//A10, DIAGNOSIS//DE11], operator: startswith_any}
-            - {column: time, operator: lt, value_col: index_date}
+            - {column: time, operator: le, value_col: index_date}

@@ -16,3 +16,4 @@ training:
 model:
   _target_: bonsai.modules.networks.bonsai_nets.BonsaiValueFinetune
   value_embedding_mode: film
+  attn_type: sdpa
