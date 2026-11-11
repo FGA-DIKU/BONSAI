@@ -88,6 +88,15 @@ Pass the `last.ckpt` of the run and its original run id. Without `run_id` a new 
 python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data paths.ckpt_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_1234/version_0/last.ckpt run_id=1234
 ```
 
+## Transfer a trained model
+
+Use `python -m bonsai.run.model_bundle pack` to export model weights,
+the vocabulary, BONSAI and ehr2meds source/configs, and frozen per-code
+transformations for use on another site's own patients. Patient records and
+cohort files are outside the export. Use `unpack` to verify and extract the ZIP
+on another server. See [model transfer](docs/model_transfer.md) for commands, required
+artifacts and restoration steps.
+
 ## Related projects
 
 - [CORE-BEHRT](https://github.com/mikkelfo/CORE-BEHRT): the predecessor framework BONSAI grew out of.

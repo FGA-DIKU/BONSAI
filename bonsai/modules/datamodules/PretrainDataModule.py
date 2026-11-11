@@ -1,5 +1,3 @@
-from typing import Optional
-
 import lightning as L
 import polars as pl
 import torch
@@ -24,8 +22,9 @@ class PretrainDataModule(L.LightningDataModule):
         num_workers: int,
         max_len: int,
         dataset_class: torch.utils.data.Dataset,
-        masking_config: Optional[dict] = None,
-        cutoff_date: Optional[dict] = None,
+        masking_config: dict | None = None,
+        cutoff_date: dict | None = None,
+        ignore_target_tokens: list[str] | None = None,
     ):
         super().__init__()
         self.path_train_data = path_train_data
@@ -37,6 +36,7 @@ class PretrainDataModule(L.LightningDataModule):
 
         self.max_len = max_len
         self.cutoff_date = cutoff_date
+        self.ignore_target_tokens = list(ignore_target_tokens or [])
 
         self.dataset_class = dataset_class
         self.masking_config = masking_config
@@ -90,12 +90,16 @@ class PretrainDataModule(L.LightningDataModule):
                 self.max_len,
                 background_length=background_length,
                 cutoff_date=self.cutoff_date,
+                vocabulary=self.vocabulary,
+                ignore_target_tokens=self.ignore_target_tokens,
             )
             self.val_dataset = self.dataset_class(
                 val_data,
                 self.max_len,
                 background_length=background_length,
                 cutoff_date=self.cutoff_date,
+                vocabulary=self.vocabulary,
+                ignore_target_tokens=self.ignore_target_tokens,
             )
         else:
             raise ValueError(f"Unexpected dataset class. Got: {self.dataset_class}")
