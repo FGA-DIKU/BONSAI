@@ -143,3 +143,28 @@ establish equivalence or prove that memorization is absent.
 The saved reports contain the numerical evidence. Further method details are in
 [the context-zero documentation](docs/memorization_zero_context.md) and
 [the supplemental and sampling documentation](docs/memorization_sampling.md).
+
+
+## What we can conclude from the checks with context
+
+The checks with context passed but some tests required further inspection, as they were flagged
+an excess towards either training or tuning. The majority of the flagged tests had a negative
+excess (better on Tuning) which, in itself, is entirely unproblematic, but raised concern with
+respect to the validity of the tests. We would expect the model to either be better at
+reconstructing training data or to not show any meaningful difference and not to be better at
+reconstructing tuning data. The flagged negative excesses were deemed to be unproblematic because
+(1) even though they technically excluded 0 it was very often only technically and with a high
+degree of uncertainty and (2) correctly reconstructing subjects either completely or partially was 
+still found to be a very rare event which aligns with the expectation that given enough attempts
+sometimes a real patient will be generated. To expand upon this point, note that even when given a long and 100% 
+complete patient history (including correctness of ordering, timepoints, and formatting) the 
+likelihood of the model reconstructing a patient is so low that a malicious actor would not not be able
+to deliberately reconstruct a patient in the training set even with an urealistic amount of 
+information at hand. The flagged positive excesses were far fewer and deemed to be unproblematic
+for the reason (2) described above and (3) because this flag was only raised under a single 
+experimental setup where the signal only fired when conditions were radicalized and sample sizes
+dramatically reduced, and (4) because most of the succesfully reproduced subjects were low
+diversity patients with less than three unique codes in their patient history. 
+
+
+
