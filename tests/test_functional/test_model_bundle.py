@@ -16,7 +16,6 @@ import torch
 
 from bonsai.functional.model_bundle import (
     export_transform,
-    find_transform,
     pack_bundle,
     unpack_bundle,
 )
@@ -312,8 +311,6 @@ class TestModelBundle(unittest.TestCase):
                 str(self.checkpoint),
                 "--vocabulary",
                 str(self.vocabulary),
-                "--data-config",
-                str(self.config),
                 "--no-numeric-metadata",
                 "--no-code-mapping",
                 "--output",
@@ -334,57 +331,6 @@ class TestModelBundle(unittest.TestCase):
         loaded = load_bundle(self.root / "restored")
         self.assertIsNone(loaded.numeric_metadata)
         self.assertIsNone(loaded.code_mapping)
-
-    def test_cli_finds_fitted_transforms_without_packaging_configs_or_patient_data(
-        self,
-    ):
-        (self.root / "subject_data_train.pt").write_bytes(b"local patients")
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "bonsai.run.model_bundle",
-                "pack",
-                "--checkpoint",
-                str(self.checkpoint),
-                "--vocabulary",
-                str(self.vocabulary),
-                "--ehr2meds-dir",
-                str(self.root),
-                "--output",
-                str(self.archive),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        restored = unpack_bundle(self.archive, self.root / "restored")
-        manifest = json.loads((restored / "manifest.json").read_text())
-        self.assertFalse(any(p.startswith("settings/") for p in manifest["files"]))
-        self.assertNotIn("subject_data_train.pt", manifest["files"])
-        self.assertEqual(
-            set(manifest["files"]),
-            {
-                "model/model.ckpt",
-                "model/vocabulary.pt",
-                "preprocessing/numeric_metadata.json",
-                "preprocessing/code_mapping.parquet",
-            },
-        )
-        self.assertIsInstance(load_bundle(restored).model, BonsaiPretrain)
-
-    def test_transform_discovery_refuses_missing_or_ambiguous_fits(self):
-        self.assertEqual(find_transform(self.root, "numeric_metadata"), self.numeric)
-        other = self.root / "older_run"
-        other.mkdir()
-        (other / self.numeric.name).write_bytes(self.numeric.read_bytes())
-        with self.assertRaisesRegex(ValueError, "found 2"):
-            find_transform(self.root, "numeric_metadata")
-        self.numeric.unlink()
-        (other / self.numeric.name).unlink()
-        with self.assertRaisesRegex(ValueError, "found 0"):
-            find_transform(self.root, "numeric_metadata")
 
     def test_invalid_vocabulary_transform_and_weights_are_rejected(self):
         torch.save({"[PAD]": 0, "[SEP]": 99}, self.vocabulary)

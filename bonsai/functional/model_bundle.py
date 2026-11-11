@@ -1,8 +1,7 @@
 """Pack and unpack model weights, vocabulary, fitted transforms and optional YAML.
 
 Packing stages only the selected assets, then writes a manifest listing them.
-Patient shards are never copied, including when locating fitted transforms in
-an ehr2meds run directory.
+Patient shards are never copied.
 """
 
 from __future__ import annotations
@@ -184,32 +183,6 @@ def export_checkpoint(checkpoint: Path, target: Path) -> dict:
         raise ValueError("Checkpoint has no supported pretraining or fine-tuning head")
     torch.save(payload, target)
     return {"class": model_class, "parameters": parameters}
-
-
-def find_transform(directory: Path, role: str) -> Path:
-    """Find exactly one standard fitted file; missing or multiple matches are errors."""
-    filenames = {
-        "numeric_metadata": {"numeric_metadata.json", "numeric_metadata.parquet"},
-        "code_mapping": {"adaptive_code_mapping.json", "adaptive_code_mapping.parquet"},
-    }
-    if role not in filenames:
-        raise ValueError(f"Unknown transformation role: {role}")
-    directory = Path(directory)
-    if not directory.is_dir():
-        raise ValueError(f"ehr2meds output directory does not exist: {directory}")
-    matches = []
-    for path in directory.rglob("*"):
-        if path.name in filenames[role] and path.is_file():
-            matches.append(path)
-    matches.sort()
-    option = role.replace("_", "-")
-    if len(matches) != 1:
-        details = ", ".join(str(p.relative_to(directory)) for p in matches) or "none"
-        raise ValueError(
-            f"Expected one {role} in {directory}; found {len(matches)} ({details}). "
-            f"Supply --{option} explicitly, or --no-{option} if unused."
-        )
-    return matches[0]
 
 
 def pack_bundle(

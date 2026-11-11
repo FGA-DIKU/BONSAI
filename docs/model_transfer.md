@@ -36,26 +36,18 @@ Run from an environment with BONSAI installed:
 python -m bonsai.run.model_bundle pack \
   --checkpoint /path/to/best.ckpt \
   --vocabulary /path/to/vocabulary.pt \
-  --ehr2meds-dir /path/to/completed/ehr2meds_run \
+  --numeric-metadata /path/to/numeric_metadata.json \
+  --code-mapping /path/to/adaptive_code_mapping.parquet \
   --output model_bundle.zip
 
 python -m bonsai.run.model_bundle unpack model_bundle.zip restored_model
 python -m bonsai.run.model_bundle load restored_model --device cpu --attn-type sdpa
 ```
 
-`--ehr2meds-dir` searches the selected run recursively for exactly one
-`numeric_metadata.json`/`.parquet` and one
-`adaptive_code_mapping.json`/`.parquet`. It exports only their allowed transform
-columns, never the directory's patient shards. Use the output directory of the
-original preprocessing run, not the ehr2meds source-code checkout.
-
-If either artifact is absent or several candidates exist, packing fails rather
-than selecting a fit or assuming it was unused. Explicit `--numeric-metadata`
-and `--code-mapping` paths override discovery for their respective roles; they
-also support custom filenames. Use `--no-code-mapping` or
-`--no-numeric-metadata` only for a transform that was unused. The model and
-vocabulary remain explicitly selected: the vocabulary is normally produced by
-BONSAI data creation, rather than ehr2meds.
+Specify the fitted ehr2meds files explicitly with `--numeric-metadata` and
+`--code-mapping`. Use `--no-code-mapping` or `--no-numeric-metadata` only when
+that transform was unused. The vocabulary is normally produced by BONSAI data
+creation, rather than ehr2meds. Only the selected assets are packaged.
 
 **Configs are optional attachments.** Add `--data-config create_data.yaml` and/or
 repeat `--config pipeline.yaml` for any YAML definitions you want to include.
@@ -260,7 +252,7 @@ support for older non-interleaved weights.
 
 On 2026-11-11, using synthetic data and local OPERA commit `3b90bc7`:
 
-- All 12 source bundle tests passed with the ehr2meds checkout available. The new
+- All 10 source bundle tests passed with the ehr2meds checkout available. The new
   integration check exports frozen transforms, applies the actual ehr2meds
   mapping/annotation/bin-joining stages to local lab values, and tokenizes with
   the bundled vocabulary. It checks values below/at/above source bounds, exact
@@ -292,9 +284,8 @@ Run the saved-artifact audits in the actual receiving environment.
 
 ### What these checks cannot guarantee
 
-This is not a foolproof end-to-end transfer. Discovery validates names and fitted
-schemas, not that a selected checkpoint, vocabulary and transforms came from the
-same training run. Configs are copied rather than executed or fully resolved.
+This is not a foolproof end-to-end transfer. The exporter validates fitted schemas, not that a selected checkpoint,
+vocabulary and transforms came from the same training run. Configs are copied rather than executed or fully resolved.
 The receiver must still check event definitions, clinical units, unknown-code
 handling and feature construction against the source. Successful loading and
 identity vocabulary transfer do not validate those semantics or clinical
