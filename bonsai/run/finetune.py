@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 from omegaconf import DictConfig, OmegaConf
 
 from bonsai.functional.loss import get_loss_weight
@@ -43,8 +43,9 @@ def main(cfg: DictConfig) -> None:
             "Cannot specify both sampling_weight_fn and loss_weight_function"
         )
 
-    logger = CSVLogger(get_experiment_output_path(), name="training_runs")
-    model_save_dir = logger.log_dir
+    save_dir = get_experiment_output_path()
+    csv_logger = CSVLogger(save_dir, name=None, version=None)
+    tb_logger = TensorBoardLogger(save_dir, name=None, version=csv_logger.version)
 
     ckpt = torch.load(cfg.pretrain_path, map_location="cpu", weights_only=False)
     pretrain_cfg = ckpt["hyper_parameters"]
@@ -106,7 +107,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
+        dirpath=save_dir,
         monitor=cfg.training.eval_monitor_metric,
         mode=cfg.training.eval_monitor_mode,
         save_top_k=1,
@@ -128,7 +129,7 @@ def main(cfg: DictConfig) -> None:
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
         callbacks=[ckpt_callback, early_stopping],
-        logger=[logger],
+        logger=[csv_logger, tb_logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
         precision=cfg.hardware.precision,
@@ -141,7 +142,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     if cfg.paths.predict_split is not None:
-        predictions_output_path = Path(model_save_dir) / "test_predictions"
+        predictions_output_path = Path(save_dir) / "test_predictions"
         lightning_module.predictions_output_path = predictions_output_path
         trainer.predict(
             model=lightning_module,

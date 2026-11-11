@@ -53,8 +53,8 @@ python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=co
 # 3. Build outcome labels -> data/processed_data/correlated_MEDS_data/outcomes/examples/example_outcome1.parquet
 python bonsai/run/create_outcome_cohort.py --config-name examples/example_outcome1 dataset=correlated_MEDS_data
 
-# 4. Finetune the pretrained model on that outcome (checkpoints are written to data/models/<dataset>/<config>/run_id_<id>/version_0/)
-python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_<id>/version_0/best.ckpt
+# 4. Finetune the pretrained model on that outcome (checkpoints are written to data/models/<dataset>/<config>/run_id_<id>/)
+python bonsai/run/finetune.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1 pretrain_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_<id>/best.ckpt
 
 # 5. Or train from scratch, skipping step 2
 python bonsai/run/train.py --config-name examples/example_finetune dataset=correlated_MEDS_data outcome=examples/example_outcome1
@@ -85,7 +85,7 @@ Place the file at `<processed data>/<dataset>/outcomes/<name>.parquet` and pass 
 Pass the `last.ckpt` of the run and its original run id. Without `run_id` a new run directory is created.
 
 ```bash
-python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data paths.ckpt_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_1234/version_0/last.ckpt run_id=1234
+python bonsai/run/pretrain.py --config-name examples/example_pretrain dataset=correlated_MEDS_data paths.ckpt_path=data/models/correlated_MEDS_data/examples/example_pretrain/run_id_1234/last.ckpt run_id=1234
 ```
 
 ## Related projects
