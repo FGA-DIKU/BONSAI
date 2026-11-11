@@ -1,0 +1,63 @@
+# @package _global_
+defaults:
+  - /core/base_create@
+  - _self_
+
+dataset: phair_light_MEDS_data
+
+paths: 
+  input_dir: FILL_OUT_THIS/${dataset}
+  save_path: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}/outcomes/${hydra:job.config_name}.parquet
+
+splits:
+  - train
+  - tuning
+  - held_out
+
+
+index:
+  missing: drop
+  mode: match
+  args:
+    occurrence: first
+    criteria:
+      any:
+        - column: code
+          value:
+            - MEDICATION//C09BA02
+            - MEDICATION//C09BA03
+            - MEDICATION//C09BA05
+            - MEDICATION//C09DA01
+            - MEDICATION//C09DA03
+            - MEDICATION//C09DA04
+            - MEDICATION//C09DA06
+            - MEDICATION//C09DA07
+            - MEDICATION//C09DA08
+            - MEDICATION//C09DX01
+            - MEDICATION//C03AA03
+          operator: startswith_any
+
+
+outcome:
+  mode: match
+  args:
+    occurrence: first
+    criteria:
+      all_row:
+        - {column: code, value: [DIAGNOSIS//DC44, DIAGNOSIS//DC43], operator: startswith_any}
+        - {column: time, operator: gt, value_col: index_date}
+
+censor:
+  mode: offset
+  args:
+    offset_by: 0d
+
+cohort:
+  conditional_criteria:
+    - action: exclude #exclude outcomes prior to index
+      args:
+        occurrence: all
+        criteria:
+          all_row:
+            - {column: code, value: [DIAGNOSIS//DC44, DIAGNOSIS//DC43], operator: startswith_any}
+            - {column: time, operator: lt, value_col: index_date}

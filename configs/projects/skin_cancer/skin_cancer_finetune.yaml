@@ -1,0 +1,22 @@
+# @package _global_
+defaults:
+  - /finetune
+  - _self_
+
+dataset: phair_light_MEDS_data
+outcome: 
+pretrain_path: 
+
+paths:
+  ckpt_path: null
+
+labels:
+  start_include:
+    days: 1095
+    hours: 0
+  end_include:
+    days: null
+
+training:
+  eval_monitor_metric: val/AUROC
+  eval_monitor_mode: max
