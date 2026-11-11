@@ -3,7 +3,19 @@
 import argparse
 from pathlib import Path
 
-from bonsai.functional.model_bundle import pack_bundle, unpack_bundle
+from bonsai.functional.model_bundle import find_transform, pack_bundle, unpack_bundle
+
+
+def resolve_transform(path, unused, directory, role):
+    """Use an explicit path, omit an unused transform, or find it in the run folder."""
+    if path is not None:
+        return path
+    if unused:
+        return None
+    if directory is not None:
+        return find_transform(directory, role)
+    option = role.replace("_", "-")
+    raise ValueError(f"Supply --{option}, --no-{option}, or --ehr2meds-dir")
 
 
 def main():
@@ -12,9 +24,14 @@ def main():
     pack = commands.add_parser("pack", help="Package explicitly selected files")
     pack.add_argument("--checkpoint", type=Path, required=True)
     pack.add_argument("--vocabulary", type=Path, required=True)
-    pack.add_argument("--data-config", type=Path, required=True)
+    pack.add_argument("--data-config", type=Path, help="Optional data-creation YAML")
+    pack.add_argument(
+        "--ehr2meds-dir",
+        type=Path,
+        help="Find standard fitted transforms in this ehr2meds output directory",
+    )
     for role in ("numeric-metadata", "code-mapping"):
-        group = pack.add_mutually_exclusive_group(required=True)
+        group = pack.add_mutually_exclusive_group()
         group.add_argument(f"--{role}", type=Path)
         group.add_argument(
             f"--no-{role}", action="store_true", help="Transform was unused"
@@ -37,17 +54,28 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "pack":
-            print(
-                pack_bundle(
-                    args.output,
-                    checkpoint=args.checkpoint,
-                    vocabulary=args.vocabulary,
-                    data_config=args.data_config,
-                    numeric_metadata=args.numeric_metadata,
-                    code_mapping=args.code_mapping,
-                    configs=tuple(args.config),
-                )
+            numeric_metadata = resolve_transform(
+                args.numeric_metadata,
+                args.no_numeric_metadata,
+                args.ehr2meds_dir,
+                "numeric_metadata",
             )
+            code_mapping = resolve_transform(
+                args.code_mapping,
+                args.no_code_mapping,
+                args.ehr2meds_dir,
+                "code_mapping",
+            )
+            output = pack_bundle(
+                args.output,
+                checkpoint=args.checkpoint,
+                vocabulary=args.vocabulary,
+                data_config=args.data_config,
+                numeric_metadata=numeric_metadata,
+                code_mapping=code_mapping,
+                configs=tuple(args.config),
+            )
+            print(output)
         elif args.command == "unpack":
             print(unpack_bundle(args.archive, args.destination))
         else:

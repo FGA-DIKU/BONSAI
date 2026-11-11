@@ -1,5 +1,6 @@
 """Explicit-file bundles preserve predictions and frozen token transformations."""
 
+import importlib.util
 import json
 import stat
 import subprocess
@@ -7,12 +8,18 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from contextlib import chdir
 from pathlib import Path
 
 import polars as pl
 import torch
 
-from bonsai.functional.model_bundle import export_transform, pack_bundle, unpack_bundle
+from bonsai.functional.model_bundle import (
+    export_transform,
+    find_transform,
+    pack_bundle,
+    unpack_bundle,
+)
 from bonsai.functional.model_loading import load_bundle
 from bonsai.modules.networks.bonsai_nets import (
     BonsaiFinetune,
@@ -148,6 +155,103 @@ class TestModelBundle(unittest.TestCase):
                         atol=0,
                     )
 
+    @unittest.skipUnless(importlib.util.find_spec("ehr2meds"), "Requires ehr2meds")
+    def test_frozen_lab_bins_keep_source_token_ids_on_local_patients(self):
+        # Stage registration resolves default YAML paths relative to the checkout.
+        spec = importlib.util.find_spec("ehr2meds")
+        checkout = Path(next(iter(spec.submodule_search_locations))).parent
+        with chdir(checkout):
+            from ehr2meds.adaptive_code_mapping import prepare_mapping
+            from ehr2meds.meds_stages.annotate_numeric_values import (
+                annotate_numeric_values_fntr,
+            )
+            from ehr2meds.meds_stages.apply_adaptive_code_mapping import apply_mapping
+            from ehr2meds.meds_stages.join_numeric_bins import join_numeric_bins
+        from omegaconf import OmegaConf
+
+        from bonsai.modules.tokenizer.tokenizer import EHRTokenizer
+
+        vocabulary = {
+            "[PAD]": 0,
+            "[SEP]": 1,
+            "C2": 2,
+            "[UNK]": 3,
+            "[MASK]": 4,
+            "C2//BIN_1": 5,
+            "C2//BIN_2": 6,
+            "C2//BIN_3": 7,
+        }
+        torch.save(vocabulary, self.vocabulary)
+        pl.DataFrame({"code": ["RAW"], "adaptive/mapped_code": ["C2"]}).write_parquet(
+            self.mapping
+        )
+        self.pack()
+        restored = load_bundle(unpack_bundle(self.archive, self.root / "local"))
+        cfg = OmegaConf.create(
+            {
+                "numeric_metadata_filepath": str(restored.numeric_metadata),
+                "numeric_value_columns": {
+                    "lower_bound": "numeric/bin_1",
+                    "upper_bound": "numeric/bin_99",
+                    "bin_edges": "numeric/bin_edges",
+                    "bin_representatives": "numeric/bin_representatives",
+                    "hard_minimum": "numeric/hard_minimum",
+                    "hard_maximum": "numeric/hard_maximum",
+                    "normalized": "normalized",
+                    "bin_index": "bin",
+                    "binned": "binned",
+                },
+                "numeric_value_column_groups": {
+                    "transform": [
+                        "lower_bound",
+                        "upper_bound",
+                        "bin_edges",
+                        "bin_representatives",
+                    ],
+                    "bounds": ["hard_minimum", "hard_maximum"],
+                    "derived": ["normalized", "bin_index", "binned"],
+                },
+            }
+        )
+        # No local fitting: reuse source limits, even for extreme destination values.
+        local_metadata = pl.DataFrame({"code": ["C2"]})
+        mapping = prepare_mapping(
+            local_metadata,
+            str(restored.code_mapping),
+            {"mapped_code": "adaptive/mapped_code"},
+        )
+        events = pl.DataFrame(
+            {
+                "code": ["RAW"] * 5 + ["LOCAL_ONLY"],
+                "numeric_value": [-100.0, 0.0, 5.0, 10.0, 100.0, 42.0],
+            }
+        )
+        mapped = apply_mapping(events.lazy(), mapping, "adaptive/mapped_code")
+        annotated = annotate_numeric_values_fntr(cfg, local_metadata)(mapped)
+        binned = join_numeric_bins(annotated, "bin", "//BIN_").collect()
+        self.assertEqual(
+            binned["code"].to_list(),
+            [
+                "C2//BIN_1",
+                "C2//BIN_1",
+                "C2//BIN_2",
+                "C2//BIN_3",
+                "C2//BIN_3",
+                "LOCAL_ONLY",
+            ],
+        )
+        tokenizer = EHRTokenizer(vocabulary=restored.vocabulary, sep_tokens=False)
+        tokenized = tokenizer(binned)
+        self.assertEqual(tokenized["code"].to_list(), [5, 5, 6, 7, 7, 3])
+        self.assertEqual(tokenizer.vocabulary, vocabulary)
+        self.assertFalse(tokenizer.hot_vocab)
+        batch = self.batch()
+        batch["code"] = torch.tensor([tokenized["code"].to_list()[:3]])
+        with torch.inference_mode():
+            torch.testing.assert_close(
+                self.original(batch), restored.model(batch), rtol=0, atol=0
+            )
+
     def test_only_selected_clean_assets_are_exported(self):
         (self.root / "subject_data_train.pt").write_bytes(b"never included")
         before = self.checkpoint.read_bytes()
@@ -230,6 +334,57 @@ class TestModelBundle(unittest.TestCase):
         loaded = load_bundle(self.root / "restored")
         self.assertIsNone(loaded.numeric_metadata)
         self.assertIsNone(loaded.code_mapping)
+
+    def test_cli_finds_fitted_transforms_without_packaging_configs_or_patient_data(
+        self,
+    ):
+        (self.root / "subject_data_train.pt").write_bytes(b"local patients")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "bonsai.run.model_bundle",
+                "pack",
+                "--checkpoint",
+                str(self.checkpoint),
+                "--vocabulary",
+                str(self.vocabulary),
+                "--ehr2meds-dir",
+                str(self.root),
+                "--output",
+                str(self.archive),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        restored = unpack_bundle(self.archive, self.root / "restored")
+        manifest = json.loads((restored / "manifest.json").read_text())
+        self.assertFalse(any(p.startswith("settings/") for p in manifest["files"]))
+        self.assertNotIn("subject_data_train.pt", manifest["files"])
+        self.assertEqual(
+            set(manifest["files"]),
+            {
+                "model/model.ckpt",
+                "model/vocabulary.pt",
+                "preprocessing/numeric_metadata.json",
+                "preprocessing/code_mapping.parquet",
+            },
+        )
+        self.assertIsInstance(load_bundle(restored).model, BonsaiPretrain)
+
+    def test_transform_discovery_refuses_missing_or_ambiguous_fits(self):
+        self.assertEqual(find_transform(self.root, "numeric_metadata"), self.numeric)
+        other = self.root / "older_run"
+        other.mkdir()
+        (other / self.numeric.name).write_bytes(self.numeric.read_bytes())
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            find_transform(self.root, "numeric_metadata")
+        self.numeric.unlink()
+        (other / self.numeric.name).unlink()
+        with self.assertRaisesRegex(ValueError, "found 0"):
+            find_transform(self.root, "numeric_metadata")
 
     def test_invalid_vocabulary_transform_and_weights_are_rejected(self):
         torch.save({"[PAD]": 0, "[SEP]": 99}, self.vocabulary)

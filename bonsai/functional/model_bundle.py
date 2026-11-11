@@ -1,4 +1,9 @@
-"""Bundle explicit model/token files; no repository discovery or source snapshots."""
+"""Pack and unpack model weights, vocabulary, fitted transforms and optional YAML.
+
+Packing stages only the selected assets, then writes a manifest listing them.
+Patient shards are never copied, including when locating fitted transforms in
+an ehr2meds run directory.
+"""
 
 from __future__ import annotations
 
@@ -100,12 +105,16 @@ def export_transform(path: Path, target: Path, role: str) -> None:
     """Retain only per-code transformation parameters, never raw values or counts."""
     import polars as pl
 
-    frame = pl.read_json(path) if path.suffix == ".json" else pl.read_parquet(path)
+    if path.suffix == ".json":
+        frame = pl.read_json(path)
+    else:
+        frame = pl.read_parquet(path)
     if role == "numeric_metadata":
         required = REQUIRED_NUMERIC_COLUMNS
         columns = list(required) + ["numeric/hard_minimum", "numeric/hard_maximum"]
     elif role == "code_mapping":
-        required = columns = ["code", "adaptive/mapped_code"]
+        required = ["code", "adaptive/mapped_code"]
+        columns = required
     else:
         raise ValueError(f"Unknown transformation role: {role}")
     missing = set(required) - set(frame.columns)
@@ -113,6 +122,7 @@ def export_transform(path: Path, target: Path, role: str) -> None:
         raise ValueError(
             f"{role} missing standard transformation columns: {sorted(missing)}"
         )
+    # Export only the fitted parameters; discard counts, raw values and other columns.
     frame = frame.select([name for name in columns if name in frame.columns])
     if frame["code"].n_unique() != frame.height:
         raise ValueError(f"{role} must contain one transformation per code")
@@ -128,9 +138,10 @@ def export_transform(path: Path, target: Path, role: str) -> None:
                 or dtype == pl.Null
             ):
                 raise ValueError(f"Expected numeric transformation parameters: {name}")
-    frame.write_json(target) if target.suffix == ".json" else frame.write_parquet(
-        target
-    )
+    if target.suffix == ".json":
+        frame.write_json(target)
+    else:
+        frame.write_parquet(target)
 
 
 def validate_manifest(manifest: dict) -> None:
@@ -175,18 +186,44 @@ def export_checkpoint(checkpoint: Path, target: Path) -> dict:
     return {"class": model_class, "parameters": parameters}
 
 
+def find_transform(directory: Path, role: str) -> Path:
+    """Find exactly one standard fitted file; missing or multiple matches are errors."""
+    filenames = {
+        "numeric_metadata": {"numeric_metadata.json", "numeric_metadata.parquet"},
+        "code_mapping": {"adaptive_code_mapping.json", "adaptive_code_mapping.parquet"},
+    }
+    if role not in filenames:
+        raise ValueError(f"Unknown transformation role: {role}")
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise ValueError(f"ehr2meds output directory does not exist: {directory}")
+    matches = []
+    for path in directory.rglob("*"):
+        if path.name in filenames[role] and path.is_file():
+            matches.append(path)
+    matches.sort()
+    option = role.replace("_", "-")
+    if len(matches) != 1:
+        details = ", ".join(str(p.relative_to(directory)) for p in matches) or "none"
+        raise ValueError(
+            f"Expected one {role} in {directory}; found {len(matches)} ({details}). "
+            f"Supply --{option} explicitly, or --no-{option} if unused."
+        )
+    return matches[0]
+
+
 def pack_bundle(
     output: Path,
     checkpoint: Path,
     vocabulary: Path,
-    data_config: Path,
-    numeric_metadata: Path | None,
-    code_mapping: Path | None,
+    data_config: Path | None = None,
+    numeric_metadata: Path | None = None,
+    code_mapping: Path | None = None,
     configs: tuple[Path, ...] = (),
 ) -> Path:
     """ZIP one checkpoint, vocabulary, fitted transforms and selected YAML configs.
 
-    None explicitly declares an unused transform. Checkpoint training state and
+    A None transform path omits that transform. Checkpoint training state and
     raw numeric values/counts are discarded. Original files stay unchanged.
     """
     import torch
@@ -197,12 +234,17 @@ def pack_bundle(
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
         stage = Path(temporary)
+        # 1. Copy cleaned model weights and the unchanged token-to-ID mapping.
         (stage / "model").mkdir()
         model_spec = export_checkpoint(checkpoint, stage / "model/model.ckpt")
         vocab = load_vocabulary(vocabulary, model_spec["parameters"]["vocab_size"])
         torch.save(vocab, stage / "model/vocabulary.pt")
         files = ["model/model.ckpt", "model/vocabulary.pt"]
-        for index, config in enumerate((data_config,) + configs):
+        # 2. Attach only the YAML files explicitly requested by the caller.
+        selected_configs = list(configs)
+        if data_config is not None:
+            selected_configs.insert(0, data_config)
+        for index, config in enumerate(selected_configs):
             config = Path(config)
             if config.suffix not in {".yaml", ".yml"}:
                 raise ValueError(
@@ -212,6 +254,7 @@ def pack_bundle(
             (stage / target).parent.mkdir(exist_ok=True)
             shutil.copyfile(config, stage / target)
             files.append(target)
+        # 3. Project fitted transforms to the columns needed at the receiving site.
         artifacts = {}
         for role, path in (
             ("numeric_metadata", numeric_metadata),
@@ -227,6 +270,7 @@ def pack_bundle(
                 export_transform(path, stage / target, role)
                 artifacts[role] = target
                 files.append(target)
+        # 4. Record the file list and publish the completed ZIP without overwriting.
         manifest = {
             "format_version": 2,
             "model": model_spec,
