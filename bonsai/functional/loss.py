@@ -1,12 +1,11 @@
 from collections import Counter
-from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 from hydra.utils import instantiate
 
 
-def get_loss_weight(fn, labels: List[int]) -> Optional[torch.Tensor]:
+def get_loss_weight(fn, labels: list[int]) -> torch.Tensor | None:
     """Get weights for weighted loss function.
     If loss_weight_function is false or undefined, then no positive weight is used.
     If loss_weight_function is defined then the function is used to calculate the weights.
@@ -15,7 +14,7 @@ def get_loss_weight(fn, labels: List[int]) -> Optional[torch.Tensor]:
     return instantiate(fn, label_counts=label_counts)
 
 
-def sqrt(label_counts: Dict[int, int]) -> torch.Tensor:
+def sqrt(label_counts: dict[int, int]) -> torch.Tensor:
     """Calculate the square root of the ratio of negative to positive samples."""
     n0 = label_counts.get(0)
     n1 = label_counts.get(1)
@@ -28,7 +27,7 @@ def sqrt(label_counts: Dict[int, int]) -> torch.Tensor:
     return torch.tensor(np.sqrt(n0 / n1))
 
 
-def effective_n_samples(label_counts: Dict[int, int]) -> float:
+def effective_n_samples(label_counts: dict[int, int]) -> float:
     """Calculate positive weight using the effective number of samples method."""
     n0 = label_counts.get(0)
     n1 = label_counts.get(1)
