@@ -7,7 +7,10 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 from omegaconf import DictConfig, OmegaConf
 
-from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.functional.pathing import (
+    check_run_dir_unused,
+    get_experiment_output_path,
+)
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.modules.datasets.PretrainDataset import ARPretrainDataset
@@ -33,6 +36,7 @@ def main(cfg: DictConfig) -> None:
         assert cfg.model.causal, "AR pretraining requires causal attention"
 
     save_dir = get_experiment_output_path()
+    check_run_dir_unused(save_dir, cfg.paths.ckpt_path)
     csv_logger = CSVLogger(save_dir, name=None, version=None)
     tb_logger = TensorBoardLogger(save_dir, name=None, version=csv_logger.version)
 
