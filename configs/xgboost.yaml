@@ -1,0 +1,44 @@
+defaults:
+  - core/base_train@
+  - _self_
+
+dataset:
+outcome:
+
+paths:
+  dir: ${oc.env:BONSAI_PROCESSED_DATA}/${dataset}
+  train_split: ${paths.dir}/subject_data_train.pt
+  val_split: ${paths.dir}/subject_data_tuning.pt
+  predict_split: ${paths.dir}/subject_data_held_out.pt
+  outcome: ${paths.dir}/outcomes/${outcome}.parquet
+  vocabulary: ${paths.dir}/vocabulary.pt
+  population: ${paths.dir}/cohorts/population_full.csv
+
+labels:
+  start_include:
+    hours: 0
+  end_include: null
+
+features:
+  mode: one_hot  # one_hot or demographics
+
+model:
+  objective: binary:logistic
+  eval_metric: auc
+  tree_method: hist
+  grow_policy: lossguide
+  max_depth: 4
+  max_leaves: 64
+  learning_rate: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 3
+  gamma: 1
+  scale_pos_weight: 1
+  max_bin: 256
+  seed: 42
+
+training:
+  num_boost_round: 1000
+  early_stopping_rounds: 50
+  verbose_eval: 10
