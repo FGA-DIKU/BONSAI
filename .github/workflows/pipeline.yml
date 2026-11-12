@@ -11,7 +11,7 @@ permissions:
 env:
   BONSAI_CONFIG_PATH: "${{ github.workspace }}/configs"
   BONSAI_MODELS: "${{ github.workspace }}/tests/models"
-  CKPT_PATH: "${{ github.workspace }}/tests/models/pretrain/run_id_000/version_0/best.ckpt"
+  CKPT_PATH: "${{ github.workspace }}/tests/models/pretrain/run_id_000/best.ckpt"
   HYDRA_FULL_ERROR: 1
 
 jobs:

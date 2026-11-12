@@ -4,10 +4,13 @@ from dotenv import load_dotenv
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_class, instantiate
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 from omegaconf import DictConfig, OmegaConf
 
-from bonsai.functional.pathing import get_experiment_output_path
+from bonsai.functional.pathing import (
+    check_run_dir_unused,
+    get_experiment_output_path,
+)
 from bonsai.functional.versioning import generate_unused_run_id
 from bonsai.modules.datamodules.PretrainDataModule import PretrainDataModule
 from bonsai.modules.datasets.PretrainDataset import ARPretrainDataset
@@ -32,8 +35,10 @@ def main(cfg: DictConfig) -> None:
     if issubclass(get_class(cfg.paths.dataset_class), ARPretrainDataset):
         assert cfg.model.causal, "AR pretraining requires causal attention"
 
-    logger = CSVLogger(get_experiment_output_path(), name=None, version=0)
-    model_save_dir = logger.log_dir
+    save_dir = get_experiment_output_path()
+    check_run_dir_unused(save_dir, cfg.paths.ckpt_path)
+    csv_logger = CSVLogger(save_dir, name=None, version=None)
+    tb_logger = TensorBoardLogger(save_dir, name=None, version=csv_logger.version)
 
     data_module = PretrainDataModule(
         path_train_data=cfg.paths.train_split,
@@ -62,7 +67,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     ckpt_callback = ModelCheckpoint(
-        dirpath=model_save_dir,
+        dirpath=save_dir,
         monitor="val/loss",
         mode="min",
         save_top_k=1,
@@ -79,7 +84,7 @@ def main(cfg: DictConfig) -> None:
         limit_val_batches=cfg.training.limit_val_batches,
         limit_train_batches=cfg.training.limit_train_batches,
         callbacks=[ckpt_callback, early_stopping],
-        logger=[logger],
+        logger=[csv_logger, tb_logger],
         max_epochs=cfg.training.epochs,
         num_nodes=cfg.hardware.num_nodes,
         precision=cfg.hardware.precision,
