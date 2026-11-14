@@ -1,22 +1,21 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
 
 import torch
-from bonsai.modules.datasets.BaseDataset import BaseDataset
 
 from bonsai.functional.censoring import censor_subject
 from bonsai.functional.features import compute_abspos
 from bonsai.functional.normalization import normalize_segments
 from bonsai.functional.truncation import truncate_subject
+from bonsai.modules.datasets.BaseDataset import BaseDataset
 
 
 class PretrainDataset(BaseDataset):
     def __init__(
         self,
-        subjects: List[Dict],
+        subjects: list[dict],
         max_len: int,
         background_length: int,
-        cutoff_date: Optional[dict] = None,
+        cutoff_date: dict | None = None,
     ):
         super().__init__(subjects)
         self.max_len = max_len
@@ -42,15 +41,15 @@ class PretrainDataset(BaseDataset):
 class MLMPretrainDataset(PretrainDataset):
     def __init__(
         self,
-        subjects: List[Dict],
+        subjects: list[dict],
         max_len: int,
         background_length: int,
-        vocabulary: Dict[str, int],
+        vocabulary: dict[str, int],
         masking_select_ratio: float,
         masking_mask_ratio: float = 0.8,
         masking_random_ratio: float = 0.1,
         masking_ignore_special_tokens: bool = True,
-        cutoff_date: Optional[dict] = None,
+        cutoff_date: dict | None = None,
     ):
         super().__init__(subjects, max_len, background_length, cutoff_date=cutoff_date)
         self.vocabulary = vocabulary
@@ -73,7 +72,7 @@ class MLMPretrainDataset(PretrainDataset):
 
     def mask_patient_codes(
         self, codes: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         target = codes.clone()
         probability_vector = torch.full(target.shape, self.masking_select_ratio)
 
@@ -125,7 +124,7 @@ class ValueMLMPretrainDataset(MLMPretrainDataset):
         self,
         codes: torch.Tensor,
         numeric_values: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         codes, target, indices_mask = super().mask_patient_codes(codes)
         numeric_target = numeric_values.clone()
         # Hide input values at [MASK]; keep targets only at those positions.
@@ -137,19 +136,32 @@ class ValueMLMPretrainDataset(MLMPretrainDataset):
 class ARPretrainDataset(PretrainDataset):
     def __init__(
         self,
-        subjects: List[Dict],
+        subjects: list[dict],
         max_len: int,
         background_length: int,
-        cutoff_date: Optional[dict] = None,
+        cutoff_date: dict | None = None,
+        vocabulary: dict[str, int] | None = None,
+        ignore_target_tokens: list[str] | None = None,
     ):
         super().__init__(
             subjects, max_len + 1, background_length, cutoff_date=cutoff_date
         )  # +1 because we shift by one token in __getitem__
 
+        ignored = list(ignore_target_tokens or [])
+        if ignored and vocabulary is None:
+            raise ValueError("ignore_target_tokens requires a vocabulary")
+        missing = [token for token in ignored if token not in (vocabulary or {})]
+        if missing:
+            raise ValueError(f"Ignored tokens absent from vocabulary: {missing}")
+        self.ignore_target_ids = {int(vocabulary[token]) for token in ignored}
+
     def __getitem__(self, index: int) -> dict:
         subject = super().__getitem__(index)
         subject["target"] = subject["code"][1:]
         subject["target"] = subject["target"].masked_fill(subject["target"] == 0, -100)
+
+        for token_id in self.ignore_target_ids:
+            subject["target"].masked_fill_(subject["target"] == token_id, -100)
 
         for key in ["code", "abspos", "segment", "age", "attention_mask"]:
             subject[key] = subject[key][:-1]
