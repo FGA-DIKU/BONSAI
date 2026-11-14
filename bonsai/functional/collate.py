@@ -1,8 +1,7 @@
 import torch
-from typing import List, Dict
 
 
-def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+def dynamic_padding(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     collected = {key: [] for key in batch[0]}
     for sample in batch:
         for key, val in sample.items():

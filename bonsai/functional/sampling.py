@@ -1,5 +1,4 @@
 from collections import Counter
-from typing import List
 
 import numpy as np
 from hydra.utils import instantiate
@@ -20,14 +19,14 @@ def get_sampler(weight_fn, labels) -> WeightedRandomSampler:
     )
 
 
-def inverse_sqrt(labels: List[int], label_counts: dict) -> List[float]:
+def inverse_sqrt(labels: list[int], label_counts: dict) -> list[float]:
     """Calculate the inverse square root of class frequencies."""
     weights = {k: 1 / np.sqrt(v) for k, v in label_counts.items()}
     # Map weights back to samples
     return [weights[label] for label in labels]
 
 
-def effective_n_samples(labels: List[int], label_counts: dict) -> List[float]:
+def effective_n_samples(labels: list[int], label_counts: dict) -> list[float]:
     """Calculate weights using the effective number of samples method."""
     # Calculate beta as per the paper
     beta = (len(labels) - 1) / len(labels)

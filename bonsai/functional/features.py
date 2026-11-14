@@ -1,12 +1,11 @@
 import logging
 from datetime import datetime
-from typing import Optional, Tuple, Union
 
 import polars as pl
 
 
 def create_features(
-    df: pl.DataFrame, numeric_column: Optional[str] = None
+    df: pl.DataFrame, numeric_column: str | None = None
 ) -> pl.DataFrame:
     """
     Create background, age, absolute position, and segment features.
@@ -50,7 +49,7 @@ def create_features(
     return features
 
 
-def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
+def create_background(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Requires DOB token per person. Creates BACKGROUND//{var} tokens with time set to DOB time."""
     dob_rows = df.filter(
         (pl.col("code") == "DOB") & pl.col("time").is_not_null()
@@ -107,8 +106,8 @@ def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
 
 
 def compute_abspos(
-    timestamps: Union[pl.Expr, pl.Series, datetime],
-) -> Union[pl.Expr, pl.Series, float]:
+    timestamps: pl.Expr | pl.Series | datetime,
+) -> pl.Expr | pl.Series | float:
     if isinstance(timestamps, datetime):
         return float(compute_abspos(pl.Series([timestamps]))[0])
     if isinstance(timestamps, (pl.Expr, pl.Series)):

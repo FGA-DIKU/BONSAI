@@ -1,8 +1,7 @@
-from typing import List
 import torch
 
 
-def normalize_segments(segments: torch.Tensor) -> List[int]:
+def normalize_segments(segments: torch.Tensor) -> list[int]:
     """Normalize a list of segment IDs to be zero-based and contiguous.
 
     Takes a list of segment IDs that may have gaps or start from an arbitrary number,

@@ -47,6 +47,7 @@ dependencies = [
 include = ["bonsai", "bonsai.*"]
 
 [project.optional-dependencies]
+plots = ["matplotlib>=3.9"]
 dev = [
     "ruff",
     "docstr-coverage",

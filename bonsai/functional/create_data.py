@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
-from typing import Optional
+
 import polars as pl
+
 from bonsai.functional.features import create_features
 
 
 def drop_duplicates(
-    df: pl.DataFrame, numeric_column: Optional[str] = None
+    df: pl.DataFrame, numeric_column: str | None = None
 ) -> pl.DataFrame:
     pre = len(df)
     dup_cols = ["subject_id", "code", "time"]
@@ -23,8 +24,8 @@ def process_split(
     path_input_dir: Path,
     path_output_dir: Path,
     tokenizer,
-    exclude_regex: Optional[str] = None,
-    numeric_column: Optional[str] = None,
+    exclude_regex: str | None = None,
+    numeric_column: str | None = None,
 ):
     path_output_dir_split = path_output_dir / split
     path_output_dir_split.mkdir(parents=True, exist_ok=True)
