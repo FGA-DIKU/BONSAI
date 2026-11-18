@@ -472,9 +472,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", type=Path, required=True,
                         help="Trained FINETUNED best.ckpt (not pretrained checkpoint)")
     parser.add_argument("--dataset", type=Path, required=True,
-                        help="BONSAI processed dataset root containing subject_data_held_out.pt, vocabulary.pt, cohorts/ and outcomes/")
+                        help="BONSAI processed dataset root OR tokenized held_out parquet directory")
+    parser.add_argument("--held-out-parquets", type=Path, default=None,
+                        help="Optional tokenized held-out parquet directory, if separate from --dataset")
+    parser.add_argument("--vocabulary", type=Path, default=None,
+                        help="Optional: original training vocabulary.pt for compatibility validation")
+    parser.add_argument("--population", type=Path, default=None,
+                        help="Optional: original population_full.csv for an additional cohort filter")
     parser.add_argument("--outcomes", type=Path, default=None,
-                        help="Outcome parquet; automatic when unique or identified in training config")
+                        help="ONE target outcome parquet file OR directory of shards for the same target")
     parser.add_argument("--finetune-config", type=Path, default=None,
                         help="Original Hydra resolved or un-resolved config.yaml (auto-discovered next to checkpoint)")
     parser.add_argument("--output-dir", type=Path, default=Path("umap_results"))
@@ -539,66 +545,154 @@ def config_setting(cfg, path, default=None):
 
 
 def resolve_inputs(args, train_cfg):
-    root = args.dataset.expanduser().resolve()
-    if root.name == "subject_data_held_out.pt":
-        root = root.parent
+    """Resolve tokenized patient shards, single target outcomes and optional artifacts.
+
+    Explicit --dataset + --outcomes + --checkpoint suffice when the original
+    vocabulary and population files are unavailable. In that case the model's
+    stored vocab_size and predict_token_id define the token IDs.
+    """
+    supplied = args.dataset.expanduser().resolve()
+    if not supplied.exists():
+        raise FileNotFoundError(f"Dataset path missing: {supplied}")
+    if supplied.is_file() and supplied.name == "subject_data_held_out.pt":
+        root = supplied.parent
+    elif supplied.is_dir() and supplied.name == "held_out":
+        root = supplied.parent
+    else:
+        root = supplied
     if not root.is_dir():
-        raise FileNotFoundError(f"Processed dataset directory missing: {root}")
-    patient_path = root / "subject_data_held_out.pt"
-    vocab_path = root / "vocabulary.pt"
-    population_path = root / "cohorts" / "population_full.csv"
-    for path in (patient_path, vocab_path, population_path):
-        if not path.is_file():
-            raise FileNotFoundError(f"Required BONSAI processed-data file missing: {path}")
+        raise ValueError("--dataset must be a processed dataset root, a held_out parquet directory, or subject_data_held_out.pt")
+
+    if args.held_out_parquets is not None:
+        patient_path = args.held_out_parquets.expanduser().resolve()
+    elif supplied.is_file():
+        patient_path = supplied
+    elif supplied.is_dir() and any(supplied.glob("*.parquet")):
+        patient_path = supplied
+    elif (root / "subject_data_held_out.pt").is_file():
+        patient_path = root / "subject_data_held_out.pt"
+    elif (root / "held_out").is_dir():
+        patient_path = root / "held_out"
+    else:
+        raise FileNotFoundError(
+            f"No held_out tokenized parquet files or subject_data_held_out.pt found under {supplied}. "
+            "Supply --dataset /path/to/held_out or --held-out-parquets explicitly."
+        )
+    if patient_path.is_dir():
+        files = sorted(patient_path.glob("*.parquet"))
+        if not files:
+            raise FileNotFoundError(f"No .parquet shards found directly under {patient_path}")
+        import polars as pl
+        for shard in files:
+            columns = set(pl.read_parquet_schema(shard))
+            expected = {"subject_id", "code", "age", "abspos", "segment"}
+            if expected - columns:
+                # One separate outcomes file in the same directory is allowed:
+                # it will be excluded in make_predict_loader before BONSAI loads.
+                outcome_cols = {"subject_id", "outcome_date", "index_date", "censor_date", "split"}
+                if outcome_cols <= columns and args.outcomes is not None and shard == args.outcomes.expanduser().resolve():
+                    continue
+                raise ValueError(
+                    f"{shard} does not contain tokenized BONSAI columns {sorted(expected)}. "
+                    "Pass the held-out TOKENIZED parquet shard directory as --dataset and "
+                    "the single outcome table as --outcomes. Raw MEDS data needs tokenization first."
+                )
+    elif not patient_path.is_file() or patient_path.suffix != ".pt":
+        raise ValueError("Patient input must be subject_data_held_out.pt or a directory of tokenized .parquet files")
+
+    vocab_path = args.vocabulary.expanduser().resolve() if args.vocabulary else root / "vocabulary.pt"
+    if not vocab_path.is_file():
+        if args.vocabulary:
+            raise FileNotFoundError(f"Explicit --vocabulary not found: {vocab_path}")
+        LOG.warning("No vocabulary.pt found; using checkpoint's stored vocab_size and predict_token_id. "
+                    "Please ensure the parquet codes use the SAME vocabulary as training.")
+        vocab_path = None
+
+    population_path = args.population.expanduser().resolve() if args.population else root / "cohorts" / "population_full.csv"
+    if not population_path.is_file():
+        if args.population:
+            raise FileNotFoundError(f"Explicit --population not found: {population_path}")
+        LOG.info("No population_full.csv; use subject IDs from the held-out outcomes as the cohort")
+        population_path = None
+
     if args.outcomes is not None:
         outcome_path = args.outcomes.expanduser().resolve()
     else:
         outcome_name = config_setting(train_cfg, "outcome")
-        outcome_path = root / "outcomes" / (str(outcome_name) + ".parquet") if outcome_name else None
-        if outcome_path is None or not outcome_path.is_file():
-            candidates = sorted((root / "outcomes").rglob("*.parquet")) if (root / "outcomes").exists() else []
+        outcome_root = root / "outcomes"
+        outcome_path = None
+        if outcome_name:
+            stem = str(outcome_name)
+            for cand in (outcome_root / (stem + ".parquet"), outcome_root / stem):
+                if cand.is_file() or cand.is_dir():
+                    outcome_path = cand
+                    break
+        if outcome_path is None:
+            single_files = sorted(outcome_root.glob("*.parquet")) if outcome_root.is_dir() else []
+            single_dirs = (sorted(p for p in outcome_root.iterdir() if p.is_dir() and list(p.rglob("*.parquet")))
+                           if outcome_root.is_dir() else [])
+            candidates = single_files + single_dirs
             if len(candidates) != 1:
                 raise ValueError(
-                    f"Found {len(candidates)} possible outcome parquet files under {root / 'outcomes'}. "
-                    "Specify --outcomes /path/to/the_same_target_used_for_training.parquet"
+                    f"Found {len(candidates)} possible outcomes in {outcome_root}. "
+                    "Specify --outcomes /path/to/ONE_target.parquet."
                 )
             outcome_path = candidates[0]
-    if not outcome_path.is_file():
-        raise FileNotFoundError(f"Outcome file missing: {outcome_path}")
+    if not outcome_path.exists():
+        raise FileNotFoundError(f"Outcome file/folder missing: {outcome_path}")
+    if outcome_path.is_dir() and not list(outcome_path.rglob("*.parquet")):
+        raise FileNotFoundError(f"Outcome folder contains no .parquet files: {outcome_path}")
     return root, patient_path, vocab_path, population_path, outcome_path
 
 
-def get_model_and_module(checkpoint: Path, vocabulary: dict, attention_override: str | None):
-    """Instantiate repo's real model and Lightning module, load finetuned weights strictly."""
+def read_outcome_shards(outcome_path: Path):
+    """Read a single outcome table, optionally sharded over parquet files."""
+    import polars as pl
+    if outcome_path.is_file():
+        return pl.read_parquet(outcome_path)
+    files = sorted(outcome_path.rglob("*.parquet"))
+    if not files:
+        raise FileNotFoundError(f"No outcome parquet files in {outcome_path}")
+    LOG.info("Reading %d outcome shards for ONE prediction target", len(files))
+    return pl.scan_parquet([str(f) for f in files]).collect()
+
+
+def get_model_and_module(checkpoint: Path, vocabulary: dict | None, attention_override: str | None):
+    """Construct BONSAI from finetuned checkpoint hyperparameters, strictly load weights."""
     import torch
     from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
     from bonsai.modules.networks.bonsai_nets import BonsaiFinetune, BonsaiValueFinetune
 
-    # Trusted local checkpoint only. Lightning checkpoints contain Python pickle.
+    # Only trust your own checkpoint: this contains deserialized Python objects.
     checkpoint_data = torch.load(checkpoint, map_location="cpu", weights_only=False)
     hp = dict(checkpoint_data.get("hyper_parameters", {}))
     state = checkpoint_data.get("state_dict", {})
     if not hp or not any(k.startswith("model.finetune_head.") for k in state):
         raise ValueError("Not a BONSAI FINETUNED checkpoint (missing model.finetune_head weights)")
-    if "[CLS]" not in vocabulary:
-        raise ValueError("vocabulary.pt does not contain a [CLS] token")
-    if int(vocabulary["[CLS]"]) != int(hp.get("predict_token_id", -1)):
-        raise ValueError("Vocabulary's [CLS] token ID differs from checkpoint; wrong processed dataset?")
-    if len(vocabulary) != int(hp.get("vocab_size", -1)):
-        raise ValueError("Vocabulary size differs from checkpoint; wrong processed dataset?")
+    for key in ("predict_token_id", "vocab_size", "max_seqlen", "hidden_size", "num_layers", "bias", "dropout", "causal", "attn_type"):
+        if key not in hp:
+            raise ValueError(f"Finetuned checkpoint is missing hyperparameter: {key}")
+    if vocabulary is not None:
+        if "[CLS]" not in vocabulary:
+            raise ValueError("vocabulary.pt does not contain a [CLS] token")
+        if int(vocabulary["[CLS]"]) != int(hp["predict_token_id"]):
+            raise ValueError("Vocabulary's [CLS] ID differs from checkpoint; wrong processed dataset?")
+        if len(vocabulary) != int(hp["vocab_size"]):
+            raise ValueError("Vocabulary size differs from checkpoint; wrong processed dataset?")
+
     is_value = hp.get("value_embedding_mode") is not None
     model_type = BonsaiValueFinetune if is_value else BonsaiFinetune
-    attn_type = attention_override or hp.get("attn_type")
-    if attention_override and attention_override != hp.get("attn_type"):
-        LOG.warning("Changing attention backend %s -> %s; validate numerical parity", hp.get("attn_type"), attn_type)
+    attn_type = attention_override or hp["attn_type"]
+    if attention_override and attention_override != hp["attn_type"]:
+        LOG.warning("Changing attention backend %s -> %s; validate numerical parity", hp["attn_type"], attn_type)
     model_args = {
-        "vocab_size": len(vocabulary),
+        "vocab_size": int(hp["vocab_size"]),
         "max_seqlen": int(hp["max_seqlen"]),
         "hidden_size": int(hp["hidden_size"]),
         "num_layers": int(hp["num_layers"]),
         "bias": bool(hp["bias"]),
         "dropout": float(hp["dropout"]),
-        # BONSAI's checkpoint hparams omit attention_dropout; eval mode disables it.
+        # attention_dropout is NOT stored in checkpoint; eval mode disables it.
         "attention_dropout": 0.0,
         "causal": bool(hp["causal"]),
         "attn_type": attn_type,
@@ -607,8 +701,6 @@ def get_model_and_module(checkpoint: Path, vocabulary: dict, attention_override:
     if is_value:
         model_args["value_embedding_mode"] = hp["value_embedding_mode"]
     model = model_type(**model_args)
-    # Preserve BCEWithLogitsLoss.pos_weight buffers for strict Lightning state loading.
-    # Checkpoint hyperparameters serialize this as a scalar even though init expects Tensor.
     saved_pos_weight = hp.get("pos_weight")
     pos_weight = None if saved_pos_weight is None else torch.tensor(float(saved_pos_weight))
     module = FinetuneModule.load_from_checkpoint(
@@ -619,44 +711,114 @@ def get_model_and_module(checkpoint: Path, vocabulary: dict, attention_override:
     return module, hp
 
 
-def make_predict_loader(patient_path: Path, population_path: Path, outcome_path: Path,
-                        vocabulary: dict, max_len: int,
+def make_predict_loader(patient_path: Path, population_path: Path | None, outcome_path: Path,
+                        predict_token_id: int, max_len: int,
                         start_include: dict, end_include: dict | None,
                         batch_size: int, num_workers: int):
-    """Call BONSAI's own binarization and FinetuneDataModule.predict_dataloader."""
+    """Re-use BONSAI's outcome binarization, patient preprocessing, and collator.
+
+    The outcome file is a SINGLE target. All model inputs are selected by
+    patient ID, not row position. The parquet shards are already tokenized.
+    """
     import polars as pl
     from bonsai.functional.outcomes import binarize_outcomes, finalize_outcomes
-    from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 
-    df = pl.read_parquet(outcome_path)
+    df = read_outcome_shards(outcome_path)
     required = {"split", "subject_id", "index_date", "outcome_date", "censor_date"}
     if required - set(df.columns):
-        raise ValueError(f"Outcome parquet missing BONSAI columns: {sorted(required - set(df.columns))}")
+        raise ValueError(f"Outcome file missing BONSAI columns: {sorted(required - set(df.columns))}")
     held_out = df.filter(pl.col("split") == "held_out")
     if held_out.is_empty():
-        raise ValueError("No outcomes with split='held_out'")
+        raise ValueError("Outcome file contains no patients with split='held_out'")
     if held_out["subject_id"].n_unique() != held_out.height:
-        raise ValueError("Multiple outcome rows for the same held-out subject_id")
-    # Exact BONSAI label function and filtering; do NOT silently relabel all missing events zero.
+        raise ValueError("Outcome file has duplicate held-out subject_id rows; expected one row per patient")
     filtered = binarize_outcomes(held_out, start_include=start_include, end_include=end_include)
     outcome_lookup = finalize_outcomes(filtered)
     if not outcome_lookup:
         raise ValueError("No usable held-out patients after BONSAI label window filtering")
-    # Training and val paths are not read when stage='predict'.
-    dm = FinetuneDataModule(
-        path_train_data=str(patient_path), path_val_data=str(patient_path),
-        path_predict_data=str(patient_path), path_population=str(population_path),
-        batch_size=batch_size, num_workers=num_workers,
-        predict_token_id=int(vocabulary["[CLS]"]), max_len=max_len,
-        train_outcomes={}, val_outcomes={}, predict_outcomes=outcome_lookup,
-    )
-    dm.setup("predict")
-    if len(dm.predict_dataset) < 4:
-        raise ValueError("Need at least four held-out patients for a UMAP; got " + str(len(dm.predict_dataset)))
-    # A final alignment lookup: keep only eligible outcomes and preserve the original
-    # outcomes' dates for optional IPCW, but never rely on row order for matching.
+
+    if patient_path.is_file():
+        # The BONSAI Lightning datamodule natively loads precomputed .pt files.
+        from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
+        if population_path is None:
+            # Reuse BONSAI data/label conversion without inventing a population file.
+            import torch
+            from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
+            from bonsai.functional.collate import dynamic_padding
+            from torch.utils.data import DataLoader
+            subjects = torch.load(patient_path, map_location="cpu", weights_only=False)
+            selected = [s for s in subjects if int(s["subject_id"]) in outcome_lookup]
+            if not selected:
+                raise ValueError("No overlapping subject IDs between .pt patient data and outcome file")
+            selected.sort(key=lambda sub: int(sub["subject_id"]))
+            bg_len = int((selected[0]["segment"] == 1).sum())
+            dataset = FinetuneDataset(selected, outcome_lookup, predict_token_id, bg_len, max_len)
+            loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
+                                pin_memory=False, persistent_workers=num_workers > 0,
+                                shuffle=False, drop_last=False, collate_fn=dynamic_padding)
+        else:
+            dm = FinetuneDataModule(
+                path_train_data=str(patient_path), path_val_data=str(patient_path),
+                path_predict_data=str(patient_path), path_population=str(population_path),
+                batch_size=batch_size, num_workers=num_workers,
+                predict_token_id=predict_token_id, max_len=max_len,
+                train_outcomes={}, val_outcomes={}, predict_outcomes=outcome_lookup,
+            )
+            dm.setup("predict")
+            dataset, loader = dm.predict_dataset, dm.predict_dataloader()
+    else:
+        from torch.utils.data import DataLoader
+        from bonsai.functional.subject_data import prepare_subject_data, filter_subject_data
+        from bonsai.functional.collate import dynamic_padding
+        from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
+        import tempfile
+
+        LOG.info("Reading tokenized held-out parquet shards from %s", patient_path)
+        # BONSAI prepare_subject_data reads EVERY *.parquet in a directory.
+        # Exclude an outcomes.parquet stored alongside patient shards.
+        shard_files = sorted(patient_path.glob("*.parquet"))
+        shard_files = [p for p in shard_files if p.resolve() != outcome_path.resolve()]
+        if not shard_files:
+            raise ValueError("No tokenized patient shards remain after excluding the outcome parquet")
+        if len(shard_files) < len(list(patient_path.glob("*.parquet"))):
+            with tempfile.TemporaryDirectory(prefix="bonsai_umap_shards_") as td:
+                staging = Path(td)
+                for idx, shard in enumerate(shard_files):
+                    (staging / f"{idx:06}.parquet").symlink_to(shard.resolve())
+                subjects = prepare_subject_data(split_path=staging)
+        else:
+            subjects = prepare_subject_data(split_path=patient_path)
+        selected = [s for s in subjects if int(s["subject_id"]) in outcome_lookup]
+        if not selected:
+            raise ValueError("No matching subject IDs between tokenized patient shards and held-out outcomes")
+        # BONSAI groups within shards; if a patient crosses shards, the model
+        # would see an incomplete history. Fail explicitly instead of guessing.
+        ids = [int(s["subject_id"]) for s in selected]
+        if len(ids) != len(set(ids)):
+            raise ValueError(
+                "A patient occurs in several tokenized shards. BONSAI's loader groups within "
+                "each shard, so these files must first be repartitioned by subject_id."
+            )
+        if population_path is not None:
+            population_ids = pl.read_csv(population_path)["subject_id"].to_list()
+            selected = filter_subject_data(selected, population_ids)
+            if not selected:
+                raise ValueError("No held-out patients remain after population_full.csv filtering")
+        selected.sort(key=lambda sub: int(sub["subject_id"]))
+        background_length = int((selected[0]["segment"] == 1).sum())
+        dataset = FinetuneDataset(
+            selected, outcomes=outcome_lookup, predict_token_id=predict_token_id,
+            background_length=background_length, max_len=max_len,
+        )
+        loader = DataLoader(
+            dataset, num_workers=num_workers, batch_size=batch_size,
+            pin_memory=False, persistent_workers=num_workers > 0,
+            shuffle=False, drop_last=False, collate_fn=dynamic_padding,
+        )
+    if len(dataset) < 4:
+        raise ValueError(f"Need at least 4 held-out patients to plot UMAP, found {len(dataset)}")
     records = {int(row["subject_id"]): row for row in filtered.to_dicts()}
-    return dm.predict_dataloader(), records, len(dm.predict_dataset)
+    return loader, records, len(dataset)
 
 
 def infer_in_one_pass(module, dataloader, device):
@@ -839,8 +1001,9 @@ def run(args):
     config, config_path = get_train_config(ckpt, args.finetune_config)
     root, patient_path, vocab_path, population_path, outcome_path = resolve_inputs(args, config)
     LOG.info("Dataset: %s | outcomes: %s", root, outcome_path)
-    # BONSAI training .pt artifacts are trusted pickle; load only own files.
-    vocabulary = torch.load(vocab_path, map_location="cpu", weights_only=False)
+    # BONSAI .pt artifacts are pickle-serialized; load only locally trusted files.
+    vocabulary = (torch.load(vocab_path, map_location="cpu", weights_only=False)
+                  if vocab_path is not None else None)
     module, hp = get_model_and_module(ckpt, vocabulary, args.attn_type)
     config_max_len = config_setting(config, "training.max_len")
     max_len = args.max_len if args.max_len is not None else config_max_len
@@ -878,7 +1041,7 @@ def run(args):
                     "as a fixed-horizon risk estimate; plots show training-defined outcome labels.")
 
     loader, records, expected = make_predict_loader(
-        patient_path, population_path, outcome_path, vocabulary, int(max_len),
+        patient_path, population_path, outcome_path, int(hp["predict_token_id"]), int(max_len),
         start_include, end_include, args.batch_size, args.num_workers)
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
     ids, embeddings, probabilities, labels = infer_in_one_pass(module, loader, device)
@@ -915,7 +1078,9 @@ def run(args):
                       "observed_outcome_label": labels}).write_csv(
                           args.output_dir / "patients_sensitive.csv")
     summary = {
-        "checkpoint": str(ckpt), "dataset": str(root), "outcomes": str(outcome_path),
+        "checkpoint": str(ckpt), "dataset": str(root), "patient_source": str(patient_path),
+        "outcomes": str(outcome_path), "vocabulary": str(vocab_path) if vocab_path else None,
+        "population": str(population_path) if population_path else None,
         "original_finetune_config": str(config_path) if config_path else None,
         "n_held_out": len(ids), "embedding_dim": int(embeddings.shape[1]),
         "n_positive_labels": int(labels.sum()), "max_len": int(max_len),
