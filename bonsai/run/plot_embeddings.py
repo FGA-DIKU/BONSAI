@@ -18,16 +18,6 @@ import matplotlib.pyplot as plt
 
 LOG = logging.getLogger("bonsai_umap")
 
-# =============================================================
-# Original smoothing/statistical routines from risk_maps.py
-# (The mathematical function bodies are unchanged.)
-# =============================================================
-# Standalone outcome/risk/calibration maps adapted from OPERA.
-# 
-# No BONSAI/OPERA imports or clinical data. Statistical kernels are copied from
-# opera/visualization/censoring_aware_embeddings.py; see README.md for provenance.
-
-
 @dataclass(frozen=True)
 class HorizonData:
     eligible: np.ndarray
