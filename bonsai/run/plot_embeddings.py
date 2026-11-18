@@ -499,6 +499,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default="auto")
     parser.add_argument("--attn-type", choices=["flash", "sdpa"], default=None,
                         help="Optional checkpoint attention backend override; validate parity")
+    parser.add_argument("--amp-dtype", choices=["auto", "bf16", "fp16"], default="auto",
+                        help="CUDA autocast dtype: auto selects BF16 if supported, otherwise FP16. "
+                             "Match your training precision where possible.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--umap-neighbors", type=int, default=15)
     parser.add_argument("--umap-min-dist", type=float, default=0.1)
@@ -821,9 +824,34 @@ def make_predict_loader(patient_path: Path, population_path: Path | None, outcom
     return loader, records, len(dataset)
 
 
-def infer_in_one_pass(module, dataloader, device):
-    """BONSAI.predict_step handles sigmoid/labels; pre-hook captures its head input."""
+def infer_in_one_pass(module, dataloader, device, attention_backend="sdpa", amp_dtype="auto"):
+    """Extract BONSAI embeddings and scores in one pass with FlashAttention-safe CUDA autocast.
+
+    FlashAttention needs BF16/FP16 QKV. Loading Lightning checkpoint without a Trainer
+    does not automatically enable the mixed precision used during finetuning.
+    """
     import torch
+    from contextlib import nullcontext
+
+    dev = torch.device(device)
+    if attention_backend == "flash" and dev.type != "cuda":
+        raise RuntimeError("BONSAI FlashAttention requires a CUDA GPU; use --device cuda "
+                           "or --attn-type sdpa to switch backend (validate output parity).")
+
+    use_amp = attention_backend == "flash" or amp_dtype != "auto"
+    amp_context = nullcontext
+    if use_amp:
+        if dev.type != "cuda":
+            raise RuntimeError("Mixed-precision inference requires --device cuda in this script")
+        if amp_dtype == "auto":
+            precision = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        else:
+            precision = torch.bfloat16 if amp_dtype == "bf16" else torch.float16
+        if precision == torch.bfloat16 and not torch.cuda.is_bf16_supported():
+            raise RuntimeError("This CUDA GPU does not support bfloat16; try --amp-dtype fp16")
+        LOG.info("Inference autocast: %s (model parameters are not explicitly downcast)", precision)
+        amp_context = lambda: torch.autocast(device_type="cuda", dtype=precision)
+
     model = module.model
     if not hasattr(model, "finetune_head"):
         raise TypeError("Model lacks finetune_head: cannot extract prediction-token embeddings")
@@ -844,7 +872,10 @@ def infer_in_one_pass(module, dataloader, device):
                 moved = {key: value.to(device) if torch.is_tensor(value) else value
                          for key, value in batch.items()}
                 capture.clear()
-                prediction = module.predict_step(moved, batch_index)
+                # FlashAttention asserts qkv.dtype is FP16/BF16; CUDA autocast makes
+                # the Wqkv linear operation output a supported dtype.
+                with amp_context():
+                    prediction = module.predict_step(moved, batch_index)
                 batch_ids = prediction["subject_id"].detach().cpu().reshape(-1).numpy()
                 scores = prediction["prob"].detach().float().cpu().reshape(-1).numpy()
                 outcomes = prediction["label"].detach().cpu().reshape(-1).numpy().astype(int)
@@ -1044,7 +1075,10 @@ def run(args):
         patient_path, population_path, outcome_path, int(hp["predict_token_id"]), int(max_len),
         start_include, end_include, args.batch_size, args.num_workers)
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
-    ids, embeddings, probabilities, labels = infer_in_one_pass(module, loader, device)
+    attention_backend = args.attn_type or hp["attn_type"]
+    ids, embeddings, probabilities, labels = infer_in_one_pass(
+        module, loader, device, attention_backend=attention_backend, amp_dtype=args.amp_dtype
+    )
     if len(ids) != expected or any(int(sid) not in records for sid in ids):
         raise RuntimeError("Inference did not match the filtered held-out cohort")
     if not (np.isfinite(embeddings).all() and np.isfinite(probabilities).all()):
@@ -1086,6 +1120,7 @@ def run(args):
         "n_positive_labels": int(labels.sum()), "max_len": int(max_len),
         "label_start_include": start_include, "label_end_include": end_include,
         "fixed_horizon_days": cfg_horizon, "ipcw_adjusted": times is not None,
+        "attention_backend": attention_backend, "requested_amp_dtype": args.amp_dtype,
         "bandwidth": float(surfaces["bandwidth"]),
         "notes": ("IPCW needs genuine end-of-follow-up and independent censoring. "
                   "Without follow-up end dates, 0 is no recorded outcome, not confirmed event-free. "
