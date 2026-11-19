@@ -17,7 +17,6 @@ from bonsai.functional.outcomes import binarize_outcomes, finalize_outcomes
 from bonsai.functional.subject_data import filter_subject_data, prepare_subject_data
 from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
-from bonsai.modules.lightningmodules.FinetuneModule import FinetuneModule
 from bonsai.modules.networks.bonsai_nets import (
     BonsaiBase,
     BonsaiFinetune,
