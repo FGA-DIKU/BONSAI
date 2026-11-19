@@ -50,20 +50,9 @@ DEFAULT_CONFIG = OmegaConf.create({
 })
 
 
-def get_run_config(checkpoint: Path, config_path: str | None) -> DictConfig:
-    """Read the original Hydra config for the checkpoint's sequence length."""
-    if config_path:
-        return OmegaConf.load(config_path)
-
-    paths = [
-        run / directory / "config.yaml"
-        for run in (checkpoint.parent, checkpoint.parent.parent)
-        for directory in ("hydra", ".hydra")
-    ]
-    config = next((path for path in paths if path.exists()), None)
-    if config is None:
-        raise FileNotFoundError("Set paths.run_config to the original model Hydra config")
-    return OmegaConf.load(config)
+def get_run_config(checkpoint):
+    config_path = checkpoint.parent.parent / "hydra" / "config.yaml"
+    return OmegaConf.load(config_path)
 
 
 def load_model(checkpoint: Path):
@@ -299,7 +288,7 @@ def main(cfg: DictConfig) -> None:
 
     vocabulary = torch.load(root / "vocabulary.pt", map_location="cpu", weights_only=False)
     model, hp, stage = load_model(checkpoint)
-    run_cfg = get_run_config(checkpoint, cfg.paths.run_config)
+    run_cfg = get_run_config(checkpoint)
     loader = load_patients(cfg, run_cfg, vocabulary, stage, hp)
     plots = make_plot_specs(OmegaConf.to_container(cfg.plots, resolve=True), vocabulary)
 

@@ -1,4 +1,4 @@
-
+# @package _global_
 defaults:
   - _self_
 
@@ -33,8 +33,6 @@ plots:
     categories:
       - {label: "Female", color: red}
       - {label: "Male", color: blue}
-      - {label: "Unknown", color: gray}
-      - {label: "Conflicting", color: orange}
 
   - kind: code
     name: medication_a100
