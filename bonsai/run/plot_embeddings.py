@@ -32,22 +32,54 @@ import matplotlib.pyplot as plt
 
 
 # Standard plotting settings. The YAML only needs paths and plot definitions.
-DEFAULT_CONFIG = OmegaConf.create({
-    "paths": {"population": "auto", "run_config": None,
-              "output_dir": "umap_results", "summary_filename": "run_summary.json"},
-    "model": {"pooling": "auto"},
-    "labels": {"start_include": "auto", "end_include": "auto"},
-    "inference": {"max_len": None, "cutoff_date": None, "split": "held_out",
-                  "batch_size": 64, "num_workers": 0, "device": "auto", "amp_dtype": "auto"},
-    "umap": {"n_components": 2, "n_neighbors": 15, "min_dist": 0.1,
-             "metric": "euclidean", "seed": 42},
-    "figure": {"size": [8, 6.5], "dpi": 200, "font_size": 11,
-               "background": "white", "grid": False, "point_size": 9,
-               "point_linewidth": 0, "rasterized": True, "alpha": 0.85,
-               "x_label": "UMAP 1", "y_label": "UMAP 2", "aspect": "equal",
-               "legend": {"show_counts": True, "count_format": " (n={count:,})",
-                          "markerscale": 2, "frameon": False}},
-})
+DEFAULT_CONFIG = OmegaConf.create(
+    {
+        "paths": {
+            "population": "auto",
+            "run_config": None,
+            "output_dir": "umap_results",
+            "summary_filename": "run_summary.json",
+        },
+        "model": {"pooling": "auto"},
+        "labels": {"start_include": "auto", "end_include": "auto"},
+        "inference": {
+            "max_len": None,
+            "cutoff_date": None,
+            "split": "held_out",
+            "batch_size": 64,
+            "num_workers": 0,
+            "device": "auto",
+            "amp_dtype": "auto",
+        },
+        "umap": {
+            "n_components": 2,
+            "n_neighbors": 15,
+            "min_dist": 0.1,
+            "metric": "euclidean",
+            "seed": 42,
+        },
+        "figure": {
+            "size": [8, 6.5],
+            "dpi": 200,
+            "font_size": 11,
+            "background": "white",
+            "grid": False,
+            "point_size": 9,
+            "point_linewidth": 0,
+            "rasterized": True,
+            "alpha": 0.85,
+            "x_label": "UMAP 1",
+            "y_label": "UMAP 2",
+            "aspect": "equal",
+            "legend": {
+                "show_counts": True,
+                "count_format": " (n={count:,})",
+                "markerscale": 2,
+                "frameon": False,
+            },
+        },
+    }
+)
 
 
 def get_run_config(checkpoint):
@@ -75,8 +107,14 @@ def load_model(checkpoint: Path):
     params = {
         key: hp[key]
         for key in (
-            "vocab_size", "max_seqlen", "hidden_size", "num_layers", "bias",
-            "dropout", "causal", "attn_type",
+            "vocab_size",
+            "max_seqlen",
+            "hidden_size",
+            "num_layers",
+            "bias",
+            "dropout",
+            "causal",
+            "attn_type",
         )
     }
     params["attention_dropout"] = 0.0
@@ -97,52 +135,82 @@ def collate_pretrained(batch):
     return dynamic_padding(batch)
 
 
-def load_patients(cfg: DictConfig, run_cfg: DictConfig, vocabulary: dict, stage: str, hp: dict):
+def load_patients(
+    cfg: DictConfig, run_cfg: DictConfig, vocabulary: dict, stage: str, hp: dict
+):
     """Apply the same BONSAI censoring/truncation to tokenized patient shards."""
     data_path = Path(cfg.paths.dataset)
-    shard_path = data_path / "held_out" if (data_path / "held_out").is_dir() else data_path
+    shard_path = (
+        data_path / "held_out" if (data_path / "held_out").is_dir() else data_path
+    )
     dataset_root = shard_path.parent if shard_path.name == "held_out" else shard_path
 
     subjects = prepare_subject_data(shard_path)
     population = cfg.paths.population
-    population_path = dataset_root / "cohorts" / "population_full.csv" if population == "auto" else population
+    population_path = (
+        dataset_root / "cohorts" / "population_full.csv"
+        if population == "auto"
+        else population
+    )
     if population_path is not None and Path(population_path).exists():
-        subjects = filter_subject_data(subjects, pl.read_csv(population_path)["subject_id"])
+        subjects = filter_subject_data(
+            subjects, pl.read_csv(population_path)["subject_id"]
+        )
     subjects.sort(key=lambda subject: subject["subject_id"])
     background_length = int((subjects[0]["segment"] == 1).sum())
-    max_len = run_cfg.training.max_len if cfg.inference.max_len is None else cfg.inference.max_len
+    max_len = (
+        run_cfg.training.max_len
+        if cfg.inference.max_len is None
+        else cfg.inference.max_len
+    )
 
     if cfg.paths.outcomes is None:
         if stage == "finetuned":
-            raise ValueError("Finetuned checkpoints require an outcomes file for patient cutoffs")
+            raise ValueError(
+                "Finetuned checkpoints require an outcomes file for patient cutoffs"
+            )
         dataset = PretrainDataset(
-            subjects, max_len=max_len, background_length=background_length,
+            subjects,
+            max_len=max_len,
+            background_length=background_length,
             cutoff_date=OmegaConf.to_container(cfg.inference.cutoff_date, resolve=True)
-            if cfg.inference.cutoff_date is not None else None,
+            if cfg.inference.cutoff_date is not None
+            else None,
         )
         collate_fn = collate_pretrained
     else:
-        outcomes = pl.read_parquet(cfg.paths.outcomes).filter(pl.col("split") == cfg.inference.split)
+        outcomes = pl.read_parquet(cfg.paths.outcomes).filter(
+            pl.col("split") == cfg.inference.split
+        )
         if cfg.labels.start_include == "auto":
             if stage == "pretrained":
-                raise ValueError("Set labels.start_include (and labels.end_include) for pretrained checkpoints")
+                raise ValueError(
+                    "Set labels.start_include (and labels.end_include) for pretrained checkpoints"
+                )
             start = OmegaConf.to_container(run_cfg.labels.start_include, resolve=True)
             end = OmegaConf.to_container(run_cfg.labels.end_include, resolve=True)
         else:
             start = OmegaConf.to_container(cfg.labels.start_include, resolve=True)
             end = OmegaConf.to_container(cfg.labels.end_include, resolve=True)
-        labels = finalize_outcomes(binarize_outcomes(outcomes, start_include=start, end_include=end))
+        labels = finalize_outcomes(
+            binarize_outcomes(outcomes, start_include=start, end_include=end)
+        )
         subjects = [subject for subject in subjects if subject["subject_id"] in labels]
         dataset = FinetuneDataset(
-            subjects, outcomes=labels,
+            subjects,
+            outcomes=labels,
             predict_token_id=hp["predict_token_id"] if stage == "finetuned" else None,
-            background_length=background_length, max_len=max_len,
+            background_length=background_length,
+            max_len=max_len,
         )
         collate_fn = dynamic_padding
 
     return DataLoader(
-        dataset, batch_size=cfg.inference.batch_size,
-        num_workers=cfg.inference.num_workers, shuffle=False, collate_fn=collate_fn,
+        dataset,
+        batch_size=cfg.inference.batch_size,
+        num_workers=cfg.inference.num_workers,
+        shuffle=False,
+        collate_fn=collate_fn,
     )
 
 
@@ -153,11 +221,14 @@ def make_plot_specs(plots, vocabulary: dict) -> list[dict]:
             continue
         if "values" in plot:
             plot["mode"] = "category"
-            plot["ids"] = [vocabulary[plot["prefix"] + value] for value in plot["values"]]
+            plot["ids"] = [
+                vocabulary[plot["prefix"] + value] for value in plot["values"]
+            ]
         else:
             plot["mode"] = "presence"
             plot["ids"] = [
-                token_id for code, token_id in vocabulary.items()
+                token_id
+                for code, token_id in vocabulary.items()
                 if code == plot["prefix"]
                 or (plot["match"] == "startswith" and code.startswith(plot["prefix"]))
             ]
@@ -171,7 +242,10 @@ def code_labels(batch: dict, spec: dict) -> np.ndarray:
     tokens = batch["code"]
     attention = batch["attention_mask"]
     if spec["mode"] == "category":
-        a, b = [(tokens == token_id).logical_and(attention).any(dim=1) for token_id in spec["ids"]]
+        a, b = [
+            (tokens == token_id).logical_and(attention).any(dim=1)
+            for token_id in spec["ids"]
+        ]
         result = torch.full_like(a, 2, dtype=torch.long)
         result[a & ~b] = 0
         result[b & ~a] = 1
@@ -182,14 +256,24 @@ def code_labels(batch: dict, spec: dict) -> np.ndarray:
     return result.numpy()
 
 
-def predict_embeddings(model, loader, plot_specs, device: torch.device, amp_dtype: str, stage: str, pooling: str, has_outcomes: bool):
+def predict_embeddings(
+    model,
+    loader,
+    plot_specs,
+    device: torch.device,
+    amp_dtype: str,
+    stage: str,
+    pooling: str,
+    has_outcomes: bool,
+):
     """Collect backbone representations and configured labels in one model pass."""
     model = model.to(device).eval()
     hp = model.hparams
     use_amp = hp["attn_type"] == "flash" and device.type == "cuda"
     precision = {
         "auto": (
-            torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            torch.bfloat16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
             else torch.float16
         ),
         "bf16": torch.bfloat16,
@@ -214,7 +298,11 @@ def predict_embeddings(model, loader, plot_specs, device: torch.device, amp_dtyp
                     prediction_token = hidden[batch["code"] == hp["predict_token_id"]]
                     risk = model.finetune_head(prediction_token).sigmoid().flatten()
                     results["risk"].append(risk.float().cpu().numpy())
-                mode = ("prediction_token" if stage == "finetuned" else "mean") if pooling == "auto" else pooling
+                mode = (
+                    ("prediction_token" if stage == "finetuned" else "mean")
+                    if pooling == "auto"
+                    else pooling
+                )
                 if mode == "prediction_token":
                     embedding = hidden[batch["code"] == hp["predict_token_id"]]
                 elif mode == "mean":
@@ -234,21 +322,34 @@ def predict_embeddings(model, loader, plot_specs, device: torch.device, amp_dtyp
     return {name: np.concatenate(chunks) for name, chunks in results.items()}
 
 
-def plot_umap(coords: np.ndarray, values: np.ndarray, plot: dict, cfg: DictConfig, output_dir: Path):
+def plot_umap(
+    coords: np.ndarray,
+    values: np.ndarray,
+    plot: dict,
+    cfg: DictConfig,
+    output_dir: Path,
+):
     """Render the requested plot using only text, colors and styling from YAML."""
     plt.rcParams["font.size"] = cfg.figure.font_size
     fig, ax = plt.subplots(figsize=tuple(cfg.figure.size), layout="constrained")
     fig.patch.set_facecolor(cfg.figure.background)
     ax.set_facecolor(cfg.figure.background)
     common = dict(
-        s=cfg.figure.point_size, alpha=cfg.figure.alpha,
-        linewidths=cfg.figure.point_linewidth, rasterized=cfg.figure.rasterized,
+        s=cfg.figure.point_size,
+        alpha=cfg.figure.alpha,
+        linewidths=cfg.figure.point_linewidth,
+        rasterized=cfg.figure.rasterized,
     )
 
     if plot["kind"] == "risk":
         points = ax.scatter(
-            coords[:, 0], coords[:, 1], c=values, cmap=plot["colormap"],
-            vmin=plot["vmin"], vmax=plot["vmax"], **common,
+            coords[:, 0],
+            coords[:, 1],
+            c=values,
+            cmap=plot["colormap"],
+            vmin=plot["vmin"],
+            vmax=plot["vmax"],
+            **common,
         )
         fig.colorbar(points, ax=ax, label=plot["colorbar_label"])
     else:
@@ -258,11 +359,15 @@ def plot_umap(coords: np.ndarray, values: np.ndarray, plot: dict, cfg: DictConfi
             if cfg.figure.legend.show_counts:
                 label += cfg.figure.legend.count_format.format(count=int(mask.sum()))
             ax.scatter(
-                coords[mask, 0], coords[mask, 1], color=category["color"],
-                label=label, **common,
+                coords[mask, 0],
+                coords[mask, 1],
+                color=category["color"],
+                label=label,
+                **common,
             )
         ax.legend(
-            title=plot.get("legend_title"), markerscale=cfg.figure.legend.markerscale,
+            title=plot.get("legend_title"),
+            markerscale=cfg.figure.legend.markerscale,
             frameon=cfg.figure.legend.frameon,
         )
 
@@ -279,14 +384,18 @@ def plot_umap(coords: np.ndarray, values: np.ndarray, plot: dict, cfg: DictConfi
     plt.close(fig)
 
 
-@hydra.main(config_path=get_config_path(), config_name="plot_embeddings", version_base="1.2")
+@hydra.main(
+    config_path=get_config_path(), config_name="plot_embeddings", version_base="1.2"
+)
 def main(cfg: DictConfig) -> None:
     cfg = OmegaConf.merge(DEFAULT_CONFIG, cfg)
     checkpoint = Path(cfg.paths.checkpoint)
     data_path = Path(cfg.paths.dataset)
     root = data_path.parent if data_path.name == "held_out" else data_path
 
-    vocabulary = torch.load(root / "vocabulary.pt", map_location="cpu", weights_only=False)
+    vocabulary = torch.load(
+        root / "vocabulary.pt", map_location="cpu", weights_only=False
+    )
     model, hp, stage = load_model(checkpoint)
     run_cfg = get_run_config(checkpoint)
     loader = load_patients(cfg, run_cfg, vocabulary, stage, hp)
@@ -297,13 +406,28 @@ def main(cfg: DictConfig) -> None:
         available.add("risk")
     unavailable = {plot["kind"] for plot in plots} - available
     if unavailable:
-        raise ValueError(f"Plot types {sorted(unavailable)} are not available for this checkpoint/data")
+        raise ValueError(
+            f"Plot types {sorted(unavailable)} are not available for this checkpoint/data"
+        )
     if stage == "pretrained" and cfg.model.pooling == "prediction_token":
-        raise ValueError("Pretrained checkpoints have no trained prediction token; use mean or last pooling")
+        raise ValueError(
+            "Pretrained checkpoints have no trained prediction token; use mean or last pooling"
+        )
 
     device_name = "cuda" if torch.cuda.is_available() else "cpu"
-    device = torch.device(device_name if cfg.inference.device == "auto" else cfg.inference.device)
-    results = predict_embeddings(model, loader, plots, device, cfg.inference.amp_dtype, stage, cfg.model.pooling, cfg.paths.outcomes is not None)
+    device = torch.device(
+        device_name if cfg.inference.device == "auto" else cfg.inference.device
+    )
+    results = predict_embeddings(
+        model,
+        loader,
+        plots,
+        device,
+        cfg.inference.amp_dtype,
+        stage,
+        cfg.model.pooling,
+        cfg.paths.outcomes is not None,
+    )
     embeddings = results["embedding"]
     coords = UMAP(
         n_components=cfg.umap.n_components,
@@ -330,7 +454,9 @@ def main(cfg: DictConfig) -> None:
         "plots": [plot["filename"] for plot in plots],
     }
     (output_dir / cfg.paths.summary_filename).write_text(json.dumps(summary, indent=2))
-    print(f"Saved {len(plots)} plots to {output_dir} using one UMAP projection ({stage})")
+    print(
+        f"Saved {len(plots)} plots to {output_dir} using one UMAP projection ({stage})"
+    )
 
 
 if __name__ == "__main__":
