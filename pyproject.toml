@@ -15,6 +15,7 @@ authors = [
     { name = "Maria Elkjær Montgomery" },
     { name = "Kiril Klein" },
     { name = "Stephan Sloth Lorenzen" },
+    { name = "Katja Naasunnguaq Jagd" },
 ]
 keywords = ["EHR", "transformers", "healthcare", "machine learning"]
 classifiers = [
@@ -41,6 +42,8 @@ dependencies = [
     "xgboost>=3.0.2",
     "ruff==0.15.1",
     "dotenv==0.9.9",
+    "umap-learn",
+    "matplotlib",
 ]
 
 [tool.setuptools.packages.find]
