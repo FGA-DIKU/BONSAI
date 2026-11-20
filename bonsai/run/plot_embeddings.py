@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 DEFAULT_CONFIG = OmegaConf.create(
     {
         "paths": {
-            "population": "auto",
+            "population": "population_full.csv",
             "run_config": None,
             "output_dir": "umap_results",
             "summary_filename": "run_summary.json",
@@ -150,16 +150,14 @@ def load_patients(
         else shard_path
     )
     subjects = prepare_subject_data(shard_path)
-    population = cfg.paths.population
-    population_path = (
-        dataset_root / "cohorts" / "population_full.csv"
-        if population == "auto"
-        else population
+    population_path = dataset_root / "cohorts" / cfg.paths.population
+    
+    if not population_path.is_file():
+        raise FileNotFoundError(f"Population file not found: {population_path}")
+    
+    subjects = filter_subject_data(
+        subjects, pl.read_csv(population_path)["subject_id"]
     )
-    if population_path is not None and Path(population_path).exists():
-        subjects = filter_subject_data(
-            subjects, pl.read_csv(population_path)["subject_id"]
-        )
     subjects.sort(key=lambda subject: subject["subject_id"])
     background_length = int((subjects[0]["segment"] == 1).sum())
     max_len = (
