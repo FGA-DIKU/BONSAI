@@ -82,9 +82,8 @@ DEFAULT_CONFIG = OmegaConf.create(
 
 
 def get_run_config(checkpoint):
-    config_path = checkpoint.parent.parent.parent / "hydra" / "config.yaml"
+    config_path = checkpoint.parent / "hydra" / "config.yaml"
     return OmegaConf.load(config_path)
-
 
 def load_model(checkpoint: Path):
     """Restore either BONSAI model type from its Lightning checkpoint."""
