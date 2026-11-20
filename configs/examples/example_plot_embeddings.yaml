@@ -1,0 +1,49 @@
+# @package _global_
+defaults:
+  - _self_
+
+paths:
+  checkpoint: /path/to/best.ckpt
+  dataset: /path/to/processed_data
+  outcomes: /path/to/outcomes.parquet
+  output_dir: umap_results
+
+# Optional inference settings. If not specified, the model will use the checkpoint's inference settings.
+#inference:
+#  attn_type: sdpa
+
+plots:
+  - kind: risk
+    filename: risk.png
+    title: "Predicted risk"
+    colorbar_label: "Predicted probability"
+    colormap: viridis
+    vmin: 0
+    vmax: 1
+
+  - kind: outcome
+    filename: outcome.png
+    title: "Recorded outcome"
+    categories:
+      - {label: "No outcome", color: blue}
+      - {label: "Outcome", color: red}
+
+  - kind: code
+    name: sex
+    filename: sex.png
+    title: "Sex"
+    prefix: "BACKGROUND//SEX//"
+    values: ["K", "M"]
+    categories:
+      - {label: "Female", color: red}
+      - {label: "Male", color: blue}
+
+  - kind: code
+    name: medication_a100
+    filename: medication_a100.png
+    title: "Patients with medication A100"
+    prefix: "MEDICATION//A100"
+    match: startswith
+    categories:
+      - {label: "Not present", color: blue}
+      - {label: "Present", color: red}
