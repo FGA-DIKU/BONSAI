@@ -125,14 +125,6 @@ def load_model(checkpoint: Path, attn_type=None):
     model.load_state_dict(weights, strict=True)
     return model.eval(), hp, stage, params["attn_type"]
 
-
-def collate_pretrained(batch):
-    """PretrainDataset has no labels; BONSAI's dynamic_padding expects a target."""
-    for patient in batch:
-        patient["target"] = torch.tensor([-100])
-    return dynamic_padding(batch)
-
-
 def load_patients(
     cfg: DictConfig, run_cfg: DictConfig, vocabulary: dict, stage: str, hp: dict
 ):
@@ -178,7 +170,7 @@ def load_patients(
             if cfg.inference.cutoff_date is not None
             else None,
         )
-        collate_fn = collate_pretrained
+        collate_fn = dynamic_padding
     else:
         outcomes = pl.read_parquet(cfg.paths.outcomes).filter(
             pl.col("split") == cfg.inference.split

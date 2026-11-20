@@ -13,9 +13,10 @@ def dynamic_padding(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Ten
         output[embed_name] = torch.nn.utils.rnn.pad_sequence(
             collected[embed_name], batch_first=True
         )
-    output["target"] = torch.nn.utils.rnn.pad_sequence(
-        collected["target"], batch_first=True, padding_value=-100
-    )
+    if "target" in collected:
+        output["target"] = torch.nn.utils.rnn.pad_sequence(
+            collected["target"], batch_first=True, padding_value=-100
+        )
     if "numeric_value" in collected:
         output["numeric_value"] = torch.nn.utils.rnn.pad_sequence(
             collected["numeric_value"], batch_first=True, padding_value=float("nan")
