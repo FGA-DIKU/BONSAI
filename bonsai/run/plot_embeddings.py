@@ -35,7 +35,6 @@ DEFAULT_CONFIG = OmegaConf.create(
     {
         "paths": {
             "population": "population_full.csv",
-            "run_config": None,
             "output_dir": "umap_results",
             "summary_filename": "run_summary.json",
         },
@@ -151,7 +150,7 @@ def load_patients(
     )
     subjects = prepare_subject_data(shard_path)
     population_path = dataset_root / "cohorts" / cfg.paths.population
-    
+
     if not population_path.is_file():
         raise FileNotFoundError(f"Population file not found: {population_path}")
     
