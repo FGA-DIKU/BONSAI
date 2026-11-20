@@ -140,10 +140,15 @@ def load_patients(
     """Apply the same BONSAI censoring/truncation to tokenized patient shards."""
     data_path = Path(cfg.paths.dataset)
     shard_path = (
-        data_path / "held_out" if (data_path / "held_out").is_dir() else data_path
+        data_path / cfg.inference.split
+        if (data_path / cfg.inference.split).is_dir()
+        else data_path
     )
-    dataset_root = shard_path.parent if shard_path.name == "held_out" else shard_path
-
+    dataset_root = (
+        shard_path.parent
+        if shard_path.name == cfg.inference.split
+        else shard_path
+    )
     subjects = prepare_subject_data(shard_path)
     population = cfg.paths.population
     population_path = (
