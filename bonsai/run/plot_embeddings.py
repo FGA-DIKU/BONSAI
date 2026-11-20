@@ -85,7 +85,7 @@ def get_run_config(checkpoint):
     config_path = checkpoint.parent / "hydra" / "config.yaml"
     return OmegaConf.load(config_path)
 
-def load_model(checkpoint: Path):
+def load_model(checkpoint: Path, attn_type=None):
     """Restore either BONSAI model type from its Lightning checkpoint."""
     saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
     hp = saved["hyper_parameters"]
@@ -115,6 +115,7 @@ def load_model(checkpoint: Path):
             "attn_type",
         )
     }
+    params["attn_type"] = attn_type or hp["attn_type"]
     params["attention_dropout"] = 0.0
     if value_mode is not None:
         params["value_embedding_mode"] = value_mode
@@ -123,7 +124,7 @@ def load_model(checkpoint: Path):
 
     model = classes[(stage, value_mode is not None)](**params)
     model.load_state_dict(weights, strict=True)
-    return model.eval(), hp, stage
+    return model.eval(), hp, stage, params["attn_type"]
 
 
 def collate_pretrained(batch):
@@ -260,6 +261,7 @@ def predict_embeddings(
     plot_specs,
     device: torch.device,
     amp_dtype: str,
+    attn_type: str,
     stage: str,
     pooling: str,
     has_outcomes: bool,
@@ -267,7 +269,12 @@ def predict_embeddings(
     """Collect backbone representations and configured labels in one model pass."""
     model = model.to(device).eval()
     hp = model.hparams
-    use_amp = hp["attn_type"] == "flash" and device.type == "cuda"
+    if attn_type == "flash" and device.type != "cuda":
+        raise RuntimeError(
+            f"Attention backend '{attn_type}' is unavailable on {device}. "
+            "Specify a supported backend in inference.attn_type."
+        )
+    use_amp = attn_type == "flash"
     precision = {
         "auto": (
             torch.bfloat16
@@ -394,7 +401,10 @@ def main(cfg: DictConfig) -> None:
     vocabulary = torch.load(
         root / "vocabulary.pt", map_location="cpu", weights_only=False
     )
-    model, hp, stage = load_model(checkpoint)
+    model, hp, stage, attn_type = load_model(
+        checkpoint,
+        attn_type=cfg.get("inference", {}).get("attn_type"),
+    )
     run_cfg = get_run_config(checkpoint)
     loader = load_patients(cfg, run_cfg, vocabulary, stage, hp)
     plots = make_plot_specs(OmegaConf.to_container(cfg.plots, resolve=True), vocabulary)
@@ -422,6 +432,7 @@ def main(cfg: DictConfig) -> None:
         plots,
         device,
         cfg.inference.amp_dtype,
+        attn_type,
         stage,
         cfg.model.pooling,
         cfg.paths.outcomes is not None,

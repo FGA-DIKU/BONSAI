@@ -8,6 +8,10 @@ paths:
   outcomes: /path/to/outcomes.parquet
   output_dir: umap_results
 
+# Optional inference settings. If not specified, the model will use the checkpoint's inference settings.
+#inference:
+#  attn_type: sdpa
+
 plots:
   - kind: risk
     filename: risk.png
