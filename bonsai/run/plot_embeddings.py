@@ -87,7 +87,7 @@ def get_run_config(checkpoint):
 
 def load_model(checkpoint: Path, attn_type=None):
     """Restore either BONSAI model type from its Lightning checkpoint."""
-    saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     hp = saved["hyper_parameters"]
     weights = {
         name.removeprefix("model."): tensor
@@ -399,7 +399,7 @@ def main(cfg: DictConfig) -> None:
     root = data_path.parent if data_path.name == "held_out" else data_path
 
     vocabulary = torch.load(
-        root / "vocabulary.pt", map_location="cpu", weights_only=False
+        root / "vocabulary.pt", map_location="cpu", weights_only=True
     )
     model, hp, stage, attn_type = load_model(
         checkpoint,
