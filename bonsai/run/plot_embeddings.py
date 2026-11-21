@@ -1,6 +1,4 @@
 """Visualize BONSAI patient embeddings from pretrained or finetuned checkpoints."""
-
-import json
 from pathlib import Path
 
 import hydra
@@ -11,10 +9,12 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from umap import UMAP
+from dotenv import load_dotenv
 
 from bonsai.functional.collate import dynamic_padding
 from bonsai.functional.outcomes import binarize_outcomes, finalize_outcomes
-from bonsai.functional.subject_data import filter_subject_data, prepare_subject_data
+from bonsai.functional.subject_data import filter_subject_data
+from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
 from bonsai.modules.networks.bonsai_nets import (
@@ -29,56 +29,7 @@ from bonsai.paths import get_config_path
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-
-# Standard plotting settings. The YAML only needs paths and plot definitions.
-DEFAULT_CONFIG = OmegaConf.create(
-    {
-        "paths": {
-            "population": "population_full.csv",
-            "output_dir": "umap_results",
-            "summary_filename": "run_summary.json",
-        },
-        "model": {"pooling": "auto"},
-        "labels": {"start_include": "auto", "end_include": "auto"},
-        "inference": {
-            "max_len": None,
-            "cutoff_date": None,
-            "split": "held_out",
-            "batch_size": 64,
-            "num_workers": 0,
-            "device": "auto",
-            "amp_dtype": "auto",
-        },
-        "umap": {
-            "n_components": 2,
-            "n_neighbors": 15,
-            "min_dist": 0.1,
-            "metric": "euclidean",
-            "seed": 42,
-        },
-        "figure": {
-            "size": [8, 6.5],
-            "dpi": 200,
-            "font_size": 11,
-            "background": "white",
-            "grid": False,
-            "point_size": 9,
-            "point_linewidth": 0,
-            "rasterized": True,
-            "alpha": 0.85,
-            "x_label": "UMAP 1",
-            "y_label": "UMAP 2",
-            "aspect": "equal",
-            "legend": {
-                "show_counts": True,
-                "count_format": " (n={count:,})",
-                "markerscale": 2,
-                "frameon": False,
-            },
-        },
-    }
-)
-
+load_dotenv()
 
 def get_run_config(checkpoint):
     config_path = checkpoint.parent / "hydra" / "config.yaml"
@@ -126,38 +77,33 @@ def load_model(checkpoint: Path, attn_type=None):
     return model.eval(), hp, stage, params["attn_type"]
 
 def load_patients(
-    cfg: DictConfig, run_cfg: DictConfig, vocabulary: dict, stage: str, hp: dict
-):
+        cfg: DictConfig,
+        run_cfg: DictConfig,
+        stage: str,
+        hp: dict,
+        data_dir: Path,
+        outcome_path: str | None,
+    ):
     """Apply the same BONSAI censoring/truncation to tokenized patient shards."""
-    data_path = Path(cfg.paths.dataset)
-    shard_path = (
-        data_path / cfg.inference.split
-        if (data_path / cfg.inference.split).is_dir()
-        else data_path
+    subjects = torch.load(
+        data_dir / f"subject_data_{cfg.inference.split}.pt",
+        map_location="cpu",
+        weights_only=True,
     )
-    dataset_root = (
-        shard_path.parent
-        if shard_path.name == cfg.inference.split
-        else shard_path
-    )
-    subjects = prepare_subject_data(shard_path)
-    population_path = dataset_root / "cohorts" / cfg.paths.population
+
+    population_name = cfg.paths.get("population") or Path(run_cfg.paths.population).name
+    population_path = data_dir / "cohorts" / population_name
 
     if not population_path.is_file():
         raise FileNotFoundError(f"Population file not found: {population_path}")
-    
+
     subjects = filter_subject_data(
         subjects, pl.read_csv(population_path)["subject_id"]
     )
     subjects.sort(key=lambda subject: subject["subject_id"])
     background_length = int((subjects[0]["segment"] == 1).sum())
-    max_len = (
-        run_cfg.training.max_len
-        if cfg.inference.max_len is None
-        else cfg.inference.max_len
-    )
-
-    if cfg.paths.outcomes is None:
+    max_len = run_cfg.training.max_len
+    if outcome_path is None:
         if stage == "finetuned":
             raise ValueError(
                 "Finetuned checkpoints require an outcomes file for patient cutoffs"
@@ -166,25 +112,21 @@ def load_patients(
             subjects,
             max_len=max_len,
             background_length=background_length,
-            cutoff_date=OmegaConf.to_container(cfg.inference.cutoff_date, resolve=True)
-            if cfg.inference.cutoff_date is not None
-            else None,
+            cutoff_date=run_cfg.training.get("cutoff_date"),
         )
         collate_fn = dynamic_padding
     else:
-        outcomes = pl.read_parquet(cfg.paths.outcomes).filter(
+        outcomes = pl.read_parquet(outcome_path).filter(
             pl.col("split") == cfg.inference.split
         )
-        if cfg.labels.start_include == "auto":
-            if stage == "pretrained":
-                raise ValueError(
-                    "Set labels.start_include (and labels.end_include) for pretrained checkpoints"
-                )
-            start = OmegaConf.to_container(run_cfg.labels.start_include, resolve=True)
-            end = OmegaConf.to_container(run_cfg.labels.end_include, resolve=True)
+        if stage == "finetuned":
+            start = run_cfg.labels.start_include
+            end = run_cfg.labels.end_include
         else:
-            start = OmegaConf.to_container(cfg.labels.start_include, resolve=True)
-            end = OmegaConf.to_container(cfg.labels.end_include, resolve=True)
+            start = cfg.get("labels", {}).get("start_include")
+            end = cfg.get("labels", {}).get("end_include")
+            if start is None:
+                raise ValueError("Pretrained models require a label window for outcome plots")
         labels = finalize_outcomes(
             binarize_outcomes(outcomes, start_include=start, end_include=end)
         )
@@ -200,8 +142,8 @@ def load_patients(
 
     return DataLoader(
         dataset,
-        batch_size=cfg.inference.batch_size,
-        num_workers=cfg.inference.num_workers,
+        batch_size=run_cfg.training.batch_size,
+        num_workers=run_cfg.hardware.num_workers,   
         shuffle=False,
         collate_fn=collate_fn,
     )
@@ -387,23 +329,29 @@ def plot_umap(
     config_path=get_config_path(), config_name="plot_embeddings", version_base="1.2"
 )
 def main(cfg: DictConfig) -> None:
-    cfg = OmegaConf.merge(DEFAULT_CONFIG, cfg)
     checkpoint = Path(cfg.paths.checkpoint)
-    data_path = Path(cfg.paths.dataset)
-    root = data_path.parent if data_path.name == "held_out" else data_path
+    run_cfg = get_run_config(checkpoint)
+
+    data_dir = Path(cfg.paths.get("dataset") or run_cfg.paths.dir)
+    outcome_path = cfg.paths.get("outcomes") or run_cfg.paths.get("outcome")
 
     vocabulary = torch.load(
-        root / "vocabulary.pt", map_location="cpu", weights_only=True
+        data_dir / "vocabulary.pt",
+        map_location="cpu",
+        weights_only=True,
     )
+
     model, hp, stage, attn_type = load_model(
         checkpoint,
-        attn_type=cfg.get("inference", {}).get("attn_type"),
+        attn_type=cfg.inference.get("attn_type"),
     )
-    run_cfg = get_run_config(checkpoint)
-    loader = load_patients(cfg, run_cfg, vocabulary, stage, hp)
+
+    loader = load_patients(
+        cfg, run_cfg, stage, hp, data_dir, outcome_path
+    )
     plots = make_plot_specs(OmegaConf.to_container(cfg.plots, resolve=True), vocabulary)
 
-    available = {"code"} | ({"outcome"} if cfg.paths.outcomes is not None else set())
+    available = {"code"} | ({"outcome"} if outcome_path is not None else set())
     if stage == "finetuned":
         available.add("risk")
     unavailable = {plot["kind"] for plot in plots} - available
@@ -429,7 +377,7 @@ def main(cfg: DictConfig) -> None:
         attn_type,
         stage,
         cfg.model.pooling,
-        cfg.paths.outcomes is not None,
+        outcome_path is not None,
     )
     embeddings = results["embedding"]
     coords = UMAP(
@@ -440,23 +388,11 @@ def main(cfg: DictConfig) -> None:
         random_state=cfg.umap.seed,
     ).fit_transform(embeddings)
 
-    output_dir = Path(cfg.paths.output_dir)
+    output_dir = Path(get_experiment_output_path())
     output_dir.mkdir(parents=True, exist_ok=True)
     for plot in plots:
         source = plot["name"] if plot["kind"] == "code" else plot["kind"]
         plot_umap(coords, results[source], plot, cfg, output_dir)
-
-    summary = {
-        "checkpoint": str(checkpoint),
-        "model_stage": stage,
-        "embedding_pooling": cfg.model.pooling,
-        "dataset": str(data_path),
-        "outcomes": str(cfg.paths.outcomes),
-        "patients": len(results["subject_id"]),
-        "embedding_dim": embeddings.shape[1],
-        "plots": [plot["filename"] for plot in plots],
-    }
-    (output_dir / cfg.paths.summary_filename).write_text(json.dumps(summary, indent=2))
     print(
         f"Saved {len(plots)} plots to {output_dir} using one UMAP projection ({stage})"
     )

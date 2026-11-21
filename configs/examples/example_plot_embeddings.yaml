@@ -1,12 +1,10 @@
 # @package _global_
 defaults:
+  - /plot_embeddings
   - _self_
 
 paths:
   checkpoint: /path/to/best.ckpt
-  dataset: /path/to/processed_data
-  outcomes: /path/to/outcomes.parquet
-  output_dir: umap_results
 
 # Optional inference settings. If not specified, the model will use the checkpoint's inference settings.
 #inference:
