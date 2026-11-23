@@ -10,6 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from umap import UMAP
 from dotenv import load_dotenv
+from hydra.utils import instantiate
 
 from bonsai.functional.collate import dynamic_padding
 from bonsai.functional.outcomes import binarize_outcomes, finalize_outcomes
@@ -17,13 +18,7 @@ from bonsai.functional.subject_data import filter_subject_data
 from bonsai.functional.pathing import get_experiment_output_path
 from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
-from bonsai.modules.networks.bonsai_nets import (
-    BonsaiBase,
-    BonsaiFinetune,
-    BonsaiValueFinetune,
-    BonsaiPretrain,
-    BonsaiValuePretrain,
-)
+from bonsai.modules.networks.bonsai_nets import BonsaiBase
 from bonsai.paths import get_config_path
 
 matplotlib.use("Agg")
@@ -35,24 +30,20 @@ def get_run_config(checkpoint):
     config_path = checkpoint.parent / "hydra" / "config.yaml"
     return OmegaConf.load(config_path)
 
-def load_model(checkpoint: Path, attn_type=None):
-    """Restore either BONSAI model type from its Lightning checkpoint."""
+def load_model(checkpoint: Path, run_cfg: DictConfig, attn_type=None):
+    """Restore a BONSAI model using its original training configuration."""
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     hp = saved["hyper_parameters"]
+
     weights = {
         name.removeprefix("model."): tensor
         for name, tensor in saved["state_dict"].items()
         if name.startswith("model.")
     }
-    stage = "finetuned" if "finetune_head.weight" in weights else "pretrained"
-    value_mode = hp.get("value_embedding_mode")
-    classes = {
-        ("finetuned", False): BonsaiFinetune,
-        ("finetuned", True): BonsaiValueFinetune,
-        ("pretrained", False): BonsaiPretrain,
-        ("pretrained", True): BonsaiValuePretrain,
-    }
-    params = {
+
+    stage = "finetuned" if "predict_token_id" in hp else "pretrained"
+
+    model_kwargs = {
         key: hp[key]
         for key in (
             "vocab_size",
@@ -60,21 +51,19 @@ def load_model(checkpoint: Path, attn_type=None):
             "hidden_size",
             "num_layers",
             "bias",
-            "dropout",
             "causal",
             "attn_type",
         )
     }
-    params["attn_type"] = attn_type or hp["attn_type"]
-    params["attention_dropout"] = 0.0
-    if value_mode is not None:
-        params["value_embedding_mode"] = value_mode
-    if stage == "finetuned":
-        params["predict_token_id"] = hp["predict_token_id"]
+    model_kwargs["attn_type"] = attn_type or hp["attn_type"]
 
-    model = classes[(stage, value_mode is not None)](**params)
+    if stage == "finetuned":
+        model_kwargs["predict_token_id"] = hp["predict_token_id"]
+
+    model = instantiate(run_cfg.model, **model_kwargs)
     model.load_state_dict(weights, strict=True)
-    return model.eval(), hp, stage, params["attn_type"]
+
+    return model.eval(), hp, stage, model_kwargs["attn_type"]
 
 def load_patients(
         cfg: DictConfig,
@@ -355,6 +344,7 @@ def main(cfg: DictConfig) -> None:
 
     model, hp, stage, attn_type = load_model(
         checkpoint,
+        run_cfg,
         attn_type=cfg.inference.get("attn_type"),
     )
 
