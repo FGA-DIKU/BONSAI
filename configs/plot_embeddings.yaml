@@ -8,7 +8,6 @@ model:
 inference:
   split: held_out
   device: auto
-  amp_dtype: auto
 
 umap:
   n_components: 2

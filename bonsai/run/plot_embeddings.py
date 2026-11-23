@@ -197,7 +197,6 @@ def predict_embeddings(
     loader,
     plot_specs,
     device: torch.device,
-    amp_dtype: str,
     attn_type: str,
     stage: str,
     pooling: str,
@@ -212,15 +211,6 @@ def predict_embeddings(
             "Specify a supported backend in inference.attn_type."
         )
     use_amp = attn_type == "flash"
-    precision = {
-        "auto": (
-            torch.bfloat16
-            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-            else torch.float16
-        ),
-        "bf16": torch.bfloat16,
-        "fp16": torch.float16,
-    }[amp_dtype]
     code_specs = [spec for spec in plot_specs if spec["kind"] == "code"]
     results = {"subject_id": [], "embedding": []}
     if stage == "finetuned":
@@ -234,7 +224,7 @@ def predict_embeddings(
             for spec in code_specs:
                 results[spec["name"]].append(code_labels(batch, spec))
             batch = {key: value.to(device) for key, value in batch.items()}
-            with torch.autocast("cuda", dtype=precision, enabled=use_amp):
+            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
                 hidden = BonsaiBase.forward(model, batch)
                 if stage == "finetuned":
                     prediction_token = hidden[batch["code"] == hp["predict_token_id"]]
@@ -375,7 +365,6 @@ def main(cfg: DictConfig) -> None:
         loader,
         plots,
         device,
-        cfg.inference.amp_dtype,
         attn_type,
         stage,
         cfg.model.pooling,
