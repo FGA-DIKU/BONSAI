@@ -373,7 +373,7 @@ def main(cfg: DictConfig) -> None:
     )
     embeddings = results["embedding"]
     coords = UMAP(
-        n_components=cfg.umap.n_components,
+        n_components=2,
         n_neighbors=min(cfg.umap.n_neighbors, len(embeddings) - 1),
         min_dist=cfg.umap.min_dist,
         metric=cfg.umap.metric,

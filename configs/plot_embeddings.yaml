@@ -10,7 +10,6 @@ inference:
   device: auto
 
 umap:
-  n_components: 2
   n_neighbors: 15
   min_dist: 0.1
   metric: euclidean
