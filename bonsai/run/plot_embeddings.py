@@ -15,7 +15,7 @@ from bonsai.functional.collate import dynamic_padding
 from bonsai.functional.outcomes import binarize_outcomes, finalize_outcomes
 from bonsai.functional.subject_data import filter_subject_data
 from bonsai.functional.pathing import get_experiment_output_path
-from bonsai.modules.datasets.FinetuneDataset import FinetuneDataset
+from bonsai.modules.datamodules.FinetuneDataModule import FinetuneDataModule
 from bonsai.modules.datasets.PretrainDataset import PretrainDataset
 from bonsai.modules.networks.bonsai_nets import (
     BonsaiBase,
@@ -85,11 +85,7 @@ def load_patients(
         outcome_path: str | None,
     ):
     """Apply the same BONSAI censoring/truncation to tokenized patient shards."""
-    subjects = torch.load(
-        data_dir / f"subject_data_{cfg.inference.split}.pt",
-        map_location="cpu",
-        weights_only=True,
-    )
+    
 
     population_name = cfg.paths.get("population") or Path(run_cfg.paths.population).name
     population_path = data_dir / "cohorts" / population_name
@@ -97,17 +93,25 @@ def load_patients(
     if not population_path.is_file():
         raise FileNotFoundError(f"Population file not found: {population_path}")
 
-    subjects = filter_subject_data(
-        subjects, pl.read_csv(population_path)["subject_id"]
-    )
-    subjects.sort(key=lambda subject: subject["subject_id"])
-    background_length = int((subjects[0]["segment"] == 1).sum())
+    
     max_len = run_cfg.training.max_len
     if outcome_path is None:
         if stage == "finetuned":
             raise ValueError(
                 "Finetuned checkpoints require an outcomes file for patient cutoffs"
             )
+
+        subjects = torch.load(
+            data_dir / f"subject_data_{cfg.inference.split}.pt",
+            map_location="cpu",
+            weights_only=True,
+        )
+        subjects = filter_subject_data(
+            subjects, pl.read_csv(population_path)["subject_id"]
+        )
+        subjects.sort(key=lambda subject: subject["subject_id"])
+        background_length = int((subjects[0]["segment"] == 1).sum())
+
         dataset = PretrainDataset(
             subjects,
             max_len=max_len,
@@ -127,18 +131,26 @@ def load_patients(
             end = cfg.get("labels", {}).get("end_include")
             if start is None:
                 raise ValueError("Pretrained models require a label window for outcome plots")
+            
         labels = finalize_outcomes(
-            binarize_outcomes(outcomes, start_include=start, end_include=end)
-        )
-        subjects = [subject for subject in subjects if subject["subject_id"] in labels]
-        dataset = FinetuneDataset(
-            subjects,
-            outcomes=labels,
-            predict_token_id=hp["predict_token_id"] if stage == "finetuned" else None,
-            background_length=background_length,
+                    binarize_outcomes(outcomes, start_include=start, end_include=end)
+                )
+        data_module = FinetuneDataModule(
+            path_train_data=None,
+            path_val_data=None,
+            path_predict_data=data_dir / f"subject_data_{cfg.inference.split}.pt",
+            path_population=population_path,
+            batch_size=run_cfg.training.batch_size,
+            num_workers=run_cfg.hardware.num_workers,
+            predict_token_id=hp.get("predict_token_id"),
             max_len=max_len,
+            train_outcomes=None,
+            val_outcomes=None,
+            predict_outcomes=labels,
         )
-        collate_fn = dynamic_padding
+
+        data_module.setup("predict")
+        return data_module.predict_dataloader()
 
     return DataLoader(
         dataset,
