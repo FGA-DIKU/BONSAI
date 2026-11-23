@@ -1,0 +1,35 @@
+# @package _global_
+defaults:
+  - _self_
+
+model:
+  pooling: auto
+
+inference:
+  split: held_out
+  device: auto
+
+umap:
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: euclidean
+  seed: 42
+
+figure:
+  size: [8, 6.5]
+  dpi: 200
+  font_size: 11
+  background: white
+  grid: false
+  point_size: 7
+  point_linewidth: 0
+  rasterized: true
+  alpha: 0.55
+  x_label: UMAP 1
+  y_label: UMAP 2
+  aspect: equal
+  legend:
+    show_counts: true
+    count_format: " (n={count:,})"
+    markerscale: 2
+    frameon: false
