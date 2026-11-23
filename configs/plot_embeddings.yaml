@@ -21,10 +21,10 @@ figure:
   font_size: 11
   background: white
   grid: false
-  point_size: 9
+  point_size: 7
   point_linewidth: 0
   rasterized: true
-  alpha: 0.85
+  alpha: 0.55
   x_label: UMAP 1
   y_label: UMAP 2
   aspect: equal
