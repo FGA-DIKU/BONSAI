@@ -226,23 +226,24 @@ def predict_embeddings(
             batch = {key: value.to(device) for key, value in batch.items()}
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
                 hidden = BonsaiBase.forward(model, batch)
+                last = batch["attention_mask"].sum(1).long() - 1
+                rows = torch.arange(len(last), device=device)
+                last_hidden = hidden[rows, last]
+
                 if stage == "finetuned":
-                    prediction_token = hidden[batch["code"] == hp["predict_token_id"]]
-                    risk = model.finetune_head(prediction_token).sigmoid().flatten()
+                    if not torch.all(batch["code"][rows, last] == hp["predict_token_id"]):
+                        raise ValueError("Prediction token is not the last valid token")
+
+                    risk = model.finetune_head(last_hidden).sigmoid().flatten()
                     results["risk"].append(risk.float().cpu().numpy())
-                mode = (
-                    ("prediction_token" if stage == "finetuned" else "mean")
-                    if pooling == "auto"
-                    else pooling
-                )
-                if mode == "prediction_token":
-                    embedding = hidden[batch["code"] == hp["predict_token_id"]]
+
+                mode = ("last" if stage == "finetuned" else "mean") if pooling == "auto" else pooling
+
+                if mode == "last":
+                    embedding = last_hidden
                 elif mode == "mean":
                     mask = batch["attention_mask"].unsqueeze(-1)
                     embedding = (hidden * mask).sum(1) / mask.sum(1)
-                elif mode == "last":
-                    last = batch["attention_mask"].sum(1).long() - 1
-                    embedding = hidden[torch.arange(len(last), device=device), last]
                 else:
                     raise ValueError(f"Unknown embedding pooling: {mode}")
 
@@ -350,10 +351,6 @@ def main(cfg: DictConfig) -> None:
     if unavailable:
         raise ValueError(
             f"Plot types {sorted(unavailable)} are not available for this checkpoint/data"
-        )
-    if stage == "pretrained" and cfg.model.pooling == "prediction_token":
-        raise ValueError(
-            "Pretrained checkpoints have no trained prediction token; use mean or last pooling"
         )
 
     device_name = "cuda" if torch.cuda.is_available() else "cpu"
