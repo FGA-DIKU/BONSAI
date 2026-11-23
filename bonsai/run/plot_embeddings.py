@@ -347,6 +347,9 @@ def main(cfg: DictConfig) -> None:
         cfg, run_cfg, stage, hp, data_dir, outcome_path
     )
     plots = make_plot_specs(OmegaConf.to_container(cfg.plots, resolve=True), vocabulary)
+    filenames = [plot["filename"] for plot in plots]
+    if len(filenames) != len(set(filenames)):
+        raise ValueError("Duplicate plot filenames")
 
     available = {"code"} | ({"outcome"} if outcome_path is not None else set())
     if stage == "finetuned":
