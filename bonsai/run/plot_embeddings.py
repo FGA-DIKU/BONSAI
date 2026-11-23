@@ -152,9 +152,13 @@ def load_patients(
 
 def make_plot_specs(plots, vocabulary: dict) -> list[dict]:
     """Resolve the configured code names to IDs from vocabulary.pt."""
+    used_names = {"subject_id", "embedding", "risk", "outcome"}
     for plot in plots:
         if plot["kind"] != "code":
             continue
+        if plot["name"] in used_names:
+            raise ValueError(f"Duplicate or reserved plot name: {plot['name']}")
+        used_names.add(plot["name"])
         if "values" in plot:
             plot["mode"] = "category"
             plot["ids"] = [
