@@ -1,4 +1,5 @@
 """Visualize BONSAI patient embeddings from pretrained or finetuned checkpoints."""
+
 from pathlib import Path
 
 import hydra
@@ -26,9 +27,11 @@ import matplotlib.pyplot as plt
 
 load_dotenv()
 
+
 def get_run_config(checkpoint):
     config_path = checkpoint.parent / "hydra" / "config.yaml"
     return OmegaConf.load(config_path)
+
 
 def load_model(checkpoint: Path, run_cfg: DictConfig, attn_type=None):
     """Restore a BONSAI model using its original training configuration."""
@@ -65,16 +68,16 @@ def load_model(checkpoint: Path, run_cfg: DictConfig, attn_type=None):
 
     return model.eval(), hp, stage, model_kwargs["attn_type"]
 
+
 def load_patients(
-        cfg: DictConfig,
-        run_cfg: DictConfig,
-        stage: str,
-        hp: dict,
-        data_dir: Path,
-        outcome_path: str | None,
-    ):
+    cfg: DictConfig,
+    run_cfg: DictConfig,
+    stage: str,
+    hp: dict,
+    data_dir: Path,
+    outcome_path: str | None,
+):
     """Apply the same BONSAI censoring/truncation to tokenized patient shards."""
-    
 
     population_name = cfg.paths.get("population") or Path(run_cfg.paths.population).name
     population_path = data_dir / "cohorts" / population_name
@@ -82,7 +85,6 @@ def load_patients(
     if not population_path.is_file():
         raise FileNotFoundError(f"Population file not found: {population_path}")
 
-    
     max_len = run_cfg.training.max_len
     if outcome_path is None:
         if stage == "finetuned":
@@ -119,11 +121,13 @@ def load_patients(
             start = cfg.get("labels", {}).get("start_include")
             end = cfg.get("labels", {}).get("end_include")
             if start is None:
-                raise ValueError("Pretrained models require a label window for outcome plots")
-            
-        labels = finalize_outcomes(
-                    binarize_outcomes(outcomes, start_include=start, end_include=end)
+                raise ValueError(
+                    "Pretrained models require a label window for outcome plots"
                 )
+
+        labels = finalize_outcomes(
+            binarize_outcomes(outcomes, start_include=start, end_include=end)
+        )
         data_module = FinetuneDataModule(
             path_train_data=None,
             path_val_data=None,
@@ -144,7 +148,7 @@ def load_patients(
     return DataLoader(
         dataset,
         batch_size=run_cfg.training.batch_size,
-        num_workers=run_cfg.hardware.num_workers,   
+        num_workers=run_cfg.hardware.num_workers,
         shuffle=False,
         collate_fn=collate_fn,
     )
@@ -235,13 +239,19 @@ def predict_embeddings(
                 last_hidden = hidden[rows, last]
 
                 if stage == "finetuned":
-                    if not torch.all(batch["code"][rows, last] == hp["predict_token_id"]):
+                    if not torch.all(
+                        batch["code"][rows, last] == hp["predict_token_id"]
+                    ):
                         raise ValueError("Prediction token is not the last valid token")
 
                     risk = model.finetune_head(last_hidden).sigmoid().flatten()
                     results["risk"].append(risk.float().cpu().numpy())
 
-                mode = ("last" if stage == "finetuned" else "mean") if pooling == "auto" else pooling
+                mode = (
+                    ("last" if stage == "finetuned" else "mean")
+                    if pooling == "auto"
+                    else pooling
+                )
 
                 if mode == "last":
                     embedding = last_hidden
@@ -343,9 +353,7 @@ def main(cfg: DictConfig) -> None:
         attn_type=cfg.inference.get("attn_type"),
     )
 
-    loader = load_patients(
-        cfg, run_cfg, stage, hp, data_dir, outcome_path
-    )
+    loader = load_patients(cfg, run_cfg, stage, hp, data_dir, outcome_path)
     plots = make_plot_specs(OmegaConf.to_container(cfg.plots, resolve=True), vocabulary)
     filenames = [plot["filename"] for plot in plots]
     if len(filenames) != len(set(filenames)):
