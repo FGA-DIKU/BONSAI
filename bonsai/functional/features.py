@@ -97,25 +97,23 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     return df, dob_rows
 
 
-def compute_age(
-    time: Union[pl.Expr, float], dob_time: Union[pl.Expr, float]
-) -> Union[pl.Expr, float]:
+def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
     """
-    Compute age in years from time and DOB expressions, or from two abspos values.
+    Compute age in years from time and DOB expressions.
     """
-    if isinstance(time, pl.Expr):
-        return (
-            (
-                time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
-            ).dt.total_milliseconds()
-            / MS_PER_YEAR
-        ).cast(pl.Float32)
-    if isinstance(time, (int, float)):
-        return float((time - dob_time) * MS_PER_ABSPOS / MS_PER_YEAR)
+    return (
+        (
+            time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
+        ).dt.total_milliseconds()
+        / MS_PER_YEAR
+    ).cast(pl.Float32)
 
-    raise TypeError(
-        "Invalid type for time, only pl.Expr and abspos floats are supported."
-    )
+
+def compute_age_from_abspos(abspos: float, dob_abspos: float) -> float:
+    """
+    Compute age in years from an abspos and the DOB abspos.
+    """
+    return float((abspos - dob_abspos) * MS_PER_ABSPOS / MS_PER_YEAR)
 
 
 def compute_abspos(

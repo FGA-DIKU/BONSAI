@@ -7,6 +7,7 @@ import polars as pl
 from bonsai.functional.features import (
     compute_abspos,
     compute_age,
+    compute_age_from_abspos,
     compute_segments,
     create_background,
     create_features,
@@ -75,10 +76,8 @@ class TestFeatures(unittest.TestCase):
 
     def test_compute_age_from_abspos(self):
         dob, later = datetime(1980, 1, 1), datetime(2020, 1, 1)
-        age = compute_age(compute_abspos(later), compute_abspos(dob))
+        age = compute_age_from_abspos(compute_abspos(later), compute_abspos(dob))
         self.assertAlmostEqual(age, 40.0, places=1)
-        with self.assertRaises(TypeError):
-            compute_age(later, dob)
 
     def test_compute_abspos(self):
         times = pl.Series(

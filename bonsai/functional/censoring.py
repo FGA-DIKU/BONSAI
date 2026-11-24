@@ -3,7 +3,7 @@ from typing import Optional
 
 import torch
 
-from bonsai.functional.features import compute_age
+from bonsai.functional.features import compute_age_from_abspos
 
 
 def censor_subject(
@@ -62,7 +62,9 @@ def append_predict_token(
             )
         )
 
-    age_in_years = compute_age(censor_date_abspos, float(subject["abspos"][0]))
+    age_in_years = compute_age_from_abspos(
+        censor_date_abspos, dob_abspos=float(subject["abspos"][0])
+    )
     subject["age"] = torch.cat(
         (
             subject["age"],
