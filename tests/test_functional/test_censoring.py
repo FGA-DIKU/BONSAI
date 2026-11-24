@@ -1,6 +1,9 @@
 import unittest
+from datetime import datetime
+
 import torch
 from bonsai.functional.censoring import censor_subject, append_predict_token
+from bonsai.functional.features import compute_abspos, compute_age
 
 
 class TestCensoring(unittest.TestCase):
@@ -50,7 +53,7 @@ class TestCensoring(unittest.TestCase):
         )
         self.assertTrue(torch.equal(censored["segment"], torch.tensor([0, 0, 1, 2])))
         # Check age: last value is calculated as in append_predict_token
-        expected_age = float((censor_date - 10) / (365.25 * 24))
+        expected_age = compute_age(censor_date, 10.0)
         self.assertAlmostEqual(censored["age"][-1].item(), expected_age, places=6)
 
     def test_append_predict_token(self):
@@ -70,5 +73,16 @@ class TestCensoring(unittest.TestCase):
         self.assertTrue(
             torch.equal(appended["segment"], torch.tensor([0, 0, 1, 1, 2, 2, 3]))
         )
-        expected_age = float((censor_date - 10) / (365.25 * 24))
+        expected_age = compute_age(censor_date, 10.0)
         self.assertAlmostEqual(appended["age"][-1].item(), expected_age, places=6)
+
+    def test_predict_token_age_from_dates(self):
+        subj = {
+            "code": torch.tensor([1]),
+            "abspos": torch.tensor([compute_abspos(datetime(1980, 1, 1))]),
+            "segment": torch.tensor([0]),
+            "age": torch.tensor([0.0]),
+        }
+        censor_date = compute_abspos(datetime(2020, 1, 1))
+        appended = append_predict_token(subj, censor_date, predict_token_id=99)
+        self.assertAlmostEqual(appended["age"][-1].item(), 40.0, places=1)

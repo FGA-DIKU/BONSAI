@@ -4,6 +4,9 @@ from typing import Optional, Tuple, Union
 
 import polars as pl
 
+MS_PER_ABSPOS = 1_000 * 3600 * 1_000  # abspos is measured in thousands of hours
+MS_PER_YEAR = 1_000 * 3600 * 24 * 365.25
+
 
 def create_features(
     df: pl.DataFrame, numeric_column: Optional[str] = None
@@ -94,16 +97,25 @@ def create_background(df: pl.DataFrame) -> Tuple[pl.DataFrame, pl.DataFrame]:
     return df, dob_rows
 
 
-def compute_age(time: pl.Expr, dob_time: pl.Expr) -> pl.Expr:
+def compute_age(
+    time: Union[pl.Expr, float], dob_time: Union[pl.Expr, float]
+) -> Union[pl.Expr, float]:
     """
-    Compute age in years from time and DOB expressions.
+    Compute age in years from time and DOB expressions, or from two abspos values.
     """
-    return (
-        (
-            time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
-        ).dt.total_milliseconds()
-        / (365.25 * 24 * 3600 * 1_000)
-    ).cast(pl.Float32)
+    if isinstance(time, pl.Expr):
+        return (
+            (
+                time.cast(pl.Datetime("ms")) - dob_time.cast(pl.Datetime("ms"))
+            ).dt.total_milliseconds()
+            / MS_PER_YEAR
+        ).cast(pl.Float32)
+    if isinstance(time, (int, float)):
+        return float((time - dob_time) * MS_PER_ABSPOS / MS_PER_YEAR)
+
+    raise TypeError(
+        "Invalid type for time, only pl.Expr and abspos floats are supported."
+    )
 
 
 def compute_abspos(
@@ -114,7 +126,7 @@ def compute_abspos(
     if isinstance(timestamps, (pl.Expr, pl.Series)):
         return (
             timestamps.cast(pl.Datetime("ms")).dt.timestamp("ms").cast(pl.Float64)
-            / (3600 * 1_000 * 1_000)
+            / MS_PER_ABSPOS
         ).cast(pl.Float32)
 
     raise TypeError(

@@ -73,6 +73,13 @@ class TestFeatures(unittest.TestCase):
         bg_ages = features.filter(pl.col("code").str.starts_with("BACKGROUND//"))["age"]
         self.assertTrue((bg_ages.to_numpy() == 0).all())
 
+    def test_compute_age_from_abspos(self):
+        dob, later = datetime(1980, 1, 1), datetime(2020, 1, 1)
+        age = compute_age(compute_abspos(later), compute_abspos(dob))
+        self.assertAlmostEqual(age, 40.0, places=1)
+        with self.assertRaises(TypeError):
+            compute_age(later, dob)
+
     def test_compute_abspos(self):
         times = pl.Series(
             [

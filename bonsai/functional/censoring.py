@@ -3,6 +3,8 @@ from typing import Optional
 
 import torch
 
+from bonsai.functional.features import compute_age
+
 
 def censor_subject(
     subject: dict[str, torch.Tensor],
@@ -60,7 +62,7 @@ def append_predict_token(
             )
         )
 
-    age_in_years = float((censor_date_abspos - subject["abspos"][0]) / (365.25 * 24))
+    age_in_years = compute_age(censor_date_abspos, float(subject["abspos"][0]))
     subject["age"] = torch.cat(
         (
             subject["age"],
