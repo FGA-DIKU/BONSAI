@@ -117,6 +117,68 @@ class TestMatching(unittest.TestCase):
             with self.subTest(criteria=criteria), self.assertRaises(ValueError):
                 get_matches(df, {"occurrence": "all", "criteria": criteria})
 
+    def test_all_with_static_null_time_condition(self):
+        df = pl.DataFrame(
+            {
+                "subject_id": [1, 1, 1, 2, 2, 3, 4, 4],
+                "code": [
+                    "SEX//MAND",
+                    "LABTEST//A",
+                    "LABTEST//A",
+                    "SEX//KVINDE",
+                    "LABTEST//A",
+                    "SEX//MAND",
+                    "SEX//MAND",
+                    "ETH//X",
+                ],
+                "time": [
+                    None,
+                    datetime(2020, 1, 5),
+                    datetime(2020, 1, 10),
+                    None,
+                    datetime(2020, 1, 5),
+                    None,
+                    None,
+                    None,
+                ],
+            }
+        )
+        criteria = {
+            "all": [
+                {"column": "code", "operator": "in", "value": ["SEX//MAND"]},
+                {"column": "code", "operator": "startswith_any", "value": ["LABTEST"]},
+            ]
+        }
+
+        first_matches = get_matches(df, {"occurrence": "first", "criteria": criteria})
+        self.assertEqual(
+            first_matches.to_dict(as_series=False),
+            {"subject_id": [1], "time": [datetime(2020, 1, 5)]},
+        )
+
+        last_matches = get_matches(df, {"occurrence": "last", "criteria": criteria})
+        self.assertEqual(
+            last_matches.to_dict(as_series=False),
+            {"subject_id": [1], "time": [datetime(2020, 1, 10)]},
+        )
+
+        both_static = get_matches(
+            df,
+            {
+                "occurrence": "first",
+                "criteria": {
+                    "all": [
+                        {"column": "code", "operator": "in", "value": ["SEX//MAND"]},
+                        {"column": "code", "operator": "in", "value": ["ETH//X"]},
+                    ]
+                },
+            },
+        )
+        self.assertEqual(
+            both_static.to_dict(as_series=False),
+            {"subject_id": [4], "time": [None]},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

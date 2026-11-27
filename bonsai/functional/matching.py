@@ -24,10 +24,12 @@ def get_condition_expression(condition) -> pl.Expr:
     if dependence == "all_row":
         return pl.all_horizontal(exprs)
     if dependence == "all":
-        # Every condition has been met at or before this row's time
+        # Every condition has been met at or before this row's time, or as a static (null-time) event
         time = pl.col("time")
         return pl.any_horizontal(exprs) & pl.all_horizontal(
-            time >= time.filter(expr).min().over("subject_id") for expr in exprs
+            (time >= time.filter(expr).min().over("subject_id"))
+            | (expr & time.is_null()).any().over("subject_id")
+            for expr in exprs
         )
     raise ValueError(f"Dependence={dependence} not supported")
 
